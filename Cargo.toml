@@ -7,3 +7,4 @@ authors = ["m-mueller678"]
 glium = "0.16.0"
 piston3d-cam = "0.3.0"
 vecmath="0.3.0"
+image = "0.12.3"

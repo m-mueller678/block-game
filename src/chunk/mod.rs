@@ -1,7 +1,7 @@
 mod direction;
 mod block_draw;
 
-pub use self::block_draw::{ChunkUniforms, init_chunk_shader, RenderChunk, BlockGraphicsSupplier, BlockTextureId};
+pub use self::block_draw::{ChunkUniforms, init_chunk_shader, RenderChunk, block_graphics_supplier};
 pub use self::direction::{Direction};
 
 pub const CHUNK_SIZE: usize = 32;

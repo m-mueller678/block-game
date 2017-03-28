@@ -2,15 +2,30 @@
 extern crate glium;
 extern crate cam;
 extern crate vecmath;
+extern crate image;
 
 use std::time::SystemTime;
-use chunk::{BlockGraphicsSupplier, BlockTextureId, RenderChunk, ChunkUniforms, CHUNK_SIZE};
+use chunk::{RenderChunk, ChunkUniforms, CHUNK_SIZE};
+use chunk::block_graphics_supplier::*;
+use glium::texture::CompressedSrgbTexture2dArray;
+use glium::uniforms::SamplerWrapFunction;
+use glium::DisplayBuild;
+use std::io::Cursor;
+
 
 struct BGS {}
 
 impl BlockGraphicsSupplier for BGS {
-    fn get_texture(&self, _: u32, _: chunk::Direction) -> BlockTextureId {
-        0
+    fn get_draw_type(&self, block_id: u32) -> DrawType {
+        if block_id == 0 {
+            DrawType::None
+        } else {
+            DrawType::FullOpaqueBlock([0; 6])
+        }
+    }
+
+    fn texture_size(&self) -> u32 {
+        16
     }
 
     fn is_opaque(&self, block_id: u32) -> bool {
@@ -22,8 +37,15 @@ mod window_util;
 mod chunk;
 
 fn main() {
-    use glium::DisplayBuild;
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
+    let bgs = BGS {};
+    let texture = {
+        let image = image::load(Cursor::new(&include_bytes!("../test.png")[..]),
+                                image::PNG).unwrap().to_rgba();
+        let image_dimensions = image.dimensions();
+        let image = glium::texture::RawImage2d::from_raw_rgba_reversed(image.into_raw(), image_dimensions);
+        CompressedSrgbTexture2dArray::new(&display, vec![image]).unwrap()
+    };
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     chunk::init_chunk_shader(&display).expect("cannot load chunk shader");
     let mut chunk1 = chunk::Chunk::new();
@@ -37,10 +59,10 @@ fn main() {
         }
     }
     let mut rc = Vec::new();
-    for x in -2..3 {
-        for y in -2..3 {
-            for z in -2..3 {
-                rc.push(RenderChunk::new(&display, &chunk1, &BGS {}, [x as f32 * 32., y as f32 * 32., z as f32 * 32.]));
+    for x in -1..2 {
+        for y in -1..2 {
+            for z in -1..2 {
+                rc.push(RenderChunk::new(&display, &chunk1, &bgs, [x as f32 * 32., y as f32 * 32., z as f32 * 32.]));
             }
         }
     }
@@ -50,7 +72,7 @@ fn main() {
     let mut loop_count = 0;
     let start_time = SystemTime::now();
     'main_loop: loop {
-        rc[0].update(&chunk1, &BGS {}, [-64., -64., -64.]);
+        rc[0].update(&chunk1, &bgs, [-64., -64., -64.]);
         use glium::Surface;
         loop_count += 1;
         let mut target = display.draw();
@@ -68,7 +90,7 @@ fn main() {
                 ..Default::default()
             };
             for chunk in rc.iter() {
-                chunk.draw(&mut target, &ChunkUniforms { transform: matrix, light: light }, &params).unwrap();
+                chunk.draw(&mut target, &ChunkUniforms { transform: matrix, light: light, sampler: texture.sampled().wrap_function(SamplerWrapFunction::Repeat) }, &params).unwrap();
             }
         }
         target.finish().unwrap();

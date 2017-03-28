@@ -1,24 +1,55 @@
 use super::direction::Direction;
 use super::{ChunkBlockData, Chunk, CHUNK_SIZE};
+use self::block_graphics_supplier::*;
 use glium::backend::Facade;
 use glium::{VertexBuffer, IndexBuffer, Surface, Program, ProgramCreationError, DrawError};
 use glium::index::PrimitiveType;
 use glium::draw_parameters::DrawParameters;
+use glium::uniforms::Sampler;
+use glium::texture::CompressedSrgbTexture2dArray;
 use std::cell::RefCell;
 use std::thread;
 use vecmath;
 
-pub type BlockTextureId = u32;
+pub mod block_graphics_supplier {
+    pub type BlockTextureId = u32;
 
-pub trait BlockGraphicsSupplier {
-    fn get_texture(&self, block_id: u32, Direction) -> BlockTextureId;
-    fn is_opaque(&self, block_id: u32) -> bool;
+    pub enum DrawType {
+        FullOpaqueBlock([BlockTextureId; 6]),
+        None
+    }
+
+    pub trait BlockGraphicsSupplier {
+        fn get_draw_type(&self, block_id: u32) -> DrawType;
+        fn is_opaque(&self, block_id: u32) -> bool;
+        fn texture_size(&self) -> u32;
+    }
 }
 
 pub struct RenderChunk {
     v_buf: VertexBuffer<Vertex>,
     i_buf: IndexBuffer<u32>,
 }
+
+pub struct ChunkUniforms<'a> {
+    pub transform: [[f32; 4]; 4],
+    pub light: [f32; 3],
+    pub sampler: Sampler<'a, CompressedSrgbTexture2dArray>
+}
+
+pub fn init_chunk_shader<F: Facade>(facade: &F) -> Result<(), ProgramCreationError> {
+    PROGRAM.with(|prog_cell| {
+        let mut prog_opt = prog_cell.borrow_mut();
+        if prog_opt.is_none() {
+            let prog = Program::from_source(facade, VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC, None)?;
+            *prog_opt = Some(prog);
+            Ok(())
+        } else {
+            panic!("chunk shader already initialized in thread {:?}", thread::current().name());
+        }
+    })
+}
+
 
 impl RenderChunk {
     pub fn new<BGS: BlockGraphicsSupplier, F: Facade>(facade: &F, chunk: &Chunk, blocks: &BGS, pos: [f32; 3]) -> Self {
@@ -41,7 +72,7 @@ impl RenderChunk {
             let prog_opt = prog_cell.borrow();
             let prog = prog_opt.as_ref().unwrap_or_else(||
                 panic!("chunk shader not initialized in thread {:?}", thread::current().name()));
-            surface.draw(&self.v_buf, &self.i_buf, prog, &uniform! {matrix:uniforms.transform,light:uniforms.light}, params)
+            surface.draw(&self.v_buf, &self.i_buf, prog, &uniform! {matrix:uniforms.transform,light:uniforms.light,sampler:uniforms.sampler}, params)
         })
     }
     fn get_indices(quad_count: usize) -> Vec<u32> {
@@ -76,10 +107,20 @@ impl RenderChunk {
     }
 }
 
-fn push_row<BGS: BlockGraphicsSupplier>(ver: &mut Vec<Vertex>, start: [usize; 3], data: &ChunkBlockData, direction: Direction, face_outside: bool, blocks: &BGS, chunk_pos: [f32; 3]) {
+fn push_row<BGS: BlockGraphicsSupplier>(
+    ver: &mut Vec<Vertex>, start: [usize; 3],
+    data: &ChunkBlockData,
+    direction: Direction,
+    face_outside: bool,
+    blocks: &BGS,
+    chunk_pos: [f32; 3]
+) {
+    fn get_pos(pos: [usize; 3], chunk_pos: [f32; 3]) -> [f32; 3] {
+        [pos[0] as f32 + chunk_pos[0], pos[1] as f32 + chunk_pos[1], pos[2] as f32 + chunk_pos[2]]
+    }
     let move_direction = direction_to_move_direction(direction);
     let mut len = 0.;
-    let mut block_id = None;
+    let mut texture_id = None;
     for i in 0..CHUNK_SIZE {
         let mut pos = start;
         pos[move_direction] += i;
@@ -88,31 +129,46 @@ fn push_row<BGS: BlockGraphicsSupplier>(ver: &mut Vec<Vertex>, start: [usize; 3]
             let facing_to = direction.apply_to_pos([pos[0] as i32, pos[1] as i32, pos[2] as i32]);
             blocks.is_opaque(data[facing_to[0] as usize][facing_to[1] as usize][facing_to[2] as usize])
         };
-        if let Some(old_block) = block_id {
+        if let Some(old_texture) = texture_id {
             if covered {
-                push_row_face(ver, [pos[0] as f32 + chunk_pos[0], pos[1] as f32 + chunk_pos[1], pos[2] as f32 + chunk_pos[2]], len, direction);
-                block_id = None;
+                push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
+                texture_id = None;
                 len = 0.;
             } else {
-                if old_block == current_block {
-                    len += 1.;
-                } else {
-                    push_row_face(ver, [pos[0] as f32 + chunk_pos[0], pos[1] as f32 + chunk_pos[1], pos[2] as f32 + chunk_pos[2]], len, direction);
-                    block_id = if blocks.is_opaque(current_block) { Some(current_block) } else { None };
-                    len = 1.;
+                match blocks.get_draw_type(current_block) {
+                    DrawType::FullOpaqueBlock(new_texture) => {
+                        let new_texture = new_texture[direction as usize];
+                        if old_texture == new_texture {
+                            len += 1.;
+                        } else {
+                            push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
+                            texture_id = Some(new_texture);
+                            len = 1.;
+                        }
+                    },
+                    DrawType::None => {
+                        push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
+                        texture_id = None;
+                        len = 0.
+                    }
                 }
             }
         } else {
-            if !covered && blocks.is_opaque(current_block) {
-                block_id = Some(current_block);
-                len = 1.;
+            if !covered {
+                match blocks.get_draw_type(current_block) {
+                    DrawType::FullOpaqueBlock(texture) => {
+                        texture_id = Some(texture[direction as usize]);
+                        len = 1.;
+                    },
+                    DrawType::None => {}
+                }
             }
         }
     }
-    if block_id.is_some() {
-        let mut pos = [chunk_pos[0] + start[0] as f32, chunk_pos[1] + start[1] as f32, chunk_pos[2] + start[2] as f32];
+    if let Some(texture) = texture_id {
+        let mut pos = get_pos(start, chunk_pos);
         pos[move_direction] += CHUNK_SIZE as f32;
-        push_row_face(ver, pos, len, direction);
+        push_row_face(ver, pos, len, direction, texture);
     }
 }
 
@@ -148,38 +204,31 @@ fn direction_to_move_direction(d: Direction) -> usize {
     }
 }
 
-fn push_row_face(ver: &mut Vec<Vertex>, end: [f32; 3], length: f32, face_direction: Direction) {
+fn push_row_face(
+    ver: &mut Vec<Vertex>,
+    end: [f32; 3],
+    length: f32,
+    face_direction: Direction,
+    texture_id: BlockTextureId,
+) {
     let corners = direction_to_corners(face_direction);
     let move_direction = direction_to_move_direction(face_direction);
     let mut vertices = [
-        vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]),
-        vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]),
-        vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]),
-        vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]),
+        (vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]), [0., 0.]),
+        (vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]), [1., 0.]),
+        (vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]), [1., length]),
+        (vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]), [0., length]),
     ];
-    vertices[2][move_direction] -= length;
-    vertices[3][move_direction] -= length;
+    vertices[2].0[move_direction] -= length;
+    vertices[3].0[move_direction] -= length;
     for v in vertices.iter() {
-        ver.push(Vertex { position: *v, normal: direction_to_normal(face_direction) });
+        ver.push(Vertex {
+            position: v.0,
+            normal: direction_to_normal(face_direction),
+            tex_coords: v.1,
+            texture_id: texture_id as f32,
+        });
     }
-}
-
-pub fn init_chunk_shader<F: Facade>(facade: &F) -> Result<(), ProgramCreationError> {
-    PROGRAM.with(|prog_cell| {
-        let mut prog_opt = prog_cell.borrow_mut();
-        if prog_opt.is_none() {
-            let prog = Program::from_source(facade, VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC, None)?;
-            *prog_opt = Some(prog);
-            Ok(())
-        } else {
-            panic!("chunk shader already initialized in thread {:?}", thread::current().name());
-        }
-    })
-}
-
-pub struct ChunkUniforms {
-    pub transform: [[f32; 4]; 4],
-    pub light: [f32; 3],
 }
 
 thread_local! {
@@ -190,17 +239,23 @@ static PROGRAM: RefCell < Option < Program > >= RefCell::new(None)
 struct Vertex {
     position: [f32; 3],
     normal: [f32; 3],
+    texture_id: f32,
+    tex_coords: [f32; 2],
 }
 
-implement_vertex!(Vertex, position, normal);
+implement_vertex!(Vertex, position, normal,texture_id,tex_coords);
 
 const VERTEX_SHADER_SRC: &'static str = r#"
     #version 140
 
     in vec3 normal;
     in vec3 position;
+    in vec2 tex_coords;
+    in float texture_id;
 
     out float brightness;
+    out vec2 v_tex_coords;
+    out float v_texture_id;
 
     uniform mat4 matrix;
     uniform vec3 light;
@@ -208,6 +263,8 @@ const VERTEX_SHADER_SRC: &'static str = r#"
     void main() {
         gl_Position = matrix*vec4(position, 1.0);
         brightness = mix(0.6,1.0,abs(dot(normalize(light),normalize(normal))));
+        v_tex_coords=tex_coords;
+        v_texture_id=texture_id;
     }
 "#;
 
@@ -215,10 +272,15 @@ const FRAGMENT_SHADER_SRC: &'static str = r#"
     #version 140
 
     in float brightness;
+    in vec2 v_tex_coords;
+    in float v_texture_id;
 
     out vec4 color;
 
+    uniform sampler2DArray sampler;
+
+
     void main() {
-        color=vec4(brightness,0.,0.,1.);
+        color=texture(sampler,vec3(v_tex_coords,floor(v_texture_id+0.5)));
     }
 "#;
