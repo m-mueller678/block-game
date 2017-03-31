@@ -10,6 +10,7 @@ use glium::texture::CompressedSrgbTexture2dArray;
 use std::cell::RefCell;
 use std::thread;
 use vecmath;
+use geometry::CORNER_OFFSET;
 
 pub mod block_graphics_supplier {
     use block::BlockId;
@@ -73,11 +74,14 @@ impl RenderChunk {
         }
     }
     pub fn update<BGS: BlockGraphicsSupplier>(&mut self, chunk: &Chunk, blocks: &BGS, pos: [f32; 3]) {
-        let vertex = Self::get_vertices(&chunk.data, blocks, pos);
-        let index = Self::get_indices(vertex.len() / 4);
-        let facade = self.v_buf.get_context().clone();
-        self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
-        self.i_buf = IndexBuffer::new(&facade, PrimitiveType::TrianglesList, &index).unwrap();
+        if chunk.changed.get() {
+            let vertex = Self::get_vertices(&chunk.data, blocks, pos);
+            let index = Self::get_indices(vertex.len() / 4);
+            let facade = self.v_buf.get_context().clone();
+            self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
+            self.i_buf = IndexBuffer::new(&facade, PrimitiveType::TrianglesList, &index).unwrap();
+            chunk.changed.set(false);
+        }
     }
     pub fn draw<S: Surface>(&self, surface: &mut S, uniforms: &ChunkUniforms, params: &DrawParameters) -> Result<(), DrawError> {
         PROGRAM.with(|prog_cell| {
@@ -188,11 +192,6 @@ fn direction_to_normal(d: Direction) -> [f32; 3] {
     let normal = d.offset();
     [normal[0] as f32, normal[1] as f32, normal[2] as f32]
 }
-
-const CORNER_OFFSET: [[f32; 3]; 8] = [
-    [1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.],
-    [1., 0., 1.], [0., 0., 1.], [0., 1., 1.], [1., 1., 1.],
-];
 
 fn direction_to_corners(d: Direction) -> [usize; 2] {
     match d {
