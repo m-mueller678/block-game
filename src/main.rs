@@ -24,10 +24,6 @@ impl BlockGraphicsSupplier for BGS {
         }
     }
 
-    fn texture_size(&self) -> u32 {
-        16
-    }
-
     fn is_opaque(&self, block_id: u32) -> bool {
         block_id != 0
     }

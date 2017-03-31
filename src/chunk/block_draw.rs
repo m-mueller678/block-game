@@ -22,7 +22,6 @@ pub mod block_graphics_supplier {
     pub trait BlockGraphicsSupplier {
         fn get_draw_type(&self, block_id: u32) -> DrawType;
         fn is_opaque(&self, block_id: u32) -> bool;
-        fn texture_size(&self) -> u32;
     }
 }
 
