@@ -12,29 +12,14 @@ use glium::uniforms::SamplerWrapFunction;
 use glium::DisplayBuild;
 use std::io::Cursor;
 
-
-struct BGS {}
-
-impl BlockGraphicsSupplier for BGS {
-    fn get_draw_type(&self, block_id: u32) -> DrawType {
-        if block_id == 0 {
-            DrawType::None
-        } else {
-            DrawType::FullOpaqueBlock([0; 6])
-        }
-    }
-
-    fn is_opaque(&self, block_id: u32) -> bool {
-        block_id != 0
-    }
-}
-
 mod window_util;
 mod chunk;
+mod block;
 
 fn main() {
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
-    let bgs = BGS {};
+    let mut bgs = block::BlockRegistry::new();
+    let block1 = bgs.add(block::Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6])));
     let texture = {
         let image = image::load(Cursor::new(&include_bytes!("../test.png")[..]),
                                 image::PNG).unwrap().to_rgba();
@@ -49,7 +34,7 @@ fn main() {
         for y in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 if ((x % 32 < 16) ^ (z % 32 < 16)) && y % 2 == 0 {
-                    chunk1.set_block(&[x, y, z], 1);
+                    chunk1.set_block(&[x, y, z], block1);
                 }
             }
         }
@@ -68,7 +53,6 @@ fn main() {
     let mut loop_count = 0;
     let start_time = SystemTime::now();
     'main_loop: loop {
-        rc[0].update(&chunk1, &bgs, [-64., -64., -64.]);
         use glium::Surface;
         loop_count += 1;
         let mut target = display.draw();

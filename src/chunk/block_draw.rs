@@ -12,16 +12,29 @@ use std::thread;
 use vecmath;
 
 pub mod block_graphics_supplier {
-    pub type BlockTextureId = u32;
+    use block::BlockId;
 
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct BlockTextureId(u32);
+
+    impl BlockTextureId {
+        pub fn new(i: u32) -> Self {
+            BlockTextureId(i)
+        }
+        pub fn to_f32(&self) -> f32 {
+            self.0 as f32
+        }
+    }
+
+    #[derive(Clone)]
     pub enum DrawType {
         FullOpaqueBlock([BlockTextureId; 6]),
         None
     }
 
     pub trait BlockGraphicsSupplier {
-        fn get_draw_type(&self, block_id: u32) -> DrawType;
-        fn is_opaque(&self, block_id: u32) -> bool;
+        fn get_draw_type(&self, block_id: BlockId) -> DrawType;
+        fn is_opaque(&self, block_id: BlockId) -> bool;
     }
 }
 
@@ -225,7 +238,7 @@ fn push_row_face(
             position: v.0,
             normal: direction_to_normal(face_direction),
             tex_coords: v.1,
-            texture_id: texture_id as f32,
+            texture_id: texture_id.to_f32(),
         });
     }
 }
