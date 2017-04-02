@@ -4,6 +4,7 @@ extern crate cam;
 extern crate vecmath;
 extern crate image;
 extern crate num;
+extern crate md5;
 
 use std::time::SystemTime;
 use chunk::block_graphics_supplier::*;
@@ -33,7 +34,7 @@ fn main() {
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     chunk::init_chunk_shader(&display).expect("cannot load chunk shader");
 
-    let mut world = world::World::new(&bgs);
+    let mut world = world::World::new(&bgs, world::Generator::new(block1));
     let mut world_render = world::WorldRender::new(&display);
     world_render.update(&[0, 0, 0], &world);
 
@@ -46,7 +47,7 @@ fn main() {
     'main_loop: loop {
         let cam_pos = camera.position;
         let cam_pos = [cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32];
-        world.set_block(&cam_pos, block1);
+        world.gen_area(&cam_pos, 4);
         world_render.update(&cam_pos, &world);
         use glium::Surface;
         loop_count += 1;
