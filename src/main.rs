@@ -39,7 +39,7 @@ fn main() {
     world_render.update(&[0, 0, 0], &world);
 
     let (mut yaw, mut pitch) = (0., 0.);
-    let mut camera = cam::Camera::new([0., 0., -0.]);
+    let mut camera = cam::Camera::new([0., 300., -0.]);
     let perspective = cam::CameraPerspective { fov: 90., near_clip: 0.05, far_clip: 1000., aspect_ratio: 1.0 };
     let mut loop_count = 0;
 
