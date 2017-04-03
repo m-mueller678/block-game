@@ -74,14 +74,11 @@ impl RenderChunk {
         }
     }
     pub fn update<BGS: BlockGraphicsSupplier>(&mut self, chunk: &Chunk, blocks: &BGS, pos: [f32; 3]) {
-        if chunk.changed.get() {
-            let vertex = Self::get_vertices(&chunk.data, blocks, pos);
-            let index = Self::get_indices(vertex.len() / 4);
-            let facade = self.v_buf.get_context().clone();
-            self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
-            self.i_buf = IndexBuffer::new(&facade, PrimitiveType::TrianglesList, &index).unwrap();
-            chunk.changed.set(false);
-        }
+        let vertex = Self::get_vertices(&chunk.data, blocks, pos);
+        let index = Self::get_indices(vertex.len() / 4);
+        let facade = self.v_buf.get_context().clone();
+        self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
+        self.i_buf = IndexBuffer::new(&facade, PrimitiveType::TrianglesList, &index).unwrap();
     }
     pub fn draw<S: Surface>(&self, surface: &mut S, uniforms: &ChunkUniforms, params: &DrawParameters) -> Result<(), DrawError> {
         PROGRAM.with(|prog_cell| {

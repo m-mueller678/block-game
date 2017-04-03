@@ -2,21 +2,31 @@ pub use self::generator::Generator;
 use block::{BlockId, BlockRegistry};
 use std::collections::hash_map::{HashMap};
 use chunk::{Chunk, CHUNK_SIZE, RenderChunk, ChunkUniforms};
+use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicBool, Ordering};
 use glium;
 use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
 
 mod generator;
 
-pub struct World<'a> {
-    chunks: HashMap<[i32; 3], Chunk>,
-    blocks: &'a BlockRegistry,
-    generator: Generator
+pub struct World {
+    chunks: HashMap<[i32; 3], ChunkData>,
+    inserter: Mutex<(Generator, Vec<([i32; 3], Chunk)>)>,
+    blocks: Arc<BlockRegistry>,
 }
 
+pub enum ChunkAccessError {
+    NoChunk
+}
 
-impl<'a> World<'a> {
-    pub fn gen_area(&mut self, pos: &[i32; 3], range: i32) {
+struct ChunkData {
+    chunk: Mutex<Chunk>,
+    update_render: AtomicBool,
+}
+
+impl World {
+    pub fn gen_area(&self, pos: &[i32; 3], range: i32) {
         let base = Self::chunk_at(pos);
         for x in (base[0] - range)..(base[0] + range + 1) {
             for y in (base[1] - range)..(base[1] + range + 1) {
@@ -26,7 +36,18 @@ impl<'a> World<'a> {
             }
         }
     }
-    pub fn set_block(&mut self, pos: &[i32; 3], block: BlockId) {
+    pub fn flush_chunks(&mut self) {
+        use std::mem::replace;
+        let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
+        let buffer = replace(buffer, Vec::new());
+        for (pos, chunk) in buffer.into_iter() {
+            self.chunks.insert(pos, ChunkData {
+                chunk: Mutex::new(chunk),
+                update_render: AtomicBool::new(false)
+            });
+        }
+    }
+    pub fn set_block(&self, pos: &[i32; 3], block: BlockId) -> Result<(), ChunkAccessError> {
         use num::Integer;
         let chunk_size = CHUNK_SIZE as i32;
         let chunk_pos = [
@@ -34,13 +55,19 @@ impl<'a> World<'a> {
             pos[1].mod_floor(&chunk_size) as usize,
             pos[2].mod_floor(&chunk_size) as usize,
         ];
-        self.create_chunk(&Self::chunk_at(pos)).set_block(&chunk_pos, block);
+        if let Some(chunk) = self.chunks.get(&Self::chunk_at(pos)) {
+            chunk.chunk.lock().unwrap().set_block(&chunk_pos, block);
+            chunk.update_render.store(true, Ordering::Relaxed);
+            Ok(())
+        } else {
+            Err(ChunkAccessError::NoChunk)
+        }
     }
-    pub fn new(blocks: &'a BlockRegistry, generator: Generator) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, generator: Generator) -> Self {
         World {
             chunks: HashMap::new(),
             blocks: blocks,
-            generator: generator,
+            inserter: Mutex::new((generator, Vec::new())),
         }
     }
     fn chunk_at(pos: &[i32; 3]) -> [i32; 3] {
@@ -51,9 +78,13 @@ impl<'a> World<'a> {
             pos[2].div_floor(&(CHUNK_SIZE as i32)),
         ]
     }
-    fn create_chunk(&mut self, pos: &[i32; 3]) -> &mut Chunk {
-        let gen = &mut self.generator;
-        self.chunks.entry(*pos).or_insert_with(|| gen.gen_chunk(pos))
+    fn create_chunk(&self, pos: &[i32; 3]) {
+        if !self.chunks.contains_key(pos) {
+            let (ref mut generator, ref mut buffer) = *self.inserter.lock().unwrap();
+            if !buffer.iter().any(|&(p, _)| p == *pos) {
+                buffer.push((*pos, generator.gen_chunk(pos)));
+            }
+        }
     }
 }
 
@@ -129,7 +160,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
                                 chunk_pos[1] as f32 * CHUNK_SIZE as f32,
                                 chunk_pos[2] as f32 * CHUNK_SIZE as f32
                             ];
-                            let render_chunk = RenderChunk::new(self.facade, &chunk, world.blocks, fpos);
+                            let render_chunk = RenderChunk::new(self.facade, &*chunk.chunk.lock().unwrap(), &*world.blocks, fpos);
                             self.render_chunks.push((chunk_pos, render_chunk));
                         }
                     }
@@ -142,7 +173,10 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
                 chunk.0[1] as f32 * CHUNK_SIZE as f32,
                 chunk.0[2] as f32 * CHUNK_SIZE as f32
             ];
-            chunk.1.update(world.chunks.get(&chunk.0).unwrap(), world.blocks, fpos);
+            let world_chunk = world.chunks.get(&chunk.0).unwrap();
+            if world_chunk.update_render.swap(false, Ordering::Relaxed) {
+                chunk.1.update(&*world_chunk.chunk.lock().unwrap(), &*world.blocks, fpos);
+            }
         }
     }
 }

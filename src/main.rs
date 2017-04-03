@@ -6,12 +6,17 @@ extern crate image;
 extern crate num;
 extern crate md5;
 
-use std::time::SystemTime;
 use chunk::block_graphics_supplier::*;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::uniforms::SamplerWrapFunction;
 use glium::DisplayBuild;
+use glium::Surface;
 use std::io::Cursor;
+use std::sync::{RwLock, Arc};
+use world::World;
+use std::sync::mpsc::{Sender, channel, TryRecvError};
+use std::thread;
+use std::time::Duration;
 
 mod window_util;
 mod chunk;
@@ -19,10 +24,7 @@ mod block;
 mod world;
 mod geometry;
 
-fn main() {
-    let mut bgs = block::BlockRegistry::new();
-    let block1 = bgs.add(block::Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6])));
-
+fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<[f32; 3]>) {
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = {
         let image = image::load(Cursor::new(&include_bytes!("../test.png")[..]),
@@ -34,23 +36,13 @@ fn main() {
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     chunk::init_chunk_shader(&display).expect("cannot load chunk shader");
 
-    let mut world = world::World::new(&bgs, world::Generator::new(block1));
-    let mut world_render = world::WorldRender::new(&display);
-    world_render.update(&[0, 0, 0], &world);
-
     let (mut yaw, mut pitch) = (0., 0.);
-    let mut camera = cam::Camera::new([0., 300., -0.]);
+    let mut camera = cam::Camera::new([0., 100., -0.]);
     let perspective = cam::CameraPerspective { fov: 90., near_clip: 0.05, far_clip: 1000., aspect_ratio: 1.0 };
-    let mut loop_count = 0;
-
-    let start_time = SystemTime::now();
+    let mut world_render = world::WorldRender::new(&display);
     'main_loop: loop {
-        let cam_pos = camera.position;
-        let cam_pos = [cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32];
-        world.gen_area(&cam_pos, 4);
-        world_render.update(&cam_pos, &world);
-        use glium::Surface;
-        loop_count += 1;
+        let pos = [camera.position[0] as i32, camera.position[1] as i32, camera.position[2] as i32];
+        world_render.update(&pos, &world.read().unwrap());
         let mut target = display.draw();
         target.clear_color_and_depth((0., 0., 1., 1.), 1.0);
         {
@@ -73,25 +65,54 @@ fn main() {
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::W)) => {
                     camera.position = vecmath::vec3_sub(camera.position, camera.forward);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::S)) => {
                     camera.position = vecmath::vec3_add(camera.position, camera.forward);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::D)) => {
                     camera.position = vecmath::vec3_add(camera.position, camera.right);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::A)) => {
                     camera.position = vecmath::vec3_sub(camera.position, camera.right);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::E)) => {
                     camera.position = vecmath::vec3_add(camera.position, camera.up);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 glium::glutin::Event::KeyboardInput(glium::glutin::ElementState::Pressed, _, Some(glium::glutin::VirtualKeyCode::Q)) => {
                     camera.position = vecmath::vec3_sub(camera.position, camera.up);
+                    cam_pos.send(camera.position).unwrap();
                 },
                 _ => ()
             }
         }
     }
-    println!("{}", SystemTime::now().duration_since(start_time).unwrap().as_secs() as f32 / loop_count as f32 * 1000.);
+}
+
+fn main() {
+    let mut bgs = block::BlockRegistry::new();
+    let block1 = bgs.add(block::Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6])));
+    let world = Arc::new(RwLock::new(world::World::new(Arc::new(bgs), world::Generator::new(block1))));
+    let (send, rec) = channel();
+    {
+        let world2 = world.clone();
+        thread::spawn(|| { run_graphics(world2, send) });
+    }
+    loop {
+        let mut cam_pos = [0.; 3];
+        loop {
+            match rec.try_recv() {
+                Ok(pos) => cam_pos = pos,
+                Err(TryRecvError::Disconnected) => return,
+                Err(TryRecvError::Empty) => break,
+            }
+        }
+        world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
+        world.write().unwrap().flush_chunks();
+        thread::sleep(Duration::from_millis(20));
+    }
 }
