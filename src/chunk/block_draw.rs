@@ -1,5 +1,5 @@
-use super::direction::Direction;
-use super::{ChunkBlockData, Chunk, CHUNK_SIZE};
+use super::direction::{Direction, ALL_DIRECTIONS};
+use super::{Chunk, CHUNK_SIZE};
 use self::block_graphics_supplier::*;
 use glium::backend::Facade;
 use glium::{VertexBuffer, IndexBuffer, Surface, Program, ProgramCreationError, DrawError};
@@ -9,8 +9,8 @@ use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
 use std::cell::RefCell;
 use std::thread;
-use vecmath;
-use geometry::CORNER_OFFSET;
+use geometry::{CORNER_OFFSET, CUBE_FACES};
+use world::{World, ChunkReader};
 
 pub mod block_graphics_supplier {
     use block::BlockId;
@@ -65,16 +65,16 @@ pub fn init_chunk_shader<F: Facade>(facade: &F) -> Result<(), ProgramCreationErr
 
 
 impl RenderChunk {
-    pub fn new<BGS: BlockGraphicsSupplier, F: Facade>(facade: &F, chunk: &Chunk, blocks: &BGS, pos: [f32; 3]) -> Self {
-        let vertex = Self::get_vertices(&chunk.data, blocks, pos);
+    pub fn new<F: Facade>(facade: &F, world: &World, pos: [i32; 3]) -> Self {
+        let vertex = Self::get_vertices(world, world.blocks(), pos);
         let index = Self::get_indices(vertex.len() / 4);
         RenderChunk {
             v_buf: VertexBuffer::new(facade, &vertex).unwrap(),
             i_buf: IndexBuffer::new(facade, PrimitiveType::TrianglesList, &index).unwrap(),
         }
     }
-    pub fn update<BGS: BlockGraphicsSupplier>(&mut self, chunk: &Chunk, blocks: &BGS, pos: [f32; 3]) {
-        let vertex = Self::get_vertices(&chunk.data, blocks, pos);
+    pub fn update(&mut self, world: &World, pos: [i32; 3]) {
+        let vertex = Self::get_vertices(world, world.blocks(), pos);
         let index = Self::get_indices(vertex.len() / 4);
         let facade = self.v_buf.get_context().clone();
         self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
@@ -85,7 +85,7 @@ impl RenderChunk {
             let prog_opt = prog_cell.borrow();
             let prog = prog_opt.as_ref().unwrap_or_else(||
                 panic!("chunk shader not initialized in thread {:?}", thread::current().name()));
-            surface.draw(&self.v_buf, &self.i_buf, prog, &uniform! {matrix:uniforms.transform,light:uniforms.light,sampler:uniforms.sampler}, params)
+            surface.draw(&self.v_buf, &self.i_buf, prog, &uniform! {matrix:uniforms.transform,light_direction:uniforms.light,sampler:uniforms.sampler}, params)
         })
     }
     fn get_indices(quad_count: usize) -> Vec<u32> {
@@ -100,144 +100,86 @@ impl RenderChunk {
         }
         ind
     }
-    fn get_vertices<BGS: BlockGraphicsSupplier>(data: &ChunkBlockData, blocks: &BGS, pos: [f32; 3]) -> Vec<Vertex> {
-        let mut ver = Vec::new();
+    fn get_vertices<BGS: BlockGraphicsSupplier>(world: &World, blocks: &BGS, pos: [i32; 3]) -> Vec<Vertex> {
+        let (chunk, adjacent) = Self::lock_chunks(world, pos);
+        let mut buffer = Vec::new();
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
-                push_row(&mut ver, [x, y, 0], data, Direction::PosX, x == (CHUNK_SIZE - 1), blocks, pos);
-                push_row(&mut ver, [x, y, 0], data, Direction::NegX, x == 0, blocks, pos);
-            }
-        }
-        for y in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                push_row(&mut ver, [0, y, z], data, Direction::PosZ, z == (CHUNK_SIZE - 1), blocks, pos);
-                push_row(&mut ver, [0, y, z], data, Direction::NegZ, z == 0, blocks, pos);
-                push_row(&mut ver, [0, y, z], data, Direction::PosY, y == (CHUNK_SIZE - 1), blocks, pos);
-                push_row(&mut ver, [0, y, z], data, Direction::NegY, y == 0, blocks, pos);
-            }
-        }
-        ver
-    }
-}
-
-fn push_row<BGS: BlockGraphicsSupplier>(
-    ver: &mut Vec<Vertex>, start: [usize; 3],
-    data: &ChunkBlockData,
-    direction: Direction,
-    face_outside: bool,
-    blocks: &BGS,
-    chunk_pos: [f32; 3]
-) {
-    fn get_pos(pos: [usize; 3], chunk_pos: [f32; 3]) -> [f32; 3] {
-        [pos[0] as f32 + chunk_pos[0], pos[1] as f32 + chunk_pos[1], pos[2] as f32 + chunk_pos[2]]
-    }
-    let move_direction = direction_to_move_direction(direction);
-    let mut len = 0.;
-    let mut texture_id = None;
-    for i in 0..CHUNK_SIZE {
-        let mut pos = start;
-        pos[move_direction] += i;
-        let current_block = data[pos[0]][pos[1]][pos[2]];
-        let covered = !face_outside && {
-            let facing_to = direction.apply_to_pos([pos[0] as i32, pos[1] as i32, pos[2] as i32]);
-            blocks.is_opaque(data[facing_to[0] as usize][facing_to[1] as usize][facing_to[2] as usize])
-        };
-        if let Some(old_texture) = texture_id {
-            if covered {
-                push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
-                texture_id = None;
-                len = 0.;
-            } else {
-                match blocks.get_draw_type(current_block) {
-                    DrawType::FullOpaqueBlock(new_texture) => {
-                        let new_texture = new_texture[direction as usize];
-                        if old_texture == new_texture {
-                            len += 1.;
-                        } else {
-                            push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
-                            texture_id = Some(new_texture);
-                            len = 1.;
+                for z in 0..CHUNK_SIZE {
+                    let id = chunk.data[Chunk::u_index(&[x, y, z])];
+                    match blocks.get_draw_type(id) {
+                        DrawType::FullOpaqueBlock(textures) => {
+                            for d in ALL_DIRECTIONS.iter() {
+                                if let (Some(facing_chunk), facing_index) = Self::get_block_at(&chunk, &adjacent, [x, y, z], *d) {
+                                    let visible = match blocks.get_draw_type(facing_chunk.data[facing_index]) {
+                                        DrawType::FullOpaqueBlock(_) => false,
+                                        DrawType::None => true,
+                                    };
+                                    if visible {
+                                        let float_pos = [
+                                            pos[0] as f32 * CHUNK_SIZE as f32 + x as f32,
+                                            pos[1] as f32 * CHUNK_SIZE as f32 + y as f32,
+                                            pos[2] as f32 * CHUNK_SIZE as f32 + z as f32
+                                        ];
+                                        Self::push_face(&mut buffer, float_pos, *d, textures[*d as usize], facing_chunk.light[facing_index].0);
+                                    }
+                                }
+                            }
                         }
-                    },
-                    DrawType::None => {
-                        push_row_face(ver, get_pos(pos, chunk_pos), len, direction, old_texture);
-                        texture_id = None;
-                        len = 0.
+                        DrawType::None => {}
                     }
                 }
             }
-        } else {
-            if !covered {
-                match blocks.get_draw_type(current_block) {
-                    DrawType::FullOpaqueBlock(texture) => {
-                        texture_id = Some(texture[direction as usize]);
-                        len = 1.;
-                    },
-                    DrawType::None => {}
-                }
-            }
+        }
+        buffer
+    }
+    fn lock_chunks(world: &World, pos: [i32; 3]) -> (ChunkReader, [Option<ChunkReader>; 6]) {
+        let l1 = world.lock_chunk(&[pos[0] - 1, pos[1], pos[2]]);
+        let l2 = world.lock_chunk(&[pos[0], pos[1] - 1, pos[2]]);
+        let l3 = world.lock_chunk(&[pos[0], pos[1], pos[2] - 1]);
+        let l4 = world.lock_chunk(&[pos[0], pos[1], pos[2]]).expect("RenderChunk: chunk does not exist");
+        let l5 = world.lock_chunk(&[pos[0], pos[1], pos[2] + 1]);
+        let l6 = world.lock_chunk(&[pos[0], pos[1] + 1, pos[2]]);
+        let l7 = world.lock_chunk(&[pos[0] + 1, pos[1], pos[2]]);
+        (l4, [l7, l1, l6, l2, l5, l3])
+    }
+    fn push_face(buffer: &mut Vec<Vertex>, pos: [f32; 3], direction: Direction, texture: BlockTextureId, light: u8) {
+        use vecmath::vec3_add;
+        let vertices = CUBE_FACES[direction as usize];
+        let tex_coords = [[0., 0.], [0., 1.], [1., 1.], [1., 0.]];
+        for i in 0..4 {
+            let normal = direction.offset();
+            buffer.push(Vertex {
+                position: vec3_add(pos, CORNER_OFFSET[vertices[i]]),
+                normal: [normal[0] as f32, normal[1] as f32, normal[2] as f32],
+                tex_coords: tex_coords[i],
+                texture_id: texture.to_f32(),
+                light_level: light as f32 / 15.,
+            });
         }
     }
-    if let Some(texture) = texture_id {
-        let mut pos = get_pos(start, chunk_pos);
-        pos[move_direction] += CHUNK_SIZE as f32;
-        push_row_face(ver, pos, len, direction, texture);
+    fn get_block_at<'a, 'b>(chunk: &'b ChunkReader<'a>, adjacent: &'b [Option<ChunkReader<'a>>; 6], mut pos: [usize; 3], d: Direction) -> (Option<&'b ChunkReader<'a>>, usize) {
+        let outside = match d {
+            Direction::PosX => pos[0] + 1 == CHUNK_SIZE,
+            Direction::PosY => pos[1] + 1 == CHUNK_SIZE,
+            Direction::PosZ => pos[2] + 1 == CHUNK_SIZE,
+            Direction::NegX => pos[0] == 0,
+            Direction::NegY => pos[1] == 0,
+            Direction::NegZ => pos[2] == 0,
+        };
+        match d {
+            Direction::PosX => pos[0] = (pos[0] + 1) % CHUNK_SIZE,
+            Direction::PosY => pos[1] = (pos[1] + 1) % CHUNK_SIZE,
+            Direction::PosZ => pos[2] = (pos[2] + 1) % CHUNK_SIZE,
+            Direction::NegX => pos[0] = (pos[0] + CHUNK_SIZE - 1) % CHUNK_SIZE,
+            Direction::NegY => pos[1] = (pos[1] + CHUNK_SIZE - 1) % CHUNK_SIZE,
+            Direction::NegZ => pos[2] = (pos[2] + CHUNK_SIZE - 1) % CHUNK_SIZE,
+        };
+        (if outside { adjacent[d as usize].as_ref() } else { Some(chunk) }, Chunk::u_index(&pos))
     }
 }
 
-fn direction_to_normal(d: Direction) -> [f32; 3] {
-    let normal = d.offset();
-    [normal[0] as f32, normal[1] as f32, normal[2] as f32]
-}
 
-fn direction_to_corners(d: Direction) -> [usize; 2] {
-    match d {
-        Direction::PosX => [3, 0],
-        Direction::NegX => [1, 2],
-        Direction::PosY => [6, 2],
-        Direction::NegY => [1, 5],
-        Direction::PosZ => [5, 6],
-        Direction::NegZ => [2, 1],
-    }
-}
-
-fn direction_to_move_direction(d: Direction) -> usize {
-    match d {
-        Direction::PosX => 2,
-        Direction::NegX => 2,
-        Direction::PosY => 0,
-        Direction::NegY => 0,
-        Direction::PosZ => 0,
-        Direction::NegZ => 0,
-    }
-}
-
-fn push_row_face(
-    ver: &mut Vec<Vertex>,
-    end: [f32; 3],
-    length: f32,
-    face_direction: Direction,
-    texture_id: BlockTextureId,
-) {
-    let corners = direction_to_corners(face_direction);
-    let move_direction = direction_to_move_direction(face_direction);
-    let mut vertices = [
-        (vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]), [0., 0.]),
-        (vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]), [1., 0.]),
-        (vecmath::vec3_add(end, CORNER_OFFSET[corners[1]]), [1., length]),
-        (vecmath::vec3_add(end, CORNER_OFFSET[corners[0]]), [0., length]),
-    ];
-    vertices[2].0[move_direction] -= length;
-    vertices[3].0[move_direction] -= length;
-    for v in vertices.iter() {
-        ver.push(Vertex {
-            position: v.0,
-            normal: direction_to_normal(face_direction),
-            tex_coords: v.1,
-            texture_id: texture_id.to_f32(),
-        });
-    }
-}
 
 thread_local! {
 static PROGRAM: RefCell < Option < Program > >= RefCell::new(None)
@@ -247,11 +189,12 @@ static PROGRAM: RefCell < Option < Program > >= RefCell::new(None)
 struct Vertex {
     position: [f32; 3],
     normal: [f32; 3],
-    texture_id: f32,
     tex_coords: [f32; 2],
+    texture_id: f32,
+    light_level: f32,
 }
 
-implement_vertex!(Vertex, position, normal,texture_id,tex_coords);
+implement_vertex!(Vertex, position, normal,texture_id,tex_coords,light_level);
 
 const VERTEX_SHADER_SRC: &'static str = r#"
     #version 140
@@ -260,17 +203,18 @@ const VERTEX_SHADER_SRC: &'static str = r#"
     in vec3 position;
     in vec2 tex_coords;
     in float texture_id;
+    in float light_level;
 
     out float brightness;
     out vec2 v_tex_coords;
     out float v_texture_id;
 
     uniform mat4 matrix;
-    uniform vec3 light;
+    uniform vec3 light_direction;
 
     void main() {
         gl_Position = matrix*vec4(position, 1.0);
-        brightness = mix(0.6,1.0,abs(dot(normalize(light),normalize(normal))));
+        brightness = mix(0.6,1.0,abs(dot(normalize(light_direction),normalize(normal))))*light_level;
         v_tex_coords=tex_coords;
         v_texture_id=texture_id;
     }
@@ -289,6 +233,7 @@ const FRAGMENT_SHADER_SRC: &'static str = r#"
 
 
     void main() {
-        color=texture(sampler,vec3(v_tex_coords,floor(v_texture_id+0.5)));
+        color=texture(sampler,vec3(v_tex_coords,floor(v_texture_id+0.5)))*brightness
+        ;
     }
 "#;

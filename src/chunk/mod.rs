@@ -1,26 +1,28 @@
 mod direction;
 mod block_draw;
 
+use num::Integer;
 use block::BlockId;
 
 pub use self::block_draw::{ChunkUniforms, init_chunk_shader, RenderChunk, block_graphics_supplier};
-pub use self::direction::{Direction};
+pub use self::direction::{Direction, ALL_DIRECTIONS};
 
 pub const CHUNK_SIZE: usize = 32;
 
-type ChunkBlockData = [[[BlockId; CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE];
-
 pub struct Chunk {
-    data: ChunkBlockData,
+    pub data: [(BlockId); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    pub light: [(u8, Direction); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]
 }
 
 impl Chunk {
-    pub fn new() -> Self {
-        Chunk {
-            data: [[[BlockId::empty(); CHUNK_SIZE]; CHUNK_SIZE]; CHUNK_SIZE],
-        }
+    pub fn index(pos: &[i32; 3]) -> usize {
+        pos[0].mod_floor(&(CHUNK_SIZE as i32)) as usize * CHUNK_SIZE * CHUNK_SIZE
+            + pos[1].mod_floor(&(CHUNK_SIZE as i32)) as usize * CHUNK_SIZE
+            + pos[2].mod_floor(&(CHUNK_SIZE as i32)) as usize
     }
-    pub fn set_block(&mut self, pos: &[usize; 3], block: BlockId) {
-        self.data[pos[0]][pos[1]][pos[2]] = block;
+    pub fn u_index(pos: &[usize; 3]) -> usize {
+        pos[0].mod_floor(&(CHUNK_SIZE)) * CHUNK_SIZE * CHUNK_SIZE
+            + pos[1].mod_floor(&(CHUNK_SIZE)) * CHUNK_SIZE
+            + pos[2].mod_floor(&(CHUNK_SIZE))
     }
 }

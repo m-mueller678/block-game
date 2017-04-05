@@ -17,6 +17,7 @@ use world::World;
 use std::sync::mpsc::{Sender, channel, TryRecvError};
 use std::thread;
 use std::time::Duration;
+use block::{Block, LightType};
 
 mod window_util;
 mod chunk;
@@ -95,7 +96,8 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<[f32; 3]>) {
 
 fn main() {
     let mut bgs = block::BlockRegistry::new();
-    let block1 = bgs.add(block::Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6])));
+    let block1 = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
+    let block2 = bgs.add(Block::new(DrawType::None, LightType::Source(15)));
     let world = Arc::new(RwLock::new(world::World::new(Arc::new(bgs), world::Generator::new(block1))));
     let (send, rec) = channel();
     {
@@ -111,8 +113,10 @@ fn main() {
                 Err(TryRecvError::Empty) => break,
             }
         }
+        let block_pos = [cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32];
         world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
         world.write().unwrap().flush_chunks();
+        world.read().unwrap().set_block(&block_pos, block2).unwrap();
         thread::sleep(Duration::from_millis(20));
     }
 }

@@ -9,14 +9,23 @@ impl BlockId {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum LightType {
+    Transparent,
+    Opaque,
+    Source(u8),
+}
+
 pub struct Block {
     draw: DrawType,
+    light: LightType,
 }
 
 impl Block {
-    pub fn new(draw: DrawType) -> Self {
+    pub fn new(draw: DrawType, light: LightType) -> Self {
         Block {
-            draw: draw
+            draw: draw,
+            light: light,
         }
     }
 }
@@ -28,12 +37,15 @@ pub struct BlockRegistry {
 impl BlockRegistry {
     pub fn new() -> Self {
         BlockRegistry {
-            blocks: vec![Block { draw: DrawType::None }]
+            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent }]
         }
     }
     pub fn add(&mut self, block: Block) -> BlockId {
         self.blocks.push(block);
         BlockId(self.blocks.len() as u32 - 1)
+    }
+    pub fn light_type(&self, block_id: BlockId) -> &LightType {
+        &self.blocks[block_id.0 as usize].light
     }
 }
 

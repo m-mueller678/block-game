@@ -53,8 +53,8 @@ impl Generator {
         }
     }
 
-    pub fn gen_chunk(&mut self, pos: &[i32; 3]) -> Chunk {
-        let mut ret = Chunk::new();
+    pub fn gen_chunk(&mut self, pos: &[i32; 3]) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
+        let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         let height_map_index = self.get_height_map(pos[0], pos[2]);
         let height_map = &self.height_cache[height_map_index];
         let bottom = pos[1] * CHUNK_SIZE as i32;
@@ -62,7 +62,7 @@ impl Generator {
             for z in 0..CHUNK_SIZE {
                 let mut y = 0;
                 while y < CHUNK_SIZE && y as i32 + bottom < height_map.2[x][z] {
-                    ret.set_block(&[x, y, z], self.ground);
+                    ret[Chunk::u_index(&[x, y, z])] = self.ground;
                     y += 1;
                 }
             }
@@ -81,5 +81,4 @@ impl Generator {
         context.consume(&pos1);
         context.compute()[0]
     }
-
 }
