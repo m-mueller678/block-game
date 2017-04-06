@@ -2,12 +2,14 @@ pub use self::generator::Generator;
 use block::{BlockId, BlockRegistry, LightType};
 use std::collections::hash_map::{HashMap};
 use chunk::{Chunk, CHUNK_SIZE, RenderChunk, ChunkUniforms, Direction, ALL_DIRECTIONS};
+use chunk::block_graphics_supplier::BlockGraphicsSupplier;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::ops::Deref;
 use glium;
 use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
+use num::Integer;
 
 mod generator;
 
@@ -91,6 +93,7 @@ impl World {
     }
     pub fn flush_chunks(&mut self) {
         let mut source_buffer = Vec::new();
+        let mut face_buffer = Vec::new();
         {
             use std::mem::replace;
             let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
@@ -103,6 +106,10 @@ impl World {
                     }),
                     update_render: AtomicBool::new(false)
                 });
+                for d in ALL_DIRECTIONS.iter() {
+                    let other_pos = d.apply_to_pos(chunk.pos);
+                    face_buffer.push((other_pos, d.invert()));
+                }
                 for source in chunk.light_sources {
                     let abs_block_pos = [
                         chunk.pos[0] * CHUNK_SIZE as i32 + (source / CHUNK_SIZE / CHUNK_SIZE) as i32,
@@ -116,18 +123,24 @@ impl World {
         for source in source_buffer.iter() {
             self.brightness_increased(&source);
         }
-        //TODO call trigger_chunk_face_brightness and flag adjacent chunks for update
+        for &(ref chunk_pos, face) in face_buffer.iter() {
+            if let Some(chunk) = self.chunks.get(chunk_pos) {
+                self.trigger_chunk_face_brightness(&chunk_pos, face);
+                chunk.update_render.store(true, Ordering::Release);
+            }
+        }
     }
     pub fn set_block(&self, pos: &[i32; 3], block: BlockId) -> Result<(), ChunkAccessError> {
-        if let Some(chunk) = self.chunks.get(&Self::chunk_at(pos)) {
+        let chunk_pos = Self::chunk_at(pos);
+        if let Some(chunk) = self.chunks.get(&chunk_pos) {
             let block_pos = Chunk::index(pos);
             let before;
             {
                 let mut lock = chunk.chunk.lock().unwrap();
-                before = *self.blocks.light_type(lock.data[block_pos]);
+                before = lock.data[block_pos];
                 lock.data[block_pos] = block;
             }
-            match (before, *self.blocks.light_type(block)) {
+            match (*self.blocks.light_type(before), *self.blocks.light_type(block)) {
                 (LightType::Transparent, LightType::Transparent)
                 | (LightType::Opaque, LightType::Opaque) => {},
                 (LightType::Source(s1), LightType::Source(s2)) => {
@@ -148,10 +161,28 @@ impl World {
                     self.brightness_blocked(pos);
                 }
             }
-            chunk.update_render.store(true, Ordering::Relaxed);
+            chunk.update_render.store(true, Ordering::Release);
+            if self.blocks.is_opaque(before) ^ self.blocks.is_opaque(block) {
+                self.update_adjacent_chunks(pos);
+            }
             Ok(())
         } else {
             Err(ChunkAccessError::NoChunk)
+        }
+    }
+    fn update_adjacent_chunks(&self, block_pos: &[i32; 3]) {
+        let cs = CHUNK_SIZE as i32;
+        let (x, y, z) = (block_pos[0].div_floor(&cs), block_pos[1].div_floor(&cs), block_pos[2].div_floor(&cs));
+        if block_pos[0].mod_floor(&cs) == 0 { self.update_render(&[x - 1, y, z]) }
+        if block_pos[1].mod_floor(&cs) == 0 { self.update_render(&[x, y - 1, z]) }
+        if block_pos[2].mod_floor(&cs) == 0 { self.update_render(&[x, y, z - 1]) }
+        if block_pos[0].mod_floor(&cs) == cs - 1 { self.update_render(&[x + 1, y, z]) }
+        if block_pos[1].mod_floor(&cs) == cs - 1 { self.update_render(&[x, y + 1, z]) }
+        if block_pos[2].mod_floor(&cs) == cs - 1 { self.update_render(&[x, y, z + 1]) }
+    }
+    fn update_render(&self, pos: &[i32; 3]) {
+        if let Some(chunk) = self.chunks.get(pos) {
+            chunk.update_render.store(true, Ordering::Release)
         }
     }
     pub fn lock_chunk(&self, pos: &[i32; 3]) -> Option<ChunkReader> {
@@ -288,7 +319,7 @@ impl World {
             LightType::Transparent | LightType::Source(_) => {
                 if chunk.guard.light[block_position].0 < brightness.0 {
                     chunk.guard.light[block_position] = brightness;
-                    chunk.update_render.store(true, Ordering::Relaxed);
+                    chunk.update_render.store(true, Ordering::Release);
                     if brightness.0 > 1 {
                         for d in ALL_DIRECTIONS.iter() {
                             self.brightness_increased_rec(&d.apply_to_pos(*pos), chunk, (brightness.0 - 1, *d));
@@ -313,7 +344,7 @@ impl World {
             };
             if own_brightness == chunk.guard.light[block_position].0 { return own_brightness; }
             chunk.guard.light[block_position].0 = own_brightness;
-            chunk.update_render.store(true, Ordering::Relaxed);
+            chunk.update_render.store(true, Ordering::Release);
             let mut light_from = None;
             for d in ALL_DIRECTIONS.iter() {
                 let adjacent_brightness = self.light_source_removed_rec(&d.apply_to_pos(*pos), chunk, *d);
@@ -412,7 +443,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
         }
         for chunk in self.render_chunks.iter_mut() {
             let world_chunk = world.chunks.get(&chunk.0).unwrap();
-            if world_chunk.update_render.swap(false, Ordering::Relaxed) {
+            if world_chunk.update_render.swap(false, Ordering::Acquire) {
                 chunk.1.update(&world, chunk.0);
             }
         }
