@@ -1,4 +1,4 @@
-use super::direction::{Direction, ALL_DIRECTIONS};
+use geometry::direction::{Direction, ALL_DIRECTIONS};
 use super::{Chunk, CHUNK_SIZE};
 use self::block_graphics_supplier::*;
 use glium::backend::Facade;

@@ -1,11 +1,10 @@
-mod direction;
 mod block_draw;
 
 use num::Integer;
 use block::BlockId;
+use geometry::direction::Direction;
 
 pub use self::block_draw::{ChunkUniforms, init_chunk_shader, RenderChunk, block_graphics_supplier};
-pub use self::direction::{Direction, ALL_DIRECTIONS};
 
 pub const CHUNK_SIZE: usize = 32;
 

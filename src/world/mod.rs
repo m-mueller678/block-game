@@ -1,7 +1,8 @@
 pub use self::generator::Generator;
 use block::{BlockId, BlockRegistry, LightType};
 use std::collections::hash_map::{HashMap};
-use chunk::{Chunk, CHUNK_SIZE, RenderChunk, ChunkUniforms, Direction, ALL_DIRECTIONS};
+use chunk::{Chunk, CHUNK_SIZE, RenderChunk, ChunkUniforms};
+use geometry::direction::{Direction, ALL_DIRECTIONS};
 use chunk::block_graphics_supplier::BlockGraphicsSupplier;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::sync::atomic::{AtomicBool, Ordering};
