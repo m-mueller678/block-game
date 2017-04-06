@@ -18,6 +18,10 @@ pub const ALL_DIRECTIONS: [Direction; 6] = [
 ];
 
 impl Direction {
+    pub fn from_usize(i: usize) -> Self {
+        assert!(i < 6, "invalid direction id");
+        ALL_DIRECTIONS[i]
+    }
     pub fn offset(&self) -> [i32; 3] {
         match *self {
             Direction::PosX => [1, 0, 0],

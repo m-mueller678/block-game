@@ -1,6 +1,6 @@
 use md5;
 
-use world::{Chunk, CHUNK_SIZE};
+use world::{CHUNK_SIZE, chunk_index};
 use block::BlockId;
 use num::Integer;
 use std::collections::VecDeque;
@@ -62,7 +62,7 @@ impl Generator {
             for z in 0..CHUNK_SIZE {
                 let mut y = 0;
                 while y < CHUNK_SIZE && y as i32 + bottom < height_map.2[x][z] {
-                    ret[Chunk::u_index(&[x, y, z])] = self.ground;
+                    ret[chunk_index(&[x, y, z])] = self.ground;
                     y += 1;
                 }
             }

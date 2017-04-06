@@ -3,8 +3,7 @@ use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::backend::Facade;
 use glium::index::PrimitiveType;
-use world::{CHUNK_SIZE, World, ChunkReader};
-use chunk::Chunk;
+use world::{CHUNK_SIZE, World, ChunkReader, chunk_index};
 use block::BlockRegistry;
 use geometry::*;
 use super::DrawType;
@@ -59,12 +58,12 @@ impl RenderChunk {
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
-                    let id = chunk.data[Chunk::u_index(&[x, y, z])];
+                    let id = chunk.block(chunk_index(&[x, y, z]));
                     match blocks.draw_type(id) {
                         DrawType::FullOpaqueBlock(textures) => {
                             for d in ALL_DIRECTIONS.iter() {
                                 if let (Some(facing_chunk), facing_index) = Self::get_block_at(&chunk, &adjacent, [x, y, z], *d) {
-                                    let visible = match blocks.draw_type(facing_chunk.data[facing_index]) {
+                                    let visible = match blocks.draw_type(facing_chunk.block(facing_index)) {
                                         DrawType::FullOpaqueBlock(_) => false,
                                         DrawType::None => true,
                                     };
@@ -74,7 +73,7 @@ impl RenderChunk {
                                             pos[1] as f32 * CHUNK_SIZE as f32 + y as f32,
                                             pos[2] as f32 * CHUNK_SIZE as f32 + z as f32
                                         ];
-                                        Self::push_face(&mut buffer, float_pos, *d, textures[*d as usize], facing_chunk.light[facing_index].0);
+                                        Self::push_face(&mut buffer, float_pos, *d, textures[*d as usize], facing_chunk.light(facing_index));
                                     }
                                 }
                             }
@@ -128,6 +127,6 @@ impl RenderChunk {
             Direction::NegY => pos[1] = (pos[1] + CHUNK_SIZE - 1) % CHUNK_SIZE,
             Direction::NegZ => pos[2] = (pos[2] + CHUNK_SIZE - 1) % CHUNK_SIZE,
         };
-        (if outside { adjacent[d as usize].as_ref() } else { Some(chunk) }, Chunk::u_index(&pos))
+        (if outside { adjacent[d as usize].as_ref() } else { Some(chunk) }, chunk_index(&pos))
     }
 }

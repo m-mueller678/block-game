@@ -1,82 +1,35 @@
-pub use self::generator::Generator;
-use block::{BlockId, BlockRegistry, LightType};
-use std::collections::hash_map::{HashMap};
-use chunk::Chunk;
-use geometry::{Direction, ALL_DIRECTIONS};
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::ops::Deref;
-use num::Integer;
-
 mod generator;
+mod atomic_light;
+mod chunk;
 
-pub const CHUNK_SIZE: usize = 32;
+pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
+pub use self::generator::Generator;
+
+use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
+use std::collections::hash_map::{HashMap};
+use geometry::{Direction, ALL_DIRECTIONS};
+use std::sync::{Mutex, Arc};
+use std::sync::atomic::{AtomicBool, Ordering};
+use num::Integer;
+use self::atomic_light::{LightState};
+use self::chunk::Chunk;
 
 pub struct World {
-    chunks: HashMap<[i32; 3], ChunkData>,
+    chunks: HashMap<[i32; 3], Chunk>,
     inserter: Mutex<(Generator, Vec<QueuedChunk>)>,
     blocks: Arc<BlockRegistry>,
 }
+
 
 #[derive(Debug)]
 pub enum ChunkAccessError {
     NoChunk
 }
 
-struct ChunkData {
-    chunk: Mutex<Chunk>,
-    update_render: AtomicBool,
-}
-
-struct ChunkCache<'a> {
-    pos: [i32; 3],
-    guard: MutexGuard<'a, Chunk>,
-    update_render: &'a AtomicBool,
-}
-
-impl<'a> ChunkCache<'a> {
-    fn new<'b: 'a>(pos: [i32; 3], chunks: &'b HashMap<[i32; 3], ChunkData>) -> Result<Self, ()> {
-        if let Some(cd) = chunks.get(&pos) {
-            Ok(ChunkCache {
-                pos: pos,
-                guard: cd.chunk.lock().unwrap(),
-                update_render: &cd.update_render,
-            })
-        } else {
-            Err(())
-        }
-    }
-    fn load<'b: 'a>(&mut self, pos: [i32; 3], chunks: &'b HashMap<[i32; 3], ChunkData>) -> Result<(), ()> {
-        if pos == self.pos {
-            Ok(())
-        } else {
-            if let Some(cd) = chunks.get(&pos) {
-                self.guard = cd.chunk.lock().unwrap();
-                self.pos = pos;
-                self.update_render = &cd.update_render;
-                Ok(())
-            } else {
-                Err(())
-            }
-        }
-    }
-}
-
-pub struct ChunkReader<'a> {
-    lock: MutexGuard<'a, Chunk>
-}
-
-impl<'a> Deref for ChunkReader<'a> {
-    type Target = Chunk;
-    fn deref(&self) -> &Chunk {
-        self.lock.deref()
-    }
-}
-
 struct QueuedChunk {
     light_sources: Vec<usize>,
     pos: [i32; 3],
-    data: [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
 }
 
 impl World {
@@ -98,11 +51,9 @@ impl World {
             let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
             let buffer = replace(buffer, Vec::new());
             for chunk in buffer.into_iter() {
-                self.chunks.insert(chunk.pos, ChunkData {
-                    chunk: Mutex::new(Chunk {
-                        data: chunk.data,
-                        light: [(0, Direction::PosX); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
-                    }),
+                self.chunks.insert(chunk.pos, Chunk {
+                    data: chunk.data,
+                    light: LightState::init_dark_chunk(),
                     update_render: AtomicBool::new(false)
                 });
                 for d in ALL_DIRECTIONS.iter() {
@@ -132,12 +83,11 @@ impl World {
     pub fn set_block(&self, pos: &[i32; 3], block: BlockId) -> Result<(), ChunkAccessError> {
         let chunk_pos = Self::chunk_at(pos);
         if let Some(chunk) = self.chunks.get(&chunk_pos) {
-            let block_pos = Chunk::index(pos);
+            let block_pos = chunk_index_global(pos);
             let before;
             {
-                let mut lock = chunk.chunk.lock().unwrap();
-                before = lock.data[block_pos];
-                lock.data[block_pos] = block;
+                before = chunk.data[block_pos].load();
+                chunk.data[block_pos].store(block);
             }
             match (*self.blocks.light_type(before), *self.blocks.light_type(block)) {
                 (LightType::Transparent, LightType::Transparent)
@@ -185,7 +135,7 @@ impl World {
         }
     }
     pub fn lock_chunk(&self, pos: &[i32; 3]) -> Option<ChunkReader> {
-        self.chunks.get(pos).map(|x| ChunkReader { lock: x.chunk.lock().unwrap() })
+        self.chunks.get(pos).map(|x| ChunkReader::new(x))
     }
     pub fn new(blocks: Arc<BlockRegistry>, generator: Generator) -> Self {
         World {
@@ -225,7 +175,7 @@ impl World {
                 buffer.push(QueuedChunk {
                     light_sources: sources,
                     pos: *pos,
-                    data: data,
+                    data: AtomicBlockId::init_chunk(&data),
                 });
             }
         }
@@ -249,7 +199,7 @@ impl World {
                 block_pos[d1] = i;
                 block_pos[d2] = j;
                 block_pos[face_direction] = if positive { CHUNK_SIZE - 1 } else { 0 };
-                brightness[i][j] = chunk.guard.light[Chunk::u_index(&block_pos)].0;
+                brightness[i][j] = chunk.chunk.light[chunk_index(&block_pos)].level();
             }
         }
         let chunk_size = CHUNK_SIZE as i32;
@@ -266,68 +216,69 @@ impl World {
             }
         }
     }
-    fn get_brightness<'a: 'b, 'b>(&'a self, pos: &[i32; 3], chunk: &mut ChunkCache<'b>) -> Option<u8> {
+    fn get_brightness<'a: 'b, 'b>(&'a self, pos: &[i32; 3], cache: &mut ChunkCache<'b>) -> Option<u8> {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        if chunk.load(chunk_pos, &self.chunks).is_ok() {
-            Some(chunk.guard.light[block_position].0)
+        let block_position = chunk_index_global(pos);
+        if cache.load(chunk_pos, &self.chunks).is_ok() {
+            Some(cache.chunk.light[block_position].level())
         } else {
             None
         }
     }
     fn brightness_increased(&self, pos: &[i32; 3]) {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        let mut chunk = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
-        let current_brightness = chunk.guard.light[block_position].0;
-        let mut light = (match *self.blocks.light_type(chunk.guard.data[block_position]) {
+        let block_position = chunk_index_global(pos);
+        let mut cache = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
+        let current_brightness = cache.chunk.light[block_position].level();
+        let own_light_level = match *self.blocks.light_type(cache.chunk.data[block_position].load()) {
             LightType::Source(p) => p,
             LightType::Transparent | LightType::Opaque => 0,
-        }, Direction::PosX);
+        };
+        let mut light = (own_light_level, Direction::PosX);
         for d in ALL_DIRECTIONS.iter() {
-            let adjacent_light = self.get_brightness(&d.apply_to_pos(*pos), &mut chunk).unwrap_or(0);
+            let adjacent_light = self.get_brightness(&d.apply_to_pos(*pos), &mut cache).unwrap_or(0);
             if adjacent_light > light.0 + 1 {
                 light = (adjacent_light - 1, *d)
             }
         }
         assert!(light.0 >= current_brightness);
         if light.0 > current_brightness {
-            chunk.guard.light[block_position] = light;
+            cache.chunk.light[block_position].set(light.0, light.1);
             for d in ALL_DIRECTIONS.iter() {
-                self.brightness_increased_rec(&d.apply_to_pos(*pos), &mut chunk, (light.0 - 1, *d))
+                self.brightness_increased_rec(&d.apply_to_pos(*pos), &mut cache, (light.0 - 1, *d))
             }
         }
     }
     fn brightness_decreased(&self, pos: &[i32; 3]) {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        let mut chunk = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
-        let direction = chunk.guard.light[block_position].1;
-        self.light_source_removed_rec(pos, &mut chunk, direction);
+        let block_position = chunk_index_global(pos);
+        let mut cache = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
+        let direction = cache.chunk.light[block_position].direction();
+        self.light_source_removed_rec(pos, &mut cache, direction);
     }
     fn brightness_blocked(&self, pos: &[i32; 3]) {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        let mut chunk = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
-        chunk.guard.light[block_position].0 = 0;
+        let block_position = chunk_index_global(pos);
+        let mut cache = ChunkCache::new(chunk_pos, &self.chunks).unwrap();
+        cache.chunk.light[block_position].set_level(0);
         for d in ALL_DIRECTIONS.iter() {
-            self.light_source_removed_rec(&d.apply_to_pos(*pos), &mut chunk, *d);
+            self.light_source_removed_rec(&d.apply_to_pos(*pos), &mut cache, *d);
         }
     }
-    fn brightness_increased_rec<'a: 'b, 'b>(&'a self, pos: &[i32; 3], chunk: &mut ChunkCache<'b>, brightness: (u8, Direction)) {
+    fn brightness_increased_rec<'a: 'b, 'b>(&'a self, pos: &[i32; 3], cache: &mut ChunkCache<'b>, brightness: (u8, Direction)) {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        if chunk.load(chunk_pos, &self.chunks).is_err() {
+        let block_position = chunk_index_global(pos);
+        if cache.load(chunk_pos, &self.chunks).is_err() {
             return;
         }
-        match *self.blocks.light_type(chunk.guard.data[block_position]) {
+        match *self.blocks.light_type(cache.chunk.data[block_position].load()) {
             LightType::Transparent | LightType::Source(_) => {
-                if chunk.guard.light[block_position].0 < brightness.0 {
-                    chunk.guard.light[block_position] = brightness;
-                    chunk.update_render.store(true, Ordering::Release);
+                if cache.chunk.light[block_position].level() < brightness.0 {
+                    cache.chunk.light[block_position].set(brightness.0, brightness.1);
+                    cache.chunk.update_render.store(true, Ordering::Release);
                     if brightness.0 > 1 {
                         for d in ALL_DIRECTIONS.iter() {
-                            self.brightness_increased_rec(&d.apply_to_pos(*pos), chunk, (brightness.0 - 1, *d));
+                            self.brightness_increased_rec(&d.apply_to_pos(*pos), cache, (brightness.0 - 1, *d));
                         }
                     }
                 }
@@ -335,39 +286,70 @@ impl World {
             LightType::Opaque => {}
         }
     }
-    fn light_source_removed_rec<'a: 'b, 'b>(&'a self, pos: &[i32; 3], chunk: &mut ChunkCache<'b>, direction: Direction) -> u8 {
+    fn light_source_removed_rec<'a: 'b, 'b>(&'a self, pos: &[i32; 3], cache: &mut ChunkCache<'b>, direction: Direction) -> u8 {
         let chunk_pos = Self::chunk_at(pos);
-        let block_position = Chunk::index(pos);
-        if chunk.load(chunk_pos, &self.chunks).is_err() {
+        let block_position = chunk_index_global(pos);
+        if cache.load(chunk_pos, &self.chunks).is_err() {
             return 0;
         }
-        if direction == chunk.guard.light[block_position].1 {
-            let mut own_brightness = match *self.blocks.light_type(chunk.guard.data[block_position]) {
+        if direction == cache.chunk.light[block_position].direction() {
+            let mut own_brightness = match *self.blocks.light_type(cache.chunk.data[block_position].load()) {
                 LightType::Transparent => 0,
                 LightType::Source(strength) => strength,
                 LightType::Opaque => { return 0; },
             };
-            if own_brightness == chunk.guard.light[block_position].0 { return own_brightness; }
-            chunk.guard.light[block_position].0 = own_brightness;
-            chunk.update_render.store(true, Ordering::Release);
+            if own_brightness == cache.chunk.light[block_position].level() { return own_brightness; }
+            cache.chunk.light[block_position].set_level(own_brightness);
+            cache.chunk.update_render.store(true, Ordering::Release);
             let mut light_from = None;
             for d in ALL_DIRECTIONS.iter() {
-                let adjacent_brightness = self.light_source_removed_rec(&d.apply_to_pos(*pos), chunk, *d);
+                let adjacent_brightness = self.light_source_removed_rec(&d.apply_to_pos(*pos), cache, *d);
                 if adjacent_brightness > own_brightness + 1 {
                     own_brightness = adjacent_brightness - 1;
                     light_from = Some(*d);
                 }
             }
             if let Some(light_direction) = light_from.map(|d| d.invert()) {
-                chunk.load(*pos, &self.chunks).expect("restore ChunkCache");
-                chunk.guard.light[block_position] = (own_brightness, light_direction);
+                cache.load(*pos, &self.chunks).expect("restore ChunkCache");
+                cache.chunk.light[block_position].set(own_brightness, light_direction);
                 for d in ALL_DIRECTIONS.iter() {
-                    self.brightness_increased_rec(&d.apply_to_pos(*pos), chunk, (own_brightness - 1, *d));
+                    self.brightness_increased_rec(&d.apply_to_pos(*pos), cache, (own_brightness - 1, *d));
                 }
             }
             own_brightness
         } else {
-            chunk.guard.light[block_position].0
+            cache.chunk.light[block_position].level()
+        }
+    }
+}
+
+struct ChunkCache<'a> {
+    pos: [i32; 3],
+    chunk: &'a Chunk,
+}
+
+impl<'a> ChunkCache<'a> {
+    fn new<'b: 'a>(pos: [i32; 3], chunks: &'b HashMap<[i32; 3], Chunk>) -> Result<Self, ()> {
+        if let Some(cref) = chunks.get(&pos) {
+            Ok(ChunkCache {
+                pos: pos,
+                chunk: cref
+            })
+        } else {
+            Err(())
+        }
+    }
+    fn load<'b: 'a>(&mut self, pos: [i32; 3], chunks: &'b HashMap<[i32; 3], Chunk>) -> Result<(), ()> {
+        if pos == self.pos {
+            Ok(())
+        } else {
+            if let Some(cref) = chunks.get(&pos) {
+                self.pos = pos;
+                self.chunk = cref;
+                Ok(())
+            } else {
+                Err(())
+            }
         }
     }
 }

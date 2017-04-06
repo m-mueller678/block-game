@@ -1,3 +1,5 @@
+#![feature(integer_atomics)]
+
 #[macro_use]
 extern crate glium;
 extern crate cam;
@@ -13,14 +15,13 @@ use glium::Surface;
 use std::io::Cursor;
 use std::sync::{RwLock, Arc};
 use world::World;
+use std::time::Duration;
 use std::sync::mpsc::{Sender, channel, TryRecvError};
 use std::thread;
-use std::time::Duration;
 use block::{Block, LightType};
 use graphics::{WorldRender, DrawType, BlockTextureId};
 
 mod window_util;
-mod chunk;
 mod graphics;
 mod block;
 mod world;
