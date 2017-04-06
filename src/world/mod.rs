@@ -148,7 +148,7 @@ impl World {
         &*self.blocks
     }
     pub fn reset_chunk_updated(&self, pos: &[i32; 3]) -> bool {
-        self.chunks.get(pos).map(|c| c.update_render.load(Ordering::Acquire)).unwrap_or(false)
+        self.chunks.get(pos).map(|c| c.update_render.swap(false, Ordering::Acquire)).unwrap_or(false)
     }
     pub fn chunk_loaded(&self, pos: &[i32; 3]) -> bool {
         self.chunks.contains_key(pos)
