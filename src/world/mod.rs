@@ -13,6 +13,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
 use self::atomic_light::{LightState};
 use self::chunk::Chunk;
+use std;
 
 pub struct World {
     chunks: HashMap<[i32; 3], Chunk>,
@@ -43,14 +44,17 @@ impl World {
             }
         }
     }
-    pub fn flush_chunks(&mut self) {
+    pub fn flush_chunks(&mut self, preferred_flush_count: usize, max_rest: usize) {
         let mut source_buffer = Vec::new();
         let mut face_buffer = Vec::new();
         {
-            use std::mem::replace;
             let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
-            let buffer = replace(buffer, Vec::new());
-            for chunk in buffer.into_iter() {
+            let flush_count = if buffer.len() <= max_rest + preferred_flush_count {
+                std::cmp::min(buffer.len(), preferred_flush_count)
+            } else {
+                buffer.len() - max_rest
+            };
+            for chunk in buffer.drain(0..flush_count) {
                 self.chunks.insert(chunk.pos, Chunk {
                     data: chunk.data,
                     light: LightState::init_dark_chunk(),

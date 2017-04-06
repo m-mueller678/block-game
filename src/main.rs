@@ -117,7 +117,7 @@ fn main() {
         }
         let block_pos = [cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32];
         world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
-        world.write().unwrap().flush_chunks();
+        world.write().unwrap().flush_chunks(5, 150);
         world.read().unwrap().set_block(&block_pos, block2).unwrap();
         thread::sleep(Duration::from_millis(20));
     }
