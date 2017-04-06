@@ -1,4 +1,4 @@
-use chunk::block_graphics_supplier::{DrawType, BlockGraphicsSupplier};
+use graphics::DrawType;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct BlockId(u32);
@@ -47,15 +47,11 @@ impl BlockRegistry {
     pub fn light_type(&self, block_id: BlockId) -> &LightType {
         &self.blocks[block_id.0 as usize].light
     }
-}
-
-impl BlockGraphicsSupplier for BlockRegistry {
-    fn get_draw_type(&self, block_id: BlockId) -> DrawType {
+    pub fn draw_type(&self, block_id: BlockId) -> DrawType {
         self.blocks[block_id.0 as usize].draw.clone()
     }
-
-    fn is_opaque(&self, block_id: BlockId) -> bool {
-        if let DrawType::FullOpaqueBlock(_) = self.get_draw_type(block_id) {
+    pub fn is_opaque(&self, block_id: BlockId) -> bool {
+        if let DrawType::FullOpaqueBlock(_) = self.draw_type(block_id) {
             true
         } else {
             false

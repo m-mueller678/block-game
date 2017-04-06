@@ -1,12 +1,7 @@
-mod block_draw;
-
 use num::Integer;
 use block::BlockId;
-use geometry::direction::Direction;
-
-pub use self::block_draw::{ChunkUniforms, init_chunk_shader, RenderChunk, block_graphics_supplier};
-
-pub const CHUNK_SIZE: usize = 32;
+use geometry::Direction;
+use world::CHUNK_SIZE;
 
 pub struct Chunk {
     pub data: [(BlockId); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],

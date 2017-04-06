@@ -6,7 +6,6 @@ extern crate image;
 extern crate num;
 extern crate md5;
 
-use chunk::block_graphics_supplier::*;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::uniforms::SamplerWrapFunction;
 use glium::DisplayBuild;
@@ -18,9 +17,11 @@ use std::sync::mpsc::{Sender, channel, TryRecvError};
 use std::thread;
 use std::time::Duration;
 use block::{Block, LightType};
+use graphics::{WorldRender, DrawType, BlockTextureId};
 
 mod window_util;
 mod chunk;
+mod graphics;
 mod block;
 mod world;
 mod geometry;
@@ -35,12 +36,12 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<[f32; 3]>) {
         CompressedSrgbTexture2dArray::new(&display, vec![image]).unwrap()
     };
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
-    chunk::init_chunk_shader(&display).expect("cannot load chunk shader");
+    let quad_shader = graphics::load_quad_shader(&display).expect("cannot load quad shader");
 
     let (mut yaw, mut pitch) = (0., 0.);
     let mut camera = cam::Camera::new([0., 100., -0.]);
     let perspective = cam::CameraPerspective { fov: 90., near_clip: 0.05, far_clip: 1000., aspect_ratio: 1.0 };
-    let mut world_render = world::WorldRender::new(&display);
+    let mut world_render = WorldRender::new(&display);
     'main_loop: loop {
         let pos = [camera.position[0] as i32, camera.position[1] as i32, camera.position[2] as i32];
         world_render.update(&pos, &world.read().unwrap());
@@ -50,7 +51,7 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<[f32; 3]>) {
             let matrix = vecmath::col_mat4_mul(
                 perspective.projection(), camera.orthogonal());
             let sampler = texture.sampled().wrap_function(SamplerWrapFunction::Repeat);
-            world_render.draw(&mut target, matrix, sampler).unwrap();
+            world_render.draw(&mut target, matrix, sampler, &quad_shader).unwrap();
         }
         target.finish().unwrap();
         for ev in display.poll_events() {

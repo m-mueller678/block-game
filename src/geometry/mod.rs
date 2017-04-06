@@ -1,4 +1,6 @@
-pub mod direction;
+mod direction;
+
+pub use self::direction::*;
 
 pub const CORNER_OFFSET: [[f32; 3]; 8] = [
     [1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.],

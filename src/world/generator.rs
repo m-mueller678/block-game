@@ -1,6 +1,6 @@
 use md5;
 
-use chunk::{Chunk, CHUNK_SIZE};
+use world::{Chunk, CHUNK_SIZE};
 use block::BlockId;
 use num::Integer;
 use std::collections::VecDeque;
