@@ -8,6 +8,7 @@ pub use self::generator::Generator;
 use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
 use std::collections::hash_map::{HashMap};
 use geometry::{Direction, ALL_DIRECTIONS};
+use geometry::ray::Ray;
 use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
@@ -122,6 +123,26 @@ impl World {
         } else {
             Err(ChunkAccessError::NoChunk)
         }
+    }
+    pub fn block_ray_trace(&self, start: [f32; 3], direction: [f32; 3], range: f32) -> Option<[i32; 3]> {
+        for block_pos in Ray::new(start, direction).blocks() {
+            let sq_dist: f32 = block_pos.iter()
+                .map(|x| *x as f32 + 0.5)
+                .zip(start.iter()).map(|x| x.1 - x.0)
+                .map(|x| x * x).sum();
+            if sq_dist > range * range {
+                return None;
+            }
+            if let Some(id) = self.get_block(&block_pos) {
+                if self.blocks.is_opaque(id) {
+                    return Some(block_pos)
+                }
+            }
+        }
+        unreachable!()// ray block iterator is infinite
+    }
+    pub fn get_block(&self, pos: &[i32; 3]) -> Option<BlockId> {
+        self.chunks.get(&Self::chunk_at(pos)).and_then(|c| Some(c.data[chunk_index_global(pos)].load()))
     }
     fn update_adjacent_chunks(&self, block_pos: &[i32; 3]) {
         let cs = CHUNK_SIZE as i32;
