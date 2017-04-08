@@ -144,24 +144,26 @@ fn main() {
         let world2 = world.clone();
         thread::spawn(|| { run_graphics(world2, send) });
     }
-    let mut cam_pos = [0.; 3];
+    let mut cam_pos = None;
     let mut cam_dir = [1.; 3];
     loop {
         loop {
             match rec.try_recv() {
                 Ok(Message::CamChanged { pos, direction }) => {
-                    cam_pos = pos;
+                    cam_pos = Some(pos);
                     cam_dir = direction;
                 },
                 Err(TryRecvError::Disconnected) => return,
                 Err(TryRecvError::Empty) => break,
             }
         }
-        world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
-        if let Some(look_at) = world.read().unwrap().block_ray_trace(cam_pos, cam_dir, 5.) {
-            world.read().unwrap().set_block(&look_at, block2).unwrap();
+        if let Some(cam_pos) = cam_pos {
+            world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
+            if let Some(look_at) = world.read().unwrap().block_ray_trace(cam_pos, cam_dir, 5.) {
+                world.read().unwrap().set_block(&look_at, block2).unwrap();
+            }
+            world.write().unwrap().flush_chunks(5, 150);
         }
-        world.write().unwrap().flush_chunks(5, 150);
         thread::sleep(Duration::from_millis(20));
     }
 }
