@@ -13,7 +13,7 @@ use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
 use self::atomic_light::{LightState};
-use self::chunk::Chunk;
+use self::chunk::{Chunk, init_vertical_clear, update_vertical_clear};
 use std;
 
 pub struct World {
@@ -32,6 +32,7 @@ struct QueuedChunk {
     light_sources: Vec<usize>,
     pos: [i32; 3],
     data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    vertical_clear: [AtomicBool; CHUNK_SIZE * CHUNK_SIZE],
 }
 
 struct ChunkColumn {
@@ -103,6 +104,7 @@ impl World {
                 let entry = self.chunks.entry([chunk.pos[0], chunk.pos[2]]);
                 let column = entry.or_insert_with(|| ChunkColumn::new());
                 column.insert(chunk.pos[1], Chunk {
+                    vertical_clear: chunk.vertical_clear,
                     data: chunk.data,
                     light: LightState::init_dark_chunk(),
                     update_render: AtomicBool::new(false)
@@ -162,7 +164,7 @@ impl World {
                 }
             }
             chunk.update_render.store(true, Ordering::Release);
-            if self.blocks.is_opaque(before) ^ self.blocks.is_opaque(block) {
+            if self.blocks.is_opaque_draw(before) ^ self.blocks.is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
             }
             Ok(())
@@ -180,7 +182,7 @@ impl World {
                 return None;
             }
             if let Some(id) = self.get_block(&block_pos) {
-                if self.blocks.is_opaque(id) {
+                if self.blocks.is_opaque_draw(id) {
                     return Some(block_pos)
                 }
             }
@@ -246,11 +248,18 @@ impl World {
                         LightType::Opaque | LightType::Transparent => false,
                     }
                 }).collect();
-                buffer.push(QueuedChunk {
+                let insert = QueuedChunk {
+                    vertical_clear: init_vertical_clear(),
                     light_sources: sources,
                     pos: *pos,
                     data: AtomicBlockId::init_chunk(&data),
-                });
+                };
+                for x in 0..CHUNK_SIZE {
+                    for z in 0..CHUNK_SIZE {
+                        update_vertical_clear(&insert.vertical_clear, &insert.data, [x, z], &*self.blocks);
+                    }
+                }
+                buffer.push(insert);
             }
         }
     }

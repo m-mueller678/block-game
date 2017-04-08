@@ -41,6 +41,16 @@ pub enum LightType {
     Source(u8),
 }
 
+impl LightType {
+    pub fn is_opaque(&self) -> bool {
+        match *self {
+            LightType::Opaque => true,
+            LightType::Transparent => false,
+            LightType::Source(_) => false,
+        }
+    }
+}
+
 pub struct Block {
     draw: DrawType,
     light: LightType,
@@ -75,7 +85,7 @@ impl BlockRegistry {
     pub fn draw_type(&self, block_id: BlockId) -> DrawType {
         self.blocks[block_id.0 as usize].draw.clone()
     }
-    pub fn is_opaque(&self, block_id: BlockId) -> bool {
+    pub fn is_opaque_draw(&self, block_id: BlockId) -> bool {
         if let DrawType::FullOpaqueBlock(_) = self.draw_type(block_id) {
             true
         } else {
