@@ -6,7 +6,7 @@ pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::generator::Generator;
 
 use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
-use std::collections::hash_map::{HashMap};
+use std::collections::hash_map::HashMap;
 use geometry::{Direction, ALL_DIRECTIONS};
 use geometry::ray::Ray;
 use std::sync::{Mutex, Arc};
@@ -17,7 +17,7 @@ use self::chunk::Chunk;
 use std;
 
 pub struct World {
-    chunks: HashMap<[i32; 3], Chunk>,
+    chunks: HashMap<[i32; 2], ChunkColumn>,
     inserter: Mutex<(Generator, Vec<QueuedChunk>)>,
     blocks: Arc<BlockRegistry>,
 }
@@ -32,6 +32,50 @@ struct QueuedChunk {
     light_sources: Vec<usize>,
     pos: [i32; 3],
     data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+}
+
+struct ChunkColumn {
+    chunks: [Vec<Option<Chunk>>; 2]
+}
+
+impl ChunkColumn {
+    fn new() -> Self {
+        ChunkColumn {
+            chunks: [Vec::new(), Vec::new()],
+        }
+    }
+    fn get(&self, y: i32) -> Option<&Chunk> {
+        let pos = y >= 0;
+        let index = if pos {
+            y as usize
+        } else {
+            (-y - 1) as usize
+        };
+        self.chunks[pos as usize].get(index).map(|o| o.as_ref()).unwrap_or(None)
+    }
+    fn insert(&mut self, y: i32, chunk: Chunk) -> &mut Chunk {
+        let pos = y >= 0;
+        let index = if pos {
+            y as usize
+        } else {
+            (-y - 1) as usize
+        };
+        let vec = &mut self.chunks[pos as usize];
+        if index >= vec.len() {
+            let new_len = index + 1;
+            let len_dif = new_len - vec.len();
+            vec.reserve(len_dif);
+            for _ in 0..(len_dif - 1) {
+                vec.push(None);
+            }
+            vec.push(Some(chunk));
+            vec[index].as_mut().unwrap()
+        } else {
+            assert!(vec[index].is_none());
+            vec[index] = Some(chunk);
+            vec[index].as_mut().unwrap()
+        }
+    }
 }
 
 impl World {
@@ -56,7 +100,9 @@ impl World {
                 buffer.len() - max_rest
             };
             for chunk in buffer.drain(0..flush_count) {
-                self.chunks.insert(chunk.pos, Chunk {
+                let entry = self.chunks.entry([chunk.pos[0], chunk.pos[2]]);
+                let column = entry.or_insert_with(|| ChunkColumn::new());
+                column.insert(chunk.pos[1], Chunk {
                     data: chunk.data,
                     light: LightState::init_dark_chunk(),
                     update_render: AtomicBool::new(false)
@@ -79,7 +125,7 @@ impl World {
             self.brightness_increased(&source);
         }
         for &(ref chunk_pos, face) in face_buffer.iter() {
-            if let Some(chunk) = self.chunks.get(chunk_pos) {
+            if let Some(chunk) = self.borrow_chunk(chunk_pos) {
                 self.trigger_chunk_face_brightness(&chunk_pos, face);
                 chunk.update_render.store(true, Ordering::Release);
             }
@@ -87,7 +133,7 @@ impl World {
     }
     pub fn set_block(&self, pos: &[i32; 3], block: BlockId) -> Result<(), ChunkAccessError> {
         let chunk_pos = Self::chunk_at(pos);
-        if let Some(chunk) = self.chunks.get(&chunk_pos) {
+        if let Some(chunk) = self.borrow_chunk(&chunk_pos) {
             let block_pos = chunk_index_global(pos);
             let before;
             {
@@ -142,7 +188,7 @@ impl World {
         unreachable!()// ray block iterator is infinite
     }
     pub fn get_block(&self, pos: &[i32; 3]) -> Option<BlockId> {
-        self.chunks.get(&Self::chunk_at(pos)).and_then(|c| Some(c.data[chunk_index_global(pos)].load()))
+        self.borrow_chunk(&Self::chunk_at(pos)).map(|c| c.data[chunk_index_global(pos)].load())
     }
     fn update_adjacent_chunks(&self, block_pos: &[i32; 3]) {
         let cs = CHUNK_SIZE as i32;
@@ -155,12 +201,15 @@ impl World {
         if block_pos[2].mod_floor(&cs) == cs - 1 { self.update_render(&[x, y, z + 1]) }
     }
     fn update_render(&self, pos: &[i32; 3]) {
-        if let Some(chunk) = self.chunks.get(pos) {
+        if let Some(chunk) = self.borrow_chunk(pos) {
             chunk.update_render.store(true, Ordering::Release)
         }
     }
+    fn borrow_chunk(&self, p: &[i32; 3]) -> Option<&Chunk> {
+        self.chunks.get(&[p[0], p[2]]).and_then(|col| col.get(p[1]))
+    }
     pub fn lock_chunk(&self, pos: &[i32; 3]) -> Option<ChunkReader> {
-        self.chunks.get(pos).map(|x| ChunkReader::new(x))
+        self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
     }
     pub fn new(blocks: Arc<BlockRegistry>, generator: Generator) -> Self {
         World {
@@ -173,10 +222,10 @@ impl World {
         &*self.blocks
     }
     pub fn reset_chunk_updated(&self, pos: &[i32; 3]) -> bool {
-        self.chunks.get(pos).map(|c| c.update_render.swap(false, Ordering::Acquire)).unwrap_or(false)
+        self.borrow_chunk(pos).map(|c| c.update_render.swap(false, Ordering::Acquire)).unwrap_or(false)
     }
     pub fn chunk_loaded(&self, pos: &[i32; 3]) -> bool {
-        self.chunks.contains_key(pos)
+        self.borrow_chunk(pos).is_some()
     }
     fn chunk_at(pos: &[i32; 3]) -> [i32; 3] {
         use num::Integer;
@@ -187,7 +236,7 @@ impl World {
         ]
     }
     fn create_chunk(&self, pos: &[i32; 3]) {
-        if !self.chunks.contains_key(pos) {
+        if self.borrow_chunk(pos).is_none() {
             let (ref mut generator, ref mut buffer) = *self.inserter.lock().unwrap();
             if !buffer.iter().any(|&ref chunk| chunk.pos == *pos) {
                 let data = generator.gen_chunk(pos);
@@ -354,8 +403,8 @@ struct ChunkCache<'a> {
 }
 
 impl<'a> ChunkCache<'a> {
-    fn new<'b: 'a>(pos: [i32; 3], chunks: &'b HashMap<[i32; 3], Chunk>) -> Result<Self, ()> {
-        if let Some(cref) = chunks.get(&pos) {
+    fn new<'b: 'a>(pos: [i32; 3], chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<Self, ()> {
+        if let Some(cref) = chunks.get(&[pos[0], pos[2]]).and_then(|col| col.get(pos[1])) {
             Ok(ChunkCache {
                 pos: pos,
                 chunk: cref
@@ -364,17 +413,12 @@ impl<'a> ChunkCache<'a> {
             Err(())
         }
     }
-    fn load<'b: 'a>(&mut self, pos: [i32; 3], chunks: &'b HashMap<[i32; 3], Chunk>) -> Result<(), ()> {
+    fn load<'b: 'a>(&mut self, pos: [i32; 3], chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<(), ()> {
         if pos == self.pos {
             Ok(())
         } else {
-            if let Some(cref) = chunks.get(&pos) {
-                self.pos = pos;
-                self.chunk = cref;
-                Ok(())
-            } else {
-                Err(())
-            }
+            *self = Self::new(pos, chunks)?;
+            Ok(())
         }
     }
 }
