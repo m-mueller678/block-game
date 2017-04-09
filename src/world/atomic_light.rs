@@ -18,9 +18,6 @@ impl LightState {
         self.level.store(level, Ordering::Relaxed);
         self.direction.store(direction as u8, Ordering::Relaxed);
     }
-    pub fn set_level(&self, l: u8) {
-        self.level.store(l, Ordering::Relaxed);
-    }
     pub fn init_dark_chunk() -> [LightState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
         use std::mem::uninitialized;
         use std::ptr::write;

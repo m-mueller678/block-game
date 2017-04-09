@@ -2,9 +2,11 @@ mod generator;
 mod atomic_light;
 mod chunk;
 mod lighting;
+mod position;
 
 pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::generator::Generator;
+pub use self::position::*;
 
 use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
 use self::lighting::*;
@@ -17,58 +19,17 @@ use num::Integer;
 use self::atomic_light::{LightState};
 use self::chunk::{Chunk, init_vertical_clear, update_vertical_clear};
 use std;
-use std::ops::Index;
-
-
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub struct ChunkPos(pub [i32; 3]);
-
-#[derive(Eq, PartialEq, Clone, Debug)]
-pub struct BlockPos(pub [i32; 3]);
-
-impl ChunkPos {
-    pub fn facing(&self, d: Direction) -> Self {
-        ChunkPos(d.apply_to_pos(self.0))
-    }
-}
-
-impl BlockPos {
-    pub fn facing(&self, d: Direction) -> Self {
-        BlockPos(d.apply_to_pos(self.0))
-    }
-}
-
-impl Index<usize> for ChunkPos {
-    type Output = i32;
-    fn index(&self, i: usize) -> &i32 {
-        &self.0[i]
-    }
-}
-
-impl Index<usize> for BlockPos {
-    type Output = i32;
-    fn index(&self, i: usize) -> &i32 {
-        &self.0[i]
-    }
-}
-
-pub struct World {
-    chunks: HashMap<[i32; 2], ChunkColumn>,
-    inserter: Mutex<(Generator, Vec<QueuedChunk>)>,
-    blocks: Arc<BlockRegistry>,
-}
-
-
-#[derive(Debug)]
-pub enum ChunkAccessError {
-    NoChunk
-}
 
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
     pos: ChunkPos,
     data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
     vertical_clear: [AtomicBool; CHUNK_SIZE * CHUNK_SIZE],
+}
+
+#[derive(Debug)]
+pub enum ChunkAccessError {
+    NoChunk
 }
 
 struct ChunkColumn {
@@ -113,6 +74,12 @@ impl ChunkColumn {
             vec[index].as_mut().unwrap()
         }
     }
+}
+
+pub struct World {
+    chunks: HashMap<[i32; 2], ChunkColumn>,
+    inserter: Mutex<(Generator, Vec<QueuedChunk>)>,
+    blocks: Arc<BlockRegistry>,
 }
 
 impl World {
