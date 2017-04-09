@@ -10,7 +10,7 @@ use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
 use self::lighting::*;
 use std::collections::hash_map::HashMap;
 use geometry::{Direction, ALL_DIRECTIONS};
-use geometry::ray::Ray;
+use geometry::ray::{Ray, BlockIntersection};
 use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
@@ -20,10 +20,10 @@ use std;
 use std::ops::Index;
 
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct ChunkPos(pub [i32; 3]);
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Debug)]
 pub struct BlockPos(pub [i32; 3]);
 
 impl ChunkPos {
@@ -206,18 +206,18 @@ impl World {
             Err(ChunkAccessError::NoChunk)
         }
     }
-    pub fn block_ray_trace(&self, start: [f32; 3], direction: [f32; 3], range: f32) -> Option<BlockPos> {
-        for block_pos in Ray::new(start, direction).blocks() {
-            let sq_dist: f32 = block_pos.0.iter()
+    pub fn block_ray_trace(&self, start: [f32; 3], direction: [f32; 3], range: f32) -> Option<BlockIntersection> {
+        for intersect in Ray::new(start, direction).blocks() {
+            let sq_dist: f32 = intersect.block.0.iter()
                 .map(|x| *x as f32 + 0.5)
                 .zip(start.iter()).map(|x| x.1 - x.0)
                 .map(|x| x * x).sum();
             if sq_dist > range * range {
                 return None;
             }
-            if let Some(id) = self.get_block(&block_pos) {
+            if let Some(id) = self.get_block(&intersect.block) {
                 if self.blocks.is_opaque_draw(id) {
-                    return Some(block_pos)
+                    return Some(intersect)
                 }
             }
         }

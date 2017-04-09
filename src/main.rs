@@ -43,29 +43,37 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<Message>) {
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     let quad_shader = graphics::load_quad_shader(&display).expect("cannot load quad shader");
     let line_shader = graphics::load_line_shader(&display).unwrap();
-    let view_line_indices = glium::IndexBuffer::<u32>::new(&display, glium::index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5]).unwrap();
-    let view_line_vertices = glium::VertexBuffer::new(&display, &[
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-        LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] },
-    ]).unwrap();
+    let view_line_indices = glium::IndexBuffer::<u32>::new
+        (&display, glium::index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
+    let view_line_vertices = glium::VertexBuffer::new(&display, &
+        [LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] }; 10]).unwrap();
 
     let (mut yaw, mut pitch) = (0., 0.);
     let mut camera = cam::Camera::new([0., 100., -0.]);
     let mut world_render = WorldRender::new(&display);
     'main_loop: loop {
         {
+            let look_at = world.read().unwrap().block_ray_trace(camera.position, camera.forward, 20.);
+            let look_at = look_at.unwrap_or(geometry::ray::BlockIntersection {
+                block: BlockPos([1_000_000, 1_000_000, 1_000_000]),
+                face: geometry::Direction::PosX,
+            });
+            let look_at_base = [look_at.block[0] as f32, look_at.block[1] as f32, look_at.block[2] as f32];
+            let look_at_corners = geometry::CUBE_FACES[look_at.face as usize];
             let center = vecmath::vec3_add(camera.position, vecmath::vec3_scale(camera.forward, 10.));
             view_line_vertices.write(&[
+                //cursor
                 LineVertex { pos: center, color: [1., 0., 0.] },
                 LineVertex { pos: vecmath::vec3_add(center, [1., 0., 0.]), color: [1., 0., 0.] },
                 LineVertex { pos: center, color: [0., 1., 0.] },
                 LineVertex { pos: vecmath::vec3_add(center, [0., 1., 0.]), color: [0., 1., 0.] },
                 LineVertex { pos: center, color: [0., 0., 1.] },
                 LineVertex { pos: vecmath::vec3_add(center, [0., 0., 1.]), color: [0., 0., 1.] },
+                //look at cross
+                LineVertex { pos: vecmath::vec3_add(look_at_base, geometry::CORNER_OFFSET[look_at_corners[0]]), color: [1., 1., 0.] },
+                LineVertex { pos: vecmath::vec3_add(look_at_base, geometry::CORNER_OFFSET[look_at_corners[2]]), color: [1., 1., 0.] },
+                LineVertex { pos: vecmath::vec3_add(look_at_base, geometry::CORNER_OFFSET[look_at_corners[1]]), color: [1., 1., 0.] },
+                LineVertex { pos: vecmath::vec3_add(look_at_base, geometry::CORNER_OFFSET[look_at_corners[3]]), color: [1., 1., 0.] },
             ]);
         }
         let pos = BlockPos([camera.position[0] as i32, camera.position[1] as i32, camera.position[2] as i32]);
@@ -77,7 +85,7 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<Message>) {
                 let f = (0.5 as f32).tan();
                 let aspect_ratio = 9. / 16.;
                 let zfar = 1000.;
-                let znear = 0.1;
+                let znear = 0.01;
                 [
                     [f * aspect_ratio, 0.0, 0.0, 0.0],
                     [0.0, f, 0.0, 0.0],
@@ -134,6 +142,7 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<Message>) {
     }
 }
 
+
 fn main() {
     let mut bgs = block::BlockRegistry::new();
     let block1 = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
@@ -159,10 +168,13 @@ fn main() {
         }
         if let Some(cam_pos) = cam_pos {
             world.read().unwrap().gen_area(&BlockPos([cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32]), 3);
-            if let Some(look_at) = world.read().unwrap().block_ray_trace(cam_pos, cam_dir, 5.) {
-                world.read().unwrap().set_block(&look_at, block2).unwrap();
+            let look_at = world.read().unwrap().block_ray_trace(cam_pos, cam_dir, 5.);
+            if let Some(ref look_at) = look_at {
+                let put = look_at.block.facing(look_at.face);
+                world.read().unwrap().set_block(&put, block2).unwrap();
             }
             world.write().unwrap().flush_chunks(5, 150);
+            println!("pos:{:?}, dir:{:?}, look at:{:?}", cam_pos, cam_dir, look_at);
         }
         thread::sleep(Duration::from_millis(20));
     }
