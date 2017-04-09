@@ -1,3 +1,5 @@
+use world::BlockPos;
+
 pub struct Ray {
     start: [f32; 3],
     direction: [f32; 3],
@@ -46,9 +48,9 @@ pub struct BlockIntersect {
 }
 
 impl Iterator for BlockIntersect {
-    type Item = [i32; 3];
+    type Item = BlockPos;
     fn next(&mut self) -> Option<Self::Item> {
-        let ret = self.base;
+        let ret = BlockPos(self.base);
         let mut move_axis = 0;
         if self.fstart[1] < self.fstart[move_axis] { move_axis = 1 }
         if self.fstart[2] < self.fstart[move_axis] { move_axis = 2 }

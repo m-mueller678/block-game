@@ -17,6 +17,40 @@ use num::Integer;
 use self::atomic_light::{LightState};
 use self::chunk::{Chunk, init_vertical_clear, update_vertical_clear};
 use std;
+use std::ops::Index;
+
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct ChunkPos(pub [i32; 3]);
+
+#[derive(Eq, PartialEq, Clone)]
+pub struct BlockPos(pub [i32; 3]);
+
+impl ChunkPos {
+    pub fn facing(&self, d: Direction) -> Self {
+        ChunkPos(d.apply_to_pos(self.0))
+    }
+}
+
+impl BlockPos {
+    pub fn facing(&self, d: Direction) -> Self {
+        BlockPos(d.apply_to_pos(self.0))
+    }
+}
+
+impl Index<usize> for ChunkPos {
+    type Output = i32;
+    fn index(&self, i: usize) -> &i32 {
+        &self.0[i]
+    }
+}
+
+impl Index<usize> for BlockPos {
+    type Output = i32;
+    fn index(&self, i: usize) -> &i32 {
+        &self.0[i]
+    }
+}
 
 pub struct World {
     chunks: HashMap<[i32; 2], ChunkColumn>,
@@ -31,8 +65,8 @@ pub enum ChunkAccessError {
 }
 
 struct QueuedChunk {
-    light_sources: Vec<([i32; 3], u8)>,
-    pos: [i32; 3],
+    light_sources: Vec<(BlockPos, u8)>,
+    pos: ChunkPos,
     data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
     vertical_clear: [AtomicBool; CHUNK_SIZE * CHUNK_SIZE],
 }
@@ -82,12 +116,12 @@ impl ChunkColumn {
 }
 
 impl World {
-    pub fn gen_area(&self, pos: &[i32; 3], range: i32) {
+    pub fn gen_area(&self, pos: &BlockPos, range: i32) {
         let base = Self::chunk_at(pos);
         for x in (base[0] - range)..(base[0] + range + 1) {
             for y in (base[1] - range)..(base[1] + range + 1) {
                 for z in (base[2] - range)..(base[2] + range + 1) {
-                    self.create_chunk(&[x, y, z]);
+                    self.create_chunk(&ChunkPos([x, y, z]));
                 }
             }
         }
@@ -112,7 +146,7 @@ impl World {
                     update_render: AtomicBool::new(false)
                 });
                 for d in ALL_DIRECTIONS.iter() {
-                    let other_pos = d.apply_to_pos(chunk.pos);
+                    let other_pos = chunk.pos.facing(*d);
                     face_buffer.push((other_pos, d.invert()));
                 }
                 for source in chunk.light_sources {
@@ -120,7 +154,7 @@ impl World {
                 }
             }
         }
-        for &(pos, level) in source_buffer.iter() {
+        for &(ref pos, level) in source_buffer.iter() {
             self.source_increase_brightness(&pos, level);
         }
         for &(ref chunk_pos, face) in face_buffer.iter() {
@@ -130,7 +164,7 @@ impl World {
             }
         }
     }
-    pub fn set_block(&self, pos: &[i32; 3], block: BlockId) -> Result<(), ChunkAccessError> {
+    pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ChunkAccessError> {
         let chunk_pos = Self::chunk_at(pos);
         if let Some(chunk) = self.borrow_chunk(&chunk_pos) {
             let block_pos = chunk_index_global(pos);
@@ -172,9 +206,9 @@ impl World {
             Err(ChunkAccessError::NoChunk)
         }
     }
-    pub fn block_ray_trace(&self, start: [f32; 3], direction: [f32; 3], range: f32) -> Option<[i32; 3]> {
+    pub fn block_ray_trace(&self, start: [f32; 3], direction: [f32; 3], range: f32) -> Option<BlockPos> {
         for block_pos in Ray::new(start, direction).blocks() {
-            let sq_dist: f32 = block_pos.iter()
+            let sq_dist: f32 = block_pos.0.iter()
                 .map(|x| *x as f32 + 0.5)
                 .zip(start.iter()).map(|x| x.1 - x.0)
                 .map(|x| x * x).sum();
@@ -189,28 +223,29 @@ impl World {
         }
         unreachable!()// ray block iterator is infinite
     }
-    pub fn get_block(&self, pos: &[i32; 3]) -> Option<BlockId> {
+    pub fn get_block(&self, pos: &BlockPos) -> Option<BlockId> {
         self.borrow_chunk(&Self::chunk_at(pos)).map(|c| c.data[chunk_index_global(pos)].load())
     }
-    fn update_adjacent_chunks(&self, block_pos: &[i32; 3]) {
+    fn update_adjacent_chunks(&self, block_pos: &BlockPos) {
         let cs = CHUNK_SIZE as i32;
-        let (x, y, z) = (block_pos[0].div_floor(&cs), block_pos[1].div_floor(&cs), block_pos[2].div_floor(&cs));
-        if block_pos[0].mod_floor(&cs) == 0 { self.update_render(&[x - 1, y, z]) }
-        if block_pos[1].mod_floor(&cs) == 0 { self.update_render(&[x, y - 1, z]) }
-        if block_pos[2].mod_floor(&cs) == 0 { self.update_render(&[x, y, z - 1]) }
-        if block_pos[0].mod_floor(&cs) == cs - 1 { self.update_render(&[x + 1, y, z]) }
-        if block_pos[1].mod_floor(&cs) == cs - 1 { self.update_render(&[x, y + 1, z]) }
-        if block_pos[2].mod_floor(&cs) == cs - 1 { self.update_render(&[x, y, z + 1]) }
+        let chunk_pos = Self::chunk_at(block_pos);
+        let (x, y, z) = (chunk_pos[0], chunk_pos[1], chunk_pos[2]);
+        if block_pos[0].mod_floor(&cs) == 0 { self.update_render(&ChunkPos([x - 1, y, z])) }
+        if block_pos[1].mod_floor(&cs) == 0 { self.update_render(&ChunkPos([x, y - 1, z])) }
+        if block_pos[2].mod_floor(&cs) == 0 { self.update_render(&ChunkPos([x, y, z - 1])) }
+        if block_pos[0].mod_floor(&cs) == cs - 1 { self.update_render(&ChunkPos([x + 1, y, z])) }
+        if block_pos[1].mod_floor(&cs) == cs - 1 { self.update_render(&ChunkPos([x, y + 1, z])) }
+        if block_pos[2].mod_floor(&cs) == cs - 1 { self.update_render(&ChunkPos([x, y, z + 1])) }
     }
-    fn update_render(&self, pos: &[i32; 3]) {
+    fn update_render(&self, pos: &ChunkPos) {
         if let Some(chunk) = self.borrow_chunk(pos) {
             chunk.update_render.store(true, Ordering::Release)
         }
     }
-    fn borrow_chunk(&self, p: &[i32; 3]) -> Option<&Chunk> {
+    fn borrow_chunk(&self, p: &ChunkPos) -> Option<&Chunk> {
         self.chunks.get(&[p[0], p[2]]).and_then(|col| col.get(p[1]))
     }
-    pub fn lock_chunk(&self, pos: &[i32; 3]) -> Option<ChunkReader> {
+    pub fn lock_chunk(&self, pos: &ChunkPos) -> Option<ChunkReader> {
         self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
     }
     pub fn new(blocks: Arc<BlockRegistry>, generator: Generator) -> Self {
@@ -223,39 +258,39 @@ impl World {
     pub fn blocks(&self) -> &BlockRegistry {
         &*self.blocks
     }
-    pub fn reset_chunk_updated(&self, pos: &[i32; 3]) -> bool {
+    pub fn reset_chunk_updated(&self, pos: &ChunkPos) -> bool {
         self.borrow_chunk(pos).map(|c| c.update_render.swap(false, Ordering::Acquire)).unwrap_or(false)
     }
-    pub fn chunk_loaded(&self, pos: &[i32; 3]) -> bool {
+    pub fn chunk_loaded(&self, pos: &ChunkPos) -> bool {
         self.borrow_chunk(pos).is_some()
     }
-    fn chunk_at(pos: &[i32; 3]) -> [i32; 3] {
+    pub fn chunk_at(pos: &BlockPos) -> ChunkPos {
         use num::Integer;
-        [
+        ChunkPos([
             pos[0].div_floor(&(CHUNK_SIZE as i32)),
             pos[1].div_floor(&(CHUNK_SIZE as i32)),
             pos[2].div_floor(&(CHUNK_SIZE as i32)),
-        ]
+        ])
     }
-    fn create_chunk(&self, pos: &[i32; 3]) {
+    fn create_chunk(&self, pos: &ChunkPos) {
         if self.borrow_chunk(pos).is_none() {
             let (ref mut generator, ref mut buffer) = *self.inserter.lock().unwrap();
             if !buffer.iter().any(|&ref chunk| chunk.pos == *pos) {
                 let data = generator.gen_chunk(pos);
                 let sources = (0..(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)).filter_map(|i| {
                     match *self.blocks.light_type(data[i]) {
-                        LightType::Source(l) => Some(([
-                                                          (i / CHUNK_SIZE / CHUNK_SIZE) as i32,
-                                                          (i / CHUNK_SIZE % CHUNK_SIZE) as i32,
-                                                          (i % CHUNK_SIZE) as i32
-                                                      ], l)),
+                        LightType::Source(l) => Some((BlockPos([
+                            pos[0] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE / CHUNK_SIZE) as i32,
+                            pos[1] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE % CHUNK_SIZE) as i32,
+                            pos[2] * CHUNK_SIZE as i32 + (i % CHUNK_SIZE) as i32
+                        ]), l)),
                         LightType::Opaque | LightType::Transparent => None,
                     }
                 }).collect();
                 let insert = QueuedChunk {
                     vertical_clear: init_vertical_clear(),
                     light_sources: sources,
-                    pos: *pos,
+                    pos: pos.clone(),
                     data: AtomicBlockId::init_chunk(&data),
                 };
                 for x in 0..CHUNK_SIZE {
@@ -268,29 +303,29 @@ impl World {
         }
     }
 
-    fn artificial_lightmap(&self, p: [i32; 3]) -> ArtificialLightMap {
+    fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
         ArtificialLightMap {
             world: &self,
             cache: ChunkCache::new(p, &self.chunks).unwrap(),
         }
     }
-    fn transparent_increase_brightness(&self, p: &[i32; 3]) {
+    fn transparent_increase_brightness(&self, p: &BlockPos) {
         use std::cmp::Ord;
         let mut lm = self.artificial_lightmap(Self::chunk_at(p));
         let max_light = ALL_DIRECTIONS.iter()
-            .map(|direction| (self.get_brightness(&direction.apply_to_pos(*p), &mut lm.cache).unwrap_or(0), *direction))
+            .map(|direction| (self.get_brightness(&p.facing(*direction), &mut lm.cache).unwrap_or(0), *direction))
             .max_by(|light1, light2| light1.0.cmp(&light2.0)).unwrap();
-        increase_light(&mut lm, vec![(*p, max_light.1)], max_light.0);
+        increase_light(&mut lm, vec![(p.clone(), max_light.1)], max_light.0);
     }
-    fn source_increase_brightness(&self, p: &[i32; 3], level: u8) {
-        increase_light(&mut self.artificial_lightmap(Self::chunk_at(p)), vec![(*p, Direction::PosX)], level);
+    fn source_increase_brightness(&self, p: &BlockPos, level: u8) {
+        increase_light(&mut self.artificial_lightmap(Self::chunk_at(p)), vec![(p.clone(), Direction::PosX)], level);
     }
-    fn remove_brightness(&self, p: &[i32; 3]) {
+    fn remove_brightness(&self, p: &BlockPos) {
         let mut lm = self.artificial_lightmap(Self::chunk_at(p));
         let old_light = lm.get_light(p);
-        remove_light(&mut lm, vec![(*p, old_light.1)], old_light.0);
+        remove_light(&mut lm, vec![(p.clone(), old_light.1)], old_light.0);
     }
-    fn trigger_chunk_face_brightness(&self, pos: &[i32; 3], face: Direction) {
+    fn trigger_chunk_face_brightness(&self, pos: &ChunkPos, face: Direction) {
         let (positive, d1, d2, face_direction) = match face {
             Direction::PosX => (true, 1, 2, 0),
             Direction::NegX => (false, 1, 2, 0),
@@ -301,7 +336,7 @@ impl World {
         };
 
         let mut brightness = [[0; CHUNK_SIZE]; CHUNK_SIZE];
-        let mut lm = self.artificial_lightmap(face.apply_to_pos(*pos));
+        let mut lm = self.artificial_lightmap(pos.facing(face));
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
                 let mut block_pos = [0, 0, 0];
@@ -312,7 +347,7 @@ impl World {
             }
         }
         let chunk_size = CHUNK_SIZE as i32;
-        let mut updates: [Vec<([i32; 3], Direction)>; 15] = [Vec::new(), Vec::new(), Vec::new(), Vec::new(),
+        let mut updates: [Vec<(BlockPos, Direction)>; 15] = [Vec::new(), Vec::new(), Vec::new(), Vec::new(),
             Vec::new(), Vec::new(), Vec::new(), Vec::new(),
             Vec::new(), Vec::new(), Vec::new(), Vec::new(),
             Vec::new(), Vec::new(), Vec::new()];
@@ -321,13 +356,13 @@ impl World {
                 if brightness[i][j] <= 1 {
                     continue;
                 }
-                let mut pos = [pos[0] * chunk_size, pos[1] * chunk_size, pos[2] * chunk_size];
-                pos[d1] += i as i32;
-                pos[d2] += j as i32;
-                pos[face_direction] += if positive { 0 } else { CHUNK_SIZE as i32 - 1 };
+                let mut block_pos = [pos[0] * chunk_size, pos[1] * chunk_size, pos[2] * chunk_size];
+                block_pos[d1] += i as i32;
+                block_pos[d2] += j as i32;
+                block_pos[face_direction] += if positive { 0 } else { CHUNK_SIZE as i32 - 1 };
                 assert!(brightness[i][j] < 16);
                 assert!(brightness[i][j] > 1);
-                updates[brightness[i][j] as usize - 1].push((pos, face));
+                updates[brightness[i][j] as usize - 1].push((BlockPos(block_pos), face));
             }
         }
         for (i, pos) in updates.iter_mut().map(|v| {
@@ -338,7 +373,7 @@ impl World {
             increase_light(&mut lm, pos, i as u8 + 1);
         }
     }
-    fn get_brightness<'a: 'b, 'b>(&'a self, pos: &[i32; 3], cache: &mut ChunkCache<'b>) -> Option<u8> {
+    fn get_brightness<'a: 'b, 'b>(&'a self, pos: &BlockPos, cache: &mut ChunkCache<'b>) -> Option<u8> {
         let chunk_pos = Self::chunk_at(pos);
         let block_position = chunk_index_global(pos);
         if cache.load(chunk_pos, &self.chunks).is_ok() {
@@ -350,12 +385,12 @@ impl World {
 }
 
 struct ChunkCache<'a> {
-    pos: [i32; 3],
+    pos: ChunkPos,
     chunk: &'a Chunk,
 }
 
 impl<'a> ChunkCache<'a> {
-    fn new<'b: 'a>(pos: [i32; 3], chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<Self, ()> {
+    fn new<'b: 'a>(pos: ChunkPos, chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<Self, ()> {
         if let Some(cref) = chunks.get(&[pos[0], pos[2]]).and_then(|col| col.get(pos[1])) {
             Ok(ChunkCache {
                 pos: pos,
@@ -365,7 +400,7 @@ impl<'a> ChunkCache<'a> {
             Err(())
         }
     }
-    fn load<'b: 'a>(&mut self, pos: [i32; 3], chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<(), ()> {
+    fn load<'b: 'a>(&mut self, pos: ChunkPos, chunks: &'b HashMap<[i32; 2], ChunkColumn>) -> Result<(), ()> {
         if pos == self.pos {
             Ok(())
         } else {
@@ -381,7 +416,7 @@ pub struct ArtificialLightMap<'a> {
 }
 
 impl<'a> LightMap for ArtificialLightMap<'a> {
-    fn is_opaque(&mut self, pos: &[i32; 3]) -> bool {
+    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
         if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
             true
         } else {
@@ -393,7 +428,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         }
     }
 
-    fn get_light(&mut self, pos: &[i32; 3]) -> Light {
+    fn get_light(&mut self, pos: &BlockPos) -> Light {
         if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
             (0, Direction::PosX)
         } else {
@@ -402,7 +437,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         }
     }
 
-    fn set_light(&mut self, pos: &[i32; 3], light: Light) {
+    fn set_light(&mut self, pos: &BlockPos, light: Light) {
         self.cache.chunk.light[chunk_index_global(pos)].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
     }

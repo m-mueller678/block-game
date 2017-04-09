@@ -3,7 +3,7 @@ use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::backend::Facade;
 use glium::index::PrimitiveType;
-use world::{CHUNK_SIZE, World, ChunkReader, chunk_index};
+use world::{CHUNK_SIZE, World, ChunkReader, chunk_index, ChunkPos};
 use block::BlockRegistry;
 use geometry::*;
 use super::DrawType;
@@ -22,7 +22,7 @@ pub struct ChunkUniforms<'a> {
 }
 
 impl RenderChunk {
-    pub fn new<F: Facade>(facade: &F, world: &World, pos: [i32; 3]) -> Self {
+    pub fn new<F: Facade>(facade: &F, world: &World, pos: &ChunkPos) -> Self {
         let vertex = Self::get_vertices(world, world.blocks(), pos);
         let index = Self::get_indices(vertex.len() / 4);
         RenderChunk {
@@ -30,7 +30,7 @@ impl RenderChunk {
             i_buf: IndexBuffer::new(facade, PrimitiveType::TrianglesList, &index).unwrap(),
         }
     }
-    pub fn update(&mut self, world: &World, pos: [i32; 3]) {
+    pub fn update(&mut self, world: &World, pos: &ChunkPos) {
         let vertex = Self::get_vertices(world, world.blocks(), pos);
         let index = Self::get_indices(vertex.len() / 4);
         let facade = self.v_buf.get_context().clone();
@@ -52,7 +52,7 @@ impl RenderChunk {
         }
         ind
     }
-    fn get_vertices(world: &World, blocks: &BlockRegistry, pos: [i32; 3]) -> Vec<QuadVertex> {
+    fn get_vertices(world: &World, blocks: &BlockRegistry, pos: &ChunkPos) -> Vec<QuadVertex> {
         let (chunk, adjacent) = Self::lock_chunks(world, pos);
         let mut buffer = Vec::new();
         for x in 0..CHUNK_SIZE {
@@ -85,14 +85,14 @@ impl RenderChunk {
         }
         buffer
     }
-    fn lock_chunks(world: &World, pos: [i32; 3]) -> (ChunkReader, [Option<ChunkReader>; 6]) {
-        let l1 = world.lock_chunk(&[pos[0] - 1, pos[1], pos[2]]);
-        let l2 = world.lock_chunk(&[pos[0], pos[1] - 1, pos[2]]);
-        let l3 = world.lock_chunk(&[pos[0], pos[1], pos[2] - 1]);
-        let l4 = world.lock_chunk(&[pos[0], pos[1], pos[2]]).expect("RenderChunk: chunk does not exist");
-        let l5 = world.lock_chunk(&[pos[0], pos[1], pos[2] + 1]);
-        let l6 = world.lock_chunk(&[pos[0], pos[1] + 1, pos[2]]);
-        let l7 = world.lock_chunk(&[pos[0] + 1, pos[1], pos[2]]);
+    fn lock_chunks<'a>(world: &'a World, pos: &ChunkPos) -> (ChunkReader<'a>, [Option<ChunkReader<'a>>; 6]) {
+        let l1 = world.lock_chunk(&pos.facing(Direction::NegX));
+        let l2 = world.lock_chunk(&pos.facing(Direction::NegY));
+        let l3 = world.lock_chunk(&pos.facing(Direction::NegZ));
+        let l4 = world.lock_chunk(&pos).expect("RenderChunk: chunk does not exist");
+        let l5 = world.lock_chunk(&pos.facing(Direction::PosZ));
+        let l6 = world.lock_chunk(&pos.facing(Direction::PosY));
+        let l7 = world.lock_chunk(&pos.facing(Direction::PosX));
         (l4, [l7, l1, l6, l2, l5, l3])
     }
     fn push_face(buffer: &mut Vec<QuadVertex>, pos: [f32; 3], direction: Direction, texture: BlockTextureId, light: u8) {

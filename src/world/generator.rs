@@ -1,6 +1,6 @@
 use md5;
 
-use world::{CHUNK_SIZE, chunk_index};
+use world::{CHUNK_SIZE, chunk_index, ChunkPos};
 use block::BlockId;
 use num::Integer;
 use std::collections::VecDeque;
@@ -53,7 +53,7 @@ impl Generator {
         }
     }
 
-    pub fn gen_chunk(&mut self, pos: &[i32; 3]) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
+    pub fn gen_chunk(&mut self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
         let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
         let height_map_index = self.get_height_map(pos[0], pos[2]);
         let height_map = &self.height_cache[height_map_index];

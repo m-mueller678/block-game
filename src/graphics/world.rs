@@ -1,11 +1,11 @@
 use glium;
 use super::{RenderChunk, ChunkUniforms};
 use glium::texture::CompressedSrgbTexture2dArray;
-use world::{CHUNK_SIZE, World};
+use world::{CHUNK_SIZE, World, BlockPos, ChunkPos};
 
 pub struct WorldRender<'a, F: 'a + glium::backend::Facade> {
     render_dist: i32,
-    render_chunks: Vec<([i32; 3], RenderChunk)>,
+    render_chunks: Vec<(ChunkPos, RenderChunk)>,
     facade: &'a F,
 }
 
@@ -38,7 +38,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
             light: [0., -2., 1.],
             sampler: sampler,
         };
-        let chunk_iter = self.render_chunks.iter().filter(|&&(pos, _)| {
+        let chunk_iter = self.render_chunks.iter().filter(|&&(ref pos, _)| {
             let corners: Vec<[f32; 3]> = CORNER_OFFSET.iter().
                 map(|c| [c[0] + pos[0] as f32, c[1] + pos[1] as f32, c[2] + pos[2] as f32])
                 .map(|c| vec3_scale(c, CHUNK_SIZE as f32))
@@ -55,23 +55,22 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
         }
         Ok(())
     }
-    pub fn update(&mut self, pos: &[i32; 3], world: &World) {
-        let chunk_size = CHUNK_SIZE as i32;
-        let chunk_index = [pos[0] / chunk_size, pos[1] / chunk_size, pos[2] / chunk_size];
+    pub fn update(&mut self, player_pos: &BlockPos, world: &World) {
+        let chunk_pos = World::chunk_at(player_pos);
         let render_dist = self.render_dist;
-        self.render_chunks.retain(|&(pos, _)| {
-            (pos[0] - chunk_index[0]).abs() <= render_dist
-                && (pos[1] - chunk_index[1]).abs() <= render_dist
-                && (pos[2] - chunk_index[2]).abs() <= render_dist
+        self.render_chunks.retain(|&(ref pos, _)| {
+            (pos[0] - chunk_pos[0]).abs() <= render_dist
+                && (pos[1] - chunk_pos[1]).abs() <= render_dist
+                && (pos[2] - chunk_pos[2]).abs() <= render_dist
         });
         let range = -self.render_dist..(self.render_dist + 1);
         for x in range.clone() {
             for y in range.clone() {
                 for z in range.clone() {
-                    let chunk_pos = [x + chunk_index[0], y + chunk_index[1], z + chunk_index[2]];
-                    if !self.render_chunks.iter().any(|&(pos, _)| pos == chunk_pos) {
+                    let chunk_pos = ChunkPos([x + chunk_pos[0], y + chunk_pos[1], z + chunk_pos[2]]);
+                    if !self.render_chunks.iter().any(|&(ref pos, _)| *pos == chunk_pos) {
                         if world.chunk_loaded(&chunk_pos) {
-                            let render_chunk = RenderChunk::new(self.facade, world, chunk_pos);
+                            let render_chunk = RenderChunk::new(self.facade, world, &chunk_pos);
                             self.render_chunks.push((chunk_pos, render_chunk));
                         }
                     }
@@ -80,7 +79,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
         }
         for chunk in self.render_chunks.iter_mut() {
             if world.reset_chunk_updated(&chunk.0) {
-                chunk.1.update(&world, chunk.0);
+                chunk.1.update(&world, &chunk.0);
             }
         }
     }

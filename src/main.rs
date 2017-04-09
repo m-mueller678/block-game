@@ -14,7 +14,7 @@ use glium::DisplayBuild;
 use glium::Surface;
 use std::io::Cursor;
 use std::sync::{RwLock, Arc};
-use world::World;
+use world::{World, BlockPos};
 use std::time::Duration;
 use std::sync::mpsc::{Sender, channel, TryRecvError};
 use std::thread;
@@ -68,7 +68,7 @@ fn run_graphics(world: Arc<RwLock<World>>, cam_pos: Sender<Message>) {
                 LineVertex { pos: vecmath::vec3_add(center, [0., 0., 1.]), color: [0., 0., 1.] },
             ]);
         }
-        let pos = [camera.position[0] as i32, camera.position[1] as i32, camera.position[2] as i32];
+        let pos = BlockPos([camera.position[0] as i32, camera.position[1] as i32, camera.position[2] as i32]);
         world_render.update(&pos, &world.read().unwrap());
         let mut target = display.draw();
         target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
@@ -158,7 +158,7 @@ fn main() {
             }
         }
         if let Some(cam_pos) = cam_pos {
-            world.read().unwrap().gen_area(&[cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32], 3);
+            world.read().unwrap().gen_area(&BlockPos([cam_pos[0] as i32, cam_pos[1] as i32, cam_pos[2] as i32]), 3);
             if let Some(look_at) = world.read().unwrap().block_ray_trace(cam_pos, cam_dir, 5.) {
                 world.read().unwrap().set_block(&look_at, block2).unwrap();
             }
