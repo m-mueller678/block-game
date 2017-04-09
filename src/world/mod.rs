@@ -440,5 +440,6 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
     fn set_light(&mut self, pos: &BlockPos, light: Light) {
         self.cache.chunk.light[chunk_index_global(pos)].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
+        self.world.update_adjacent_chunks(pos);
     }
 }
