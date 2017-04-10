@@ -4,6 +4,8 @@ mod chunk;
 mod lighting;
 mod position;
 
+pub const MAX_NATURAL_LIGHT: u8 = 5;
+
 pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::generator::Generator;
 pub use self::position::*;
@@ -17,14 +19,12 @@ use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
 use self::atomic_light::{LightState};
-use self::chunk::{Chunk, init_vertical_clear, update_vertical_clear};
-use std;
+use self::chunk::Chunk;
 
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
     pos: ChunkPos,
     data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
-    vertical_clear: [AtomicBool; CHUNK_SIZE * CHUNK_SIZE],
 }
 
 #[derive(Debug)]
@@ -93,42 +93,71 @@ impl World {
             }
         }
     }
-    pub fn flush_chunks(&mut self, preferred_flush_count: usize, max_rest: usize) {
-        let mut source_buffer = Vec::new();
-        let mut face_buffer = Vec::new();
+    pub fn flush_chunk(&mut self) {
+        let mut sources_to_trigger = UpdateQueue::new();
+        let insert_pos;
         {
             let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
-            let flush_count = if buffer.len() <= max_rest + preferred_flush_count {
-                std::cmp::min(buffer.len(), preferred_flush_count)
-            } else {
-                buffer.len() - max_rest
-            };
-            for chunk in buffer.drain(0..flush_count) {
+            if let Some(chunk) = buffer.pop() {
+                insert_pos = chunk.pos.clone();
                 let entry = self.chunks.entry([chunk.pos[0], chunk.pos[2]]);
                 let column = entry.or_insert_with(|| ChunkColumn::new());
                 column.insert(chunk.pos[1], Chunk {
-                    vertical_clear: chunk.vertical_clear,
+                    natural_light: LightState::init_dark_chunk(),
                     data: chunk.data,
-                    light: LightState::init_dark_chunk(),
+                    artificial_light: LightState::init_dark_chunk(),
                     update_render: AtomicBool::new(false)
                 });
-                for d in ALL_DIRECTIONS.iter() {
-                    let other_pos = chunk.pos.facing(*d);
-                    face_buffer.push((other_pos, d.invert()));
+                for source in chunk.light_sources.iter() {
+                    sources_to_trigger.push(source.1, source.0.clone(), None);
                 }
-                for source in chunk.light_sources {
-                    source_buffer.push(source);
+            } else {
+                return;
+            }
+        }
+        let cs = CHUNK_SIZE as i32;
+        let mut sky_light = UpdateQueue::new();
+        if !self.chunk_loaded(&insert_pos.facing(Direction::PosY)) {
+            for x in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    let abs_pos = BlockPos([
+                        cs * insert_pos[0] + x as i32,
+                        cs * insert_pos[1] + cs - 1,
+                        cs * insert_pos[2] + z as i32,
+                    ]);
+                    sky_light.push(MAX_NATURAL_LIGHT, abs_pos, Some(Direction::NegY));
                 }
             }
         }
-        for &(ref pos, level) in source_buffer.iter() {
-            self.source_increase_brightness(&pos, level);
-        }
-        for &(ref chunk_pos, face) in face_buffer.iter() {
-            if let Some(chunk) = self.borrow_chunk(chunk_pos) {
-                self.trigger_chunk_face_brightness(&chunk_pos, face);
+        for face in ALL_DIRECTIONS.iter() {
+            let facing = insert_pos.facing(*face);
+            if let Some(chunk) = self.borrow_chunk(&facing) {
+                self.trigger_chunk_face_brightness(&facing, face.invert(), &mut sources_to_trigger, &mut sky_light);
                 chunk.update_render.store(true, Ordering::Release);
             }
+        }
+        increase_light(&mut self.artificial_lightmap(insert_pos.clone()), sources_to_trigger);
+        increase_light(&mut self.natural_lightmap(insert_pos.clone()), sky_light);
+
+        //block natural light in chunk below
+        if self.chunk_loaded(&insert_pos.facing(Direction::NegY)) {
+            let mut relight = UpdateQueue::new();
+            let mut lm = self.natural_lightmap(insert_pos.clone());
+            let inserted_cache = ChunkCache::new(insert_pos.clone(), &self.chunks).unwrap();
+            for x in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    let abs_pos = BlockPos([
+                        insert_pos[0] * cs + x as i32,
+                        insert_pos[1] * cs - 1,
+                        insert_pos[2] * cs + z as i32,
+                    ]);
+                    if inserted_cache.chunk.natural_light[chunk_index(&[x, 0, z])].level() != MAX_NATURAL_LIGHT {
+                        remove_light_rec(&mut lm, abs_pos, Direction::NegY, &mut relight);
+                    }
+                }
+            }
+            increase_light(&mut self.natural_lightmap(insert_pos.facing(Direction::NegY)), relight);
+
         }
     }
     pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ChunkAccessError> {
@@ -145,23 +174,27 @@ impl World {
                 | (LightType::Opaque, LightType::Opaque) => {},
                 (LightType::Source(s1), LightType::Source(s2)) => {
                     if s2 > s1 {
-                        self.source_increase_brightness(pos, s2);
+                        increase_light(
+                            &mut self.artificial_lightmap(Self::chunk_at(pos)),
+                            UpdateQueue::single(s2, pos.clone(), None));
                     } else if s2 < s1 {
-                        decrease_light(&mut self.artificial_lightmap(Self::chunk_at(pos)), pos, (s2, Direction::PosX));
+                        remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
                     }
                 },
                 (LightType::Source(_), LightType::Transparent) => {
-                    self.remove_brightness(pos);
-                    self.transparent_increase_brightness(pos);
+                    remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
                 },
-                (_, LightType::Source(s)) => {
-                    self.source_increase_brightness(pos, s);
+                (LightType::Transparent, LightType::Source(s)) => {
+                    increase_light(
+                        &mut self.artificial_lightmap(Self::chunk_at(pos)),
+                        UpdateQueue::single(s, pos.clone(), None));
+                },
+                (LightType::Opaque, _) => {
+                    relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), pos);
+                    relight(&mut self.natural_lightmap(Self::chunk_at(pos)), pos);
                 }
-                (LightType::Opaque, LightType::Transparent) => {
-                    self.transparent_increase_brightness(pos);
-                },
                 (_, LightType::Opaque) => {
-                    self.remove_brightness(pos);
+                    remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
                 }
             }
             chunk.update_render.store(true, Ordering::Release);
@@ -255,44 +288,20 @@ impl World {
                     }
                 }).collect();
                 let insert = QueuedChunk {
-                    vertical_clear: init_vertical_clear(),
                     light_sources: sources,
                     pos: pos.clone(),
                     data: AtomicBlockId::init_chunk(&data),
                 };
-                for x in 0..CHUNK_SIZE {
-                    for z in 0..CHUNK_SIZE {
-                        update_vertical_clear(&insert.vertical_clear, &insert.data, [x, z], &*self.blocks);
-                    }
-                }
                 buffer.push(insert);
             }
         }
     }
 
-    fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
-        ArtificialLightMap {
-            world: &self,
-            cache: ChunkCache::new(p, &self.chunks).unwrap(),
-        }
-    }
-    fn transparent_increase_brightness(&self, p: &BlockPos) {
-        use std::cmp::Ord;
-        let mut lm = self.artificial_lightmap(Self::chunk_at(p));
-        let max_light = ALL_DIRECTIONS.iter()
-            .map(|direction| (self.get_brightness(&p.facing(*direction), &mut lm.cache).unwrap_or(0), *direction))
-            .max_by(|light1, light2| light1.0.cmp(&light2.0)).unwrap();
-        increase_light(&mut lm, vec![(p.clone(), max_light.1)], max_light.0);
-    }
-    fn source_increase_brightness(&self, p: &BlockPos, level: u8) {
-        increase_light(&mut self.artificial_lightmap(Self::chunk_at(p)), vec![(p.clone(), Direction::PosX)], level);
-    }
-    fn remove_brightness(&self, p: &BlockPos) {
-        let mut lm = self.artificial_lightmap(Self::chunk_at(p));
-        let old_light = lm.get_light(p);
-        remove_light(&mut lm, vec![(p.clone(), old_light.1)], old_light.0);
-    }
-    fn trigger_chunk_face_brightness(&self, pos: &ChunkPos, face: Direction) {
+    fn trigger_chunk_face_brightness(&self,
+                                     pos: &ChunkPos,
+                                     face: Direction,
+                                     artificial_updates: &mut UpdateQueue,
+                                     natural_updates: &mut UpdateQueue) {
         let (positive, d1, d2, face_direction) = match face {
             Direction::PosX => (true, 1, 2, 0),
             Direction::NegX => (false, 1, 2, 0),
@@ -302,58 +311,56 @@ impl World {
             Direction::NegZ => (false, 0, 1, 2),
         };
 
-        let mut brightness = [[0; CHUNK_SIZE]; CHUNK_SIZE];
-        let mut lm = self.artificial_lightmap(pos.facing(face));
+        let mut brightness = [[(0, 0); CHUNK_SIZE]; CHUNK_SIZE];
+        let chunk = self.borrow_chunk(pos).unwrap();
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
                 let mut block_pos = [0, 0, 0];
                 block_pos[d1] = i;
                 block_pos[d2] = j;
                 block_pos[face_direction] = if positive { CHUNK_SIZE - 1 } else { 0 };
-                brightness[i][j] = lm.cache.chunk.light[chunk_index(&block_pos)].level();
+                brightness[i][j].0 = chunk.artificial_light[chunk_index(&block_pos)].level();
+                brightness[i][j].1 = chunk.natural_light[chunk_index(&block_pos)].level();
             }
         }
         let chunk_size = CHUNK_SIZE as i32;
-        let mut updates: [Vec<(BlockPos, Direction)>; 15] = [Vec::new(), Vec::new(), Vec::new(), Vec::new(),
-            Vec::new(), Vec::new(), Vec::new(), Vec::new(),
-            Vec::new(), Vec::new(), Vec::new(), Vec::new(),
-            Vec::new(), Vec::new(), Vec::new()];
         for i in 0..CHUNK_SIZE {
             for j in 0..CHUNK_SIZE {
-                if brightness[i][j] <= 1 {
-                    continue;
+                let mut block_pos = BlockPos([pos[0] * chunk_size, pos[1] * chunk_size, pos[2] * chunk_size]);
+                block_pos.0[d1] += i as i32;
+                block_pos.0[d2] += j as i32;
+                block_pos.0[face_direction] += if positive { CHUNK_SIZE as i32 } else { -1 };
+
+                if brightness[i][j].0 > 1 {
+                    artificial_updates.push(brightness[i][j].0 - 1, block_pos.clone(), Some(face));
                 }
-                let mut block_pos = [pos[0] * chunk_size, pos[1] * chunk_size, pos[2] * chunk_size];
-                block_pos[d1] += i as i32;
-                block_pos[d2] += j as i32;
-                block_pos[face_direction] += if positive { 0 } else { CHUNK_SIZE as i32 - 1 };
-                assert!(brightness[i][j] < 16);
-                assert!(brightness[i][j] > 1);
-                updates[brightness[i][j] as usize - 1].push((BlockPos(block_pos), face));
+                if brightness[i][j].1 > 1 {
+                    if face == Direction::NegY && brightness[i][j].1 == MAX_NATURAL_LIGHT {
+                        natural_updates.push(MAX_NATURAL_LIGHT, block_pos, Some(face));
+                    } else {
+                        natural_updates.push(brightness[i][j].1 - 1, block_pos, Some(face));
+                    }
+                }
             }
         }
-        for (i, pos) in updates.iter_mut().map(|v| {
-            let mut move_to = vec![];
-            move_to.append(v);
-            move_to
-        }).enumerate() {
-            increase_light(&mut lm, pos, i as u8 + 1);
+    }
+    fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
+        ArtificialLightMap {
+            world: &self,
+            cache: ChunkCache::new(p, &self.chunks).unwrap(),
         }
     }
-    fn get_brightness<'a: 'b, 'b>(&'a self, pos: &BlockPos, cache: &mut ChunkCache<'b>) -> Option<u8> {
-        let chunk_pos = Self::chunk_at(pos);
-        let block_position = chunk_index_global(pos);
-        if cache.load(chunk_pos, &self.chunks).is_ok() {
-            Some(cache.chunk.light[block_position].level())
-        } else {
-            None
+    fn natural_lightmap(&self, p: ChunkPos) -> NaturalLightMap {
+        NaturalLightMap {
+            world: &self,
+            cache: ChunkCache::new(p, &self.chunks).unwrap(),
         }
     }
 }
 
 struct ChunkCache<'a> {
     pos: ChunkPos,
-    chunk: &'a Chunk,
+    pub chunk: &'a Chunk,
 }
 
 impl<'a> ChunkCache<'a> {
@@ -387,26 +394,77 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
             true
         } else {
-            match *self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()) {
-                LightType::Opaque => true,
-                LightType::Source(_) => false,
-                LightType::Transparent => false,
-            }
+            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
         }
     }
 
     fn get_light(&mut self, pos: &BlockPos) -> Light {
         if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
-            (0, Direction::PosX)
+            (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.light[chunk_index_global(pos)];
+            let atomic_light = &self.cache.chunk.artificial_light[chunk_index_global(pos)];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
     fn set_light(&mut self, pos: &BlockPos, light: Light) {
-        self.cache.chunk.light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.artificial_light[chunk_index_global(pos)].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
         self.world.update_adjacent_chunks(pos);
+    }
+    fn compute_light_to(&mut self, _: Direction, level: u8) -> u8 {
+        level - 1
+    }
+    fn internal_light(&mut self, pos: &BlockPos) -> u8 {
+        if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
+            0
+        } else {
+            match *self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()) {
+                LightType::Source(s) => s,
+                LightType::Opaque | LightType::Transparent => 0
+            }
+        }
+    }
+}
+
+pub struct NaturalLightMap<'a> {
+    world: &'a World,
+    cache: ChunkCache<'a>,
+}
+
+impl<'a> LightMap for NaturalLightMap<'a> {
+    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
+        if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
+            true
+        } else {
+            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
+        }
+    }
+
+    fn get_light(&mut self, pos: &BlockPos) -> Light {
+        if self.cache.load(World::chunk_at(pos), &self.world.chunks).is_err() {
+            (0, None)
+        } else {
+            let atomic_light = &self.cache.chunk.natural_light[chunk_index_global(pos)];
+            (atomic_light.level(), atomic_light.direction())
+        }
+    }
+
+    fn set_light(&mut self, pos: &BlockPos, light: Light) {
+        self.cache.chunk.natural_light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.update_render.store(true, Ordering::Release);
+        self.world.update_adjacent_chunks(pos);
+    }
+
+    fn compute_light_to(&mut self, d: Direction, level: u8) -> u8 {
+        if level == MAX_NATURAL_LIGHT && d == Direction::NegY {
+            MAX_NATURAL_LIGHT
+        } else {
+            level - 1
+        }
+    }
+
+    fn internal_light(&mut self, _: &BlockPos) -> u8 {
+        0
     }
 }

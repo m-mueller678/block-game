@@ -173,7 +173,7 @@ fn main() {
                 let put = look_at.block.facing(look_at.face);
                 world.read().unwrap().set_block(&put, block2).unwrap();
             }
-            world.write().unwrap().flush_chunks(5, 150);
+            world.write().unwrap().flush_chunk();
             println!("pos:{:?}, dir:{:?}, look at:{:?}", cam_pos, cam_dir, look_at);
         }
         thread::sleep(Duration::from_millis(20));

@@ -7,16 +7,23 @@ pub struct LightState {
     direction: AtomicU8,
 }
 
+const NO_DIRECTION: u8 = 6;
+
 impl LightState {
     pub fn level(&self) -> u8 {
         self.level.load(Ordering::Relaxed)
     }
-    pub fn direction(&self) -> Direction {
-        Direction::from_usize(self.direction.load(Ordering::Relaxed) as usize)
+    pub fn direction(&self) -> Option<Direction> {
+        let raw = self.direction.load(Ordering::Relaxed);
+        if raw == NO_DIRECTION {
+            None
+        } else {
+            Some(Direction::from_usize(raw as usize))
+        }
     }
-    pub fn set(&self, level: u8, direction: Direction) {
+    pub fn set(&self, level: u8, direction: Option<Direction>) {
         self.level.store(level, Ordering::Relaxed);
-        self.direction.store(direction as u8, Ordering::Relaxed);
+        self.direction.store(direction.map(|d| d as u8).unwrap_or(NO_DIRECTION), Ordering::Relaxed);
     }
     pub fn init_dark_chunk() -> [LightState; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
         use std::mem::uninitialized;

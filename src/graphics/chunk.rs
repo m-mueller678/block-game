@@ -73,7 +73,7 @@ impl RenderChunk {
                                             pos[1] as f32 * CHUNK_SIZE as f32 + y as f32,
                                             pos[2] as f32 * CHUNK_SIZE as f32 + z as f32
                                         ];
-                                        Self::push_face(&mut buffer, float_pos, *d, textures[*d as usize], facing_chunk.light(facing_index));
+                                        Self::push_face(&mut buffer, float_pos, *d, textures[*d as usize], facing_chunk.effective_light(facing_index));
                                     }
                                 }
                             }
