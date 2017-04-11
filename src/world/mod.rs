@@ -141,7 +141,7 @@ impl World {
 
         //block natural light in chunk below
         if self.chunk_loaded(&insert_pos.facing(Direction::NegY)) {
-            let mut relight = UpdateQueue::new();
+            let mut relight = RelightData::new();
             let mut lm = self.natural_lightmap(insert_pos.clone());
             let inserted_cache = ChunkCache::new(insert_pos.clone(), &self.chunks).unwrap();
             for x in 0..CHUNK_SIZE {
@@ -156,8 +156,7 @@ impl World {
                     }
                 }
             }
-            increase_light(&mut self.natural_lightmap(insert_pos.facing(Direction::NegY)), relight);
-
+            increase_light(&mut self.natural_lightmap(insert_pos.facing(Direction::NegY)), relight.build_queue(&mut lm));
         }
     }
     pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ChunkAccessError> {
@@ -175,26 +174,27 @@ impl World {
                 (LightType::Source(s1), LightType::Source(s2)) => {
                     if s2 > s1 {
                         increase_light(
-                            &mut self.artificial_lightmap(Self::chunk_at(pos)),
+                            &mut self.artificial_lightmap(chunk_pos),
                             UpdateQueue::single(s2, pos.clone(), None));
                     } else if s2 < s1 {
-                        remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
+                        remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos.clone()]);
                     }
                 },
                 (LightType::Source(_), LightType::Transparent) => {
-                    remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
+                    remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos.clone()]);
                 },
                 (LightType::Transparent, LightType::Source(s)) => {
                     increase_light(
-                        &mut self.artificial_lightmap(Self::chunk_at(pos)),
+                        &mut self.artificial_lightmap(chunk_pos),
                         UpdateQueue::single(s, pos.clone(), None));
                 },
                 (LightType::Opaque, _) => {
-                    relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), pos);
-                    relight(&mut self.natural_lightmap(Self::chunk_at(pos)), pos);
+                    relight(&mut self.artificial_lightmap(chunk_pos.clone()), pos);
+                    relight(&mut self.natural_lightmap(chunk_pos), pos);
                 }
                 (_, LightType::Opaque) => {
-                    remove_and_relight(&mut self.artificial_lightmap(Self::chunk_at(pos)), &[pos.clone()]);
+                    remove_and_relight(&mut self.artificial_lightmap(chunk_pos.clone()), &[pos.clone()]);
+                    remove_and_relight(&mut self.natural_lightmap(chunk_pos), &[pos.clone()]);
                 }
             }
             chunk.update_render.store(true, Ordering::Release);
@@ -225,6 +225,22 @@ impl World {
     }
     pub fn get_block(&self, pos: &BlockPos) -> Option<BlockId> {
         self.borrow_chunk(&Self::chunk_at(pos)).map(|c| c.data[chunk_index_global(pos)].load())
+    }
+    pub fn natural_light(&self, pos: &BlockPos) -> Option<(u8, Option<Direction>)> {
+        if let Some(chunk) = self.borrow_chunk(&Self::chunk_at(pos)) {
+            let light = &chunk.natural_light[chunk_index_global(pos)];
+            Some((light.level(), light.direction()))
+        } else {
+            None
+        }
+    }
+    pub fn artificial_light(&self, pos: &BlockPos) -> Option<(u8, Option<Direction>)> {
+        if let Some(chunk) = self.borrow_chunk(&Self::chunk_at(pos)) {
+            let light = &chunk.artificial_light[chunk_index_global(pos)];
+            Some((light.level(), light.direction()))
+        } else {
+            None
+        }
     }
     fn update_adjacent_chunks(&self, block_pos: &BlockPos) {
         let cs = CHUNK_SIZE as i32;

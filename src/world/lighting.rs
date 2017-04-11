@@ -7,6 +7,36 @@ pub struct UpdateQueue {
     levels: Vec<Vec<(BlockPos, Option<Direction>)>>
 }
 
+pub struct RelightData {
+    //position and brightness of source
+    sources: Vec<(BlockPos, u8)>,
+    //position of brighter block and direction brightness should be updated
+    brighter: Vec<(BlockPos, Direction)>,
+}
+
+impl RelightData {
+    pub fn new() -> Self {
+        RelightData {
+            sources: Vec::new(),
+            brighter: Vec::new(),
+        }
+    }
+    pub fn build_queue<LM: LightMap>(&self, lm: &mut LM) -> UpdateQueue {
+        let mut queue = UpdateQueue::new();
+        for s in self.sources.iter() {
+            queue.push(s.1, s.0.clone(), None);
+        }
+        for b in self.brighter.iter() {
+            let own_light = lm.get_light(&b.0);
+            if own_light.0 > 1 {
+                let light_out = lm.compute_light_to(b.1, own_light.0);
+                queue.push(light_out, b.0.facing(b.1), Some(b.1));
+            }
+        }
+        queue
+    }
+}
+
 impl UpdateQueue {
     pub fn single(level: u8, pos: BlockPos, direction: Option<Direction>) -> Self {
         let mut uq = Self::new();
@@ -38,27 +68,29 @@ pub trait LightMap {
     fn internal_light(&mut self, block: &BlockPos) -> u8;
 }
 
-pub fn remove_light_rec<LM: LightMap>(lm: &mut LM, pos: BlockPos, light_direction: Direction, brighter: &mut UpdateQueue) {
+pub fn remove_light_rec<LM: LightMap>(lm: &mut LM,
+                                      pos: BlockPos,
+                                      light_direction: Direction,
+                                      relight_data: &mut RelightData) {
     let light = lm.get_light(&pos);
     if light.1 == Some(light_direction) {
         let internal_light = lm.internal_light(&pos);
         if internal_light < light.0 {
             if internal_light > 1 {
                 lm.set_light(&pos, (0, None));
-                brighter.push(internal_light, pos.clone(), None);
+                relight_data.sources.push((pos.clone(), internal_light));
             } else {
                 lm.set_light(&pos, (internal_light, None));
             }
             for d in ALL_DIRECTIONS.iter() {
-                remove_light_rec(lm, pos.facing(*d), *d, brighter);
+                remove_light_rec(lm, pos.facing(*d), *d, relight_data);
             }
         }
     } else if light.0 > 1 {
-        let inverse_direction = light_direction.invert();
-        let block_from = pos.facing(inverse_direction);
-        brighter.push(lm.compute_light_to(inverse_direction, light.0), block_from, Some(inverse_direction))
+        relight_data.brighter.push((pos.clone(), light_direction.invert()));
     }
 }
+
 
 pub fn relight<LM: LightMap>(lm: &mut LM, pos: &BlockPos) {
     let mut updates = UpdateQueue::new();
@@ -76,12 +108,12 @@ pub fn relight<LM: LightMap>(lm: &mut LM, pos: &BlockPos) {
 }
 
 pub fn remove_and_relight<LM: LightMap>(lm: &mut LM, positions: &[BlockPos]) {
-    let mut update_brightness = UpdateQueue::new();
+    let mut update_brightness = RelightData::new();
     for pos in positions.iter() {
         let internal_light = lm.internal_light(pos);
         if internal_light > 1 {
             lm.set_light(pos, (0, None));
-            update_brightness.push(internal_light, pos.clone(), None);
+            update_brightness.sources.push((pos.clone(), internal_light));
         } else {
             lm.set_light(pos, (internal_light, None));
         }
@@ -89,7 +121,8 @@ pub fn remove_and_relight<LM: LightMap>(lm: &mut LM, positions: &[BlockPos]) {
             remove_light_rec(lm, pos.facing(*d), *d, &mut update_brightness);
         }
     }
-    increase_light(lm, update_brightness);
+    let queue = update_brightness.build_queue(lm);
+    increase_light(lm, queue);
 }
 
 pub fn increase_light<LM: LightMap>(lm: &mut LM, mut to_update: UpdateQueue) {

@@ -104,6 +104,19 @@ impl Ui {
         for ev in self.display.poll_events() {
             use vecmath::{vec3_add, vec3_scale, vec3_sub};
             match ev {
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
+                    print!("pos: {:?}\ndir: {:?}\nlook_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
+                    if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
+                        println!(" ({:?})\nid: {:?}\nnl: {:?}\nal: {:?}",
+                                 print_block,
+                                 self.world.read().unwrap().get_block(&print_block),
+                                 self.world.read().unwrap().natural_light(&print_block),
+                                 self.world.read().unwrap().artificial_light(&print_block),
+                        )
+                    } else {
+                        println!()
+                    }
+                }
                 glutin::Event::Closed => return false,
                 glutin::Event::MouseMoved(x, y) => {
                     if let Ok((x, y)) = window_util::read_mouse_delta(&self.display, (x, y)) {
