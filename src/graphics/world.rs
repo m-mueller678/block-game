@@ -3,18 +3,16 @@ use super::{RenderChunk, ChunkUniforms};
 use glium::texture::CompressedSrgbTexture2dArray;
 use world::{CHUNK_SIZE, World, BlockPos, ChunkPos};
 
-pub struct WorldRender<'a, F: 'a + glium::backend::Facade> {
+pub struct WorldRender {
     render_dist: i32,
     render_chunks: Vec<(ChunkPos, RenderChunk)>,
-    facade: &'a F,
 }
 
-impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
-    pub fn new(facade: &'a F) -> Self {
+impl WorldRender {
+    pub fn new() -> Self {
         WorldRender {
             render_dist: 4,
             render_chunks: Vec::new(),
-            facade: facade,
         }
     }
     pub fn draw<S: glium::Surface>(&self, surface: &mut S,
@@ -55,7 +53,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
         }
         Ok(())
     }
-    pub fn update(&mut self, player_pos: &BlockPos, world: &World) {
+    pub fn update<F: glium::backend::Facade>(&mut self, player_pos: &BlockPos, world: &World, facade: &F) {
         let chunk_pos = World::chunk_at(player_pos);
         let render_dist = self.render_dist;
         self.render_chunks.retain(|&(ref pos, _)| {
@@ -70,7 +68,7 @@ impl<'a, F: glium::backend::Facade> WorldRender<'a, F> {
                     let chunk_pos = ChunkPos([x + chunk_pos[0], y + chunk_pos[1], z + chunk_pos[2]]);
                     if !self.render_chunks.iter().any(|&(ref pos, _)| *pos == chunk_pos) {
                         if world.chunk_loaded(&chunk_pos) {
-                            let render_chunk = RenderChunk::new(self.facade, world, &chunk_pos);
+                            let render_chunk = RenderChunk::new(facade, world, &chunk_pos);
                             self.render_chunks.push((chunk_pos, render_chunk));
                         }
                     }

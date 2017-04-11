@@ -50,7 +50,7 @@ pub struct BlockIntersectIterator {
     inverse_direction: [f32; 3],
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockIntersection {
     pub block: BlockPos,
     pub face: Direction,
