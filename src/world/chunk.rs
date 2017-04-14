@@ -18,6 +18,10 @@ pub struct ChunkReader<'a> {
     chunk: &'a Chunk,
 }
 
+pub fn chunk_xz_index(x: usize, z: usize) -> usize {
+    x * CHUNK_SIZE + z
+}
+
 pub fn chunk_index_global(p: &BlockPos) -> usize {
     let cs = CHUNK_SIZE as i32;
     p[0].mod_floor(&cs) as usize * CHUNK_SIZE * CHUNK_SIZE

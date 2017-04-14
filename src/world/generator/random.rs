@@ -1,5 +1,6 @@
 use rand::{SeedableRng, IsaacRng, Rng};
 
+#[derive(Clone, Copy)]
 pub struct WorldRngSeeder {
     seed: [u32; 2],
 }

@@ -1,27 +1,38 @@
 use world::{CHUNK_SIZE, chunk_index, ChunkPos};
 use block::BlockId;
+use biome::*;
 use num::Integer;
 use std::collections::VecDeque;
 pub use self::random::WorldRngSeeder;
 use rand::Rng;
+use std::sync::Arc;
 
 mod random;
+mod biome;
+
+pub type BiomeMap = [BiomeId; CHUNK_SIZE * CHUNK_SIZE];
 
 pub struct Generator {
     ground: BlockId,
     height_cache: VecDeque<(i32, i32, Box<HeightMap>)>,
     rand: random::WorldRngSeeder,
+    biome_generator: biome::BiomeGenerator,
 }
 
 type HeightMap = [[i32; CHUNK_SIZE]; CHUNK_SIZE];
 
 impl Generator {
-    pub fn new(ground: BlockId, rand: WorldRngSeeder) -> Self {
+    pub fn new(ground: BlockId, rand: WorldRngSeeder, biomes: Arc<BiomeRegistry>) -> Self {
         Generator {
             rand: rand,
             ground: ground,
             height_cache: VecDeque::with_capacity(32),
+            biome_generator: biome::BiomeGenerator::new(256, rand, biomes),
         }
+    }
+
+    pub fn gen_biome_map(&self, x: i32, z: i32) -> BiomeMap {
+        self.biome_generator.gen_chunk(x, z)
     }
 
     pub fn get_height_map(&mut self, x: i32, z: i32) -> usize {

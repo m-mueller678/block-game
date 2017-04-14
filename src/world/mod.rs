@@ -10,6 +10,7 @@ pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::generator::{Generator, WorldRngSeeder};
 pub use self::position::*;
 
+use biome::*;
 use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
 use self::lighting::*;
 use std::collections::hash_map::HashMap;
@@ -19,7 +20,8 @@ use std::sync::{Mutex, Arc};
 use std::sync::atomic::{AtomicBool, Ordering};
 use num::Integer;
 use self::atomic_light::{LightState};
-use self::chunk::Chunk;
+use self::chunk::*;
+use self::generator::BiomeMap;
 
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
@@ -33,13 +35,15 @@ pub enum ChunkAccessError {
 }
 
 struct ChunkColumn {
-    chunks: [Vec<Option<Chunk>>; 2]
+    chunks: [Vec<Option<Chunk>>; 2],
+    biome: BiomeMap,
 }
 
 impl ChunkColumn {
-    fn new() -> Self {
+    fn new(biome: [BiomeId; CHUNK_SIZE * CHUNK_SIZE]) -> Self {
         ChunkColumn {
             chunks: [Vec::new(), Vec::new()],
+            biome: biome
         }
     }
     fn get(&self, y: i32) -> Option<&Chunk> {
@@ -97,11 +101,14 @@ impl World {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos;
         {
-            let (_, ref mut buffer) = *self.inserter.get_mut().unwrap();
+            let (ref generator, ref mut buffer) = *self.inserter.get_mut().unwrap();
             if let Some(chunk) = buffer.pop() {
                 insert_pos = chunk.pos.clone();
-                let entry = self.chunks.entry([chunk.pos[0], chunk.pos[2]]);
-                let column = entry.or_insert_with(|| ChunkColumn::new());
+                let col_pos = [chunk.pos[0], chunk.pos[2]];
+                let entry = self.chunks.entry(col_pos);
+                let column = entry.or_insert_with(|| {
+                    ChunkColumn::new(generator.gen_biome_map(col_pos[0], col_pos[1]))
+                });
                 column.insert(chunk.pos[1], Chunk {
                     natural_light: LightState::init_dark_chunk(),
                     data: chunk.data,
@@ -241,6 +248,16 @@ impl World {
         } else {
             None
         }
+    }
+    pub fn get_biome(&self, x: i32, z: i32) -> Option<BiomeId> {
+        let cs = CHUNK_SIZE as i32;
+        let col_x = x.div_floor(&cs);
+        let col_z = z.div_floor(&cs);
+        self.chunks.get(&[col_x, col_z]).map(|col| {
+            let block_x = x.mod_floor(&cs) as usize;
+            let block_z = z.mod_floor(&cs) as usize;
+            col.biome[chunk_xz_index(block_x, block_z)]
+        })
     }
     fn update_adjacent_chunks(&self, block_pos: &BlockPos) {
         let cs = CHUNK_SIZE as i32;

@@ -29,11 +29,13 @@ mod block;
 mod world;
 mod geometry;
 mod ui;
+mod biome;
 
 fn main() {
     let mut bgs = BlockRegistry::new();
     let block1 = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
-    let world = Arc::new(RwLock::new(World::new(Arc::new(bgs), world::Generator::new(block1, world::WorldRngSeeder::new(1)))));
+    let biomes = Arc::new(biome::BiomeRegistry {});
+    let world = Arc::new(RwLock::new(World::new(Arc::new(bgs), world::Generator::new(block1, world::WorldRngSeeder::new(1), biomes))));
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = {

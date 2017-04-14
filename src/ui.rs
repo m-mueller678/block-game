@@ -107,11 +107,12 @@ impl Ui {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
                     print!("pos: {:?}\ndir: {:?}\nlook_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
-                        println!(" ({:?})\nid: {:?}\nnl: {:?}\nal: {:?}",
+                        println!(" ({:?})\nid: {:?}\nnl: {:?}\nal: {:?}\nbiome: {:?}",
                                  print_block,
                                  self.world.read().unwrap().get_block(&print_block),
                                  self.world.read().unwrap().natural_light(&print_block),
                                  self.world.read().unwrap().artificial_light(&print_block),
+                                 self.world.read().unwrap().get_biome(print_block[0], print_block[2]),
                         )
                     } else {
                         println!()
