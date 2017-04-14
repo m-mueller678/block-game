@@ -1,24 +1,29 @@
-use md5;
-
 use world::{CHUNK_SIZE, chunk_index, ChunkPos};
 use block::BlockId;
 use num::Integer;
 use std::collections::VecDeque;
+pub use self::random::WorldRngSeeder;
+use rand::Rng;
+
+mod random;
 
 pub struct Generator {
     ground: BlockId,
-    height_cache: VecDeque<(i32, i32, Box<HeightMap>)>
+    height_cache: VecDeque<(i32, i32, Box<HeightMap>)>,
+    rand: random::WorldRngSeeder,
 }
 
 type HeightMap = [[i32; CHUNK_SIZE]; CHUNK_SIZE];
 
 impl Generator {
-    pub fn new(ground: BlockId) -> Self {
+    pub fn new(ground: BlockId, rand: WorldRngSeeder) -> Self {
         Generator {
+            rand: rand,
             ground: ground,
             height_cache: VecDeque::with_capacity(32),
         }
     }
+
     pub fn get_height_map(&mut self, x: i32, z: i32) -> usize {
         if let Some(cached) = self.height_cache.iter().position(|&(px, pz, _)| x == px && z == pz) {
             cached
@@ -71,14 +76,6 @@ impl Generator {
     }
 
     fn raw_height(&self, x: i32, z: i32) -> u8 {
-        let mut context = md5::Context::new();
-        let (pos0, pos1) = unsafe {
-            use std::mem::transmute;
-            (transmute::<i32, [u8; 4]>(x.to_le()),
-             transmute::<i32, [u8; 4]>(z.to_le()), )
-        };
-        context.consume(&pos0);
-        context.consume(&pos1);
-        context.compute()[0]
+        self.rand.make_gen(x, z).gen::<u8>()
     }
 }

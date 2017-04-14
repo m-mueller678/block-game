@@ -7,7 +7,7 @@ mod position;
 pub const MAX_NATURAL_LIGHT: u8 = 5;
 
 pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
-pub use self::generator::Generator;
+pub use self::generator::{Generator, WorldRngSeeder};
 pub use self::position::*;
 
 use block::{AtomicBlockId, BlockId, BlockRegistry, LightType};
