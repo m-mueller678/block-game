@@ -25,4 +25,7 @@ impl WorldRngSeeder {
         let gen = IsaacRng::from_seed(&seed);
         gen
     }
+    pub fn seed_32(&self) -> u32 {
+        self.seed[0]
+    }
 }

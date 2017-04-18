@@ -1,10 +1,8 @@
+use noise::{Perlin, Seedable, NoiseModule};
 use world::{CHUNK_SIZE, chunk_index, ChunkPos};
 use block::BlockId;
 use biome::*;
-use num::Integer;
-use std::collections::VecDeque;
 pub use self::random::WorldRngSeeder;
-use rand::Rng;
 use std::sync::Arc;
 
 mod random;
@@ -14,20 +12,19 @@ pub type BiomeMap = [BiomeId; CHUNK_SIZE * CHUNK_SIZE];
 
 pub struct Generator {
     ground: BlockId,
-    height_cache: VecDeque<(i32, i32, Box<HeightMap>)>,
-    rand: random::WorldRngSeeder,
     biome_generator: biome::BiomeGenerator,
+    perlin: Perlin
 }
 
-type HeightMap = [[i32; CHUNK_SIZE]; CHUNK_SIZE];
 
 impl Generator {
     pub fn new(ground: BlockId, rand: WorldRngSeeder, biomes: Arc<BiomeRegistry>) -> Self {
+        let perlin = Perlin::new();
+        perlin.set_seed(rand.seed_32() as usize);
         Generator {
-            rand: rand,
             ground: ground,
-            height_cache: VecDeque::with_capacity(32),
             biome_generator: biome::BiomeGenerator::new(256, rand, biomes),
+            perlin: perlin
         }
     }
 
@@ -35,58 +32,27 @@ impl Generator {
         self.biome_generator.gen_chunk(x, z)
     }
 
-    pub fn get_height_map(&mut self, x: i32, z: i32) -> usize {
-        if let Some(cached) = self.height_cache.iter().position(|&(px, pz, _)| x == px && z == pz) {
-            cached
+    pub fn gen_chunk(&mut self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
+        let base_x = pos[0] as f64 * CHUNK_SIZE as f64;
+        let base_z = pos[2] as f64 * CHUNK_SIZE as f64;
+        if pos[1] < 0 {
+            [self.ground; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]
+        } else if pos[1] > 0 {
+            [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE]
         } else {
-            let num_chunks = 8;
-            let size = num_chunks * CHUNK_SIZE as i32;
-            let mut height_map = Box::new([[0; CHUNK_SIZE]; CHUNK_SIZE]);
-            let x_base = x.div_floor(&num_chunks);
-            let z_base = z.div_floor(&num_chunks);
-            let ch = [
-                self.raw_height(x_base, z_base) as i32,
-                self.raw_height(x_base + 1, z_base) as i32,
-                self.raw_height(x_base + 1, z_base + 1) as i32,
-                self.raw_height(x_base, z_base + 1) as i32,
-            ];
-            let x_mod = x.mod_floor(&num_chunks);
-            let z_mod = z.mod_floor(&num_chunks);
+            let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
             for x in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
-                    let tx = x as i32 + x_mod * CHUNK_SIZE as i32;
-                    let tz = z as i32 + z_mod * CHUNK_SIZE as i32;
-                    let avg_neg_z = ch[0] * (size - tx) + ch[1] * tx;
-                    let avg_pos_z = ch[3] * (size - tx) + ch[2] * tx;
-                    height_map[x][z] = (avg_neg_z * (size - tz) + avg_pos_z * tz) / (4 * size * size)
+                    let perlin = self.perlin.get([(base_x + x as f64) / 128., (base_z + z as f64) / 128.]);
+                    let perlin = (perlin + 1.) * 0.5;
+                    let perlin = (perlin * perlin) * (perlin * -2. + 3.);
+                    let height = (perlin * CHUNK_SIZE as f64) as usize;
+                    for y in 0..height {
+                        ret[chunk_index(&[x, y, z])] = self.ground;
+                    }
                 }
             }
-            if self.height_cache.len() == self.height_cache.capacity() {
-                self.height_cache.pop_front();
-            }
-            self.height_cache.push_back((x, z, height_map));
-            self.height_cache.len() - 1
+            ret
         }
-    }
-
-    pub fn gen_chunk(&mut self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
-        let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
-        let height_map_index = self.get_height_map(pos[0], pos[2]);
-        let height_map = &self.height_cache[height_map_index];
-        let bottom = pos[1] * CHUNK_SIZE as i32;
-        for x in 0..CHUNK_SIZE {
-            for z in 0..CHUNK_SIZE {
-                let mut y = 0;
-                while y < CHUNK_SIZE && y as i32 + bottom < height_map.2[x][z] {
-                    ret[chunk_index(&[x, y, z])] = self.ground;
-                    y += 1;
-                }
-            }
-        }
-        ret
-    }
-
-    fn raw_height(&self, x: i32, z: i32) -> u8 {
-        self.rand.make_gen(x, z).gen::<u8>()
     }
 }

@@ -9,6 +9,7 @@ extern crate image;
 extern crate num;
 extern crate time;
 extern crate rand;
+extern crate noise;
 
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::DisplayBuild;
