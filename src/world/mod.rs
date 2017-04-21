@@ -84,6 +84,7 @@ pub struct World {
     chunks: HashMap<[i32; 2], ChunkColumn>,
     inserter: Mutex<(Generator, Vec<QueuedChunk>)>,
     blocks: Arc<BlockRegistry>,
+    biomes: Arc<BiomeRegistry>,
 }
 
 impl World {
@@ -281,15 +282,19 @@ impl World {
     pub fn lock_chunk(&self, pos: &ChunkPos) -> Option<ChunkReader> {
         self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
     }
-    pub fn new(blocks: Arc<BlockRegistry>, generator: Generator) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, biomes: Arc<BiomeRegistry>, generator: Generator) -> Self {
         World {
             chunks: HashMap::new(),
             blocks: blocks,
             inserter: Mutex::new((generator, Vec::new())),
+            biomes: biomes,
         }
     }
     pub fn blocks(&self) -> &BlockRegistry {
         &*self.blocks
+    }
+    pub fn biomes(&self) -> &BiomeRegistry {
+        &*self.biomes
     }
     pub fn reset_chunk_updated(&self, pos: &ChunkPos) -> bool {
         self.borrow_chunk(pos).map(|c| c.update_render.swap(false, Ordering::Acquire)).unwrap_or(false)

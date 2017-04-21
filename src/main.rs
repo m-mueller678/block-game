@@ -23,6 +23,7 @@ use std::thread;
 use block::{Block, LightType};
 use graphics::{DrawType, BlockTextureId};
 use ui::Message;
+use self::biome::*;
 
 mod window_util;
 mod graphics;
@@ -32,11 +33,28 @@ mod geometry;
 mod ui;
 mod biome;
 
+fn get_biomes() -> BiomeRegistry {
+    let mut b_reg = BiomeRegistry::new();
+    b_reg.push(Biome::new("desert".into(), EnvironmentData {
+        moisture: -1.,
+        temperature: 0.8,
+        elevation: 0.,
+        magic: 0.
+    }, EnvironmentDataWeight {
+        moisture: 0.8,
+        temperature: 0.2,
+        elevation: 0.,
+        magic: 0.,
+    }));
+    b_reg
+}
+
 fn main() {
     let mut bgs = BlockRegistry::new();
     let block1 = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
-    let biomes = Arc::new(biome::BiomeRegistry {});
-    let world = Arc::new(RwLock::new(World::new(Arc::new(bgs), world::Generator::new(block1, world::WorldRngSeeder::new(1), biomes))));
+    let biomes = Arc::new(get_biomes());
+    let generatoor = world::Generator::new(block1, world::WorldRngSeeder::new(1), biomes.clone());
+    let world = Arc::new(RwLock::new(World::new(Arc::new(bgs), biomes, generatoor)));
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = {

@@ -1,19 +1,21 @@
+use std::sync::Arc;
 use noise::{Perlin, Seedable, NoiseModule};
-use world::{CHUNK_SIZE, chunk_index, ChunkPos};
+use super::{CHUNK_SIZE, chunk_index, ChunkPos, chunk_xz_index};
 use block::BlockId;
 use biome::*;
 pub use self::random::WorldRngSeeder;
-use std::sync::Arc;
+use self::environment_data::Generator as EnvGen;
 
 mod random;
-mod biome;
+mod environment_data;
 
 pub type BiomeMap = [BiomeId; CHUNK_SIZE * CHUNK_SIZE];
 
 pub struct Generator {
     ground: BlockId,
-    biome_generator: biome::BiomeGenerator,
-    perlin: Perlin
+    perlin: Perlin,
+    env_data: EnvGen,
+    biomes: Arc<BiomeRegistry>,
 }
 
 
@@ -23,13 +25,25 @@ impl Generator {
         perlin.set_seed(rand.seed_32() as usize);
         Generator {
             ground: ground,
-            biome_generator: biome::BiomeGenerator::new(256, rand, biomes),
-            perlin: perlin
+            perlin: perlin,
+            env_data: EnvGen::new(&rand),
+            biomes: biomes,
         }
     }
 
     pub fn gen_biome_map(&self, x: i32, z: i32) -> BiomeMap {
-        self.biome_generator.gen_chunk(x, z)
+        let mut ret = [BIOME_ID_INIT; CHUNK_SIZE * CHUNK_SIZE];
+        let x_base = x as f32 * CHUNK_SIZE as f32;
+        let z_base = z as f32 * CHUNK_SIZE as f32;
+        for x in 0..CHUNK_SIZE {
+            for z in 0..CHUNK_SIZE {
+                let abs_noise_x = x as f32 + x_base;
+                let abs_noise_z = z as f32 + z_base;
+                ret[chunk_xz_index(x, z)] =
+                    self.biomes.choose_biome(&self.env_data.environment_data(abs_noise_x, abs_noise_z));
+            }
+        }
+        ret
     }
 
     pub fn gen_chunk(&mut self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
