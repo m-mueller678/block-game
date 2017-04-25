@@ -3,9 +3,8 @@ use glium::backend::glutin_backend::GlutinFacade;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, RwLock};
 use graphics::*;
-use world::{BlockPos, World};
+use world::{BlockPos, WorldReader};
 use cam::Camera;
 use geometry::*;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul};
@@ -25,7 +24,7 @@ pub struct Ui {
     line_shader: Program,
     event_sender: Sender<Message>,
     textures: CompressedSrgbTexture2dArray,
-    world: Arc<RwLock<World>>,
+    world: WorldReader,
     camera: Camera,
     world_render: WorldRender,
     cursor_line_vertices: VertexBuffer<LineVertex>,
@@ -42,7 +41,7 @@ impl Ui {
         line_shader: Program,
         event_sender: Sender<Message>,
         textures: CompressedSrgbTexture2dArray,
-        world: Arc<RwLock<World>>,
+        world: WorldReader,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new
             (&display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
@@ -70,7 +69,7 @@ impl Ui {
             self.update_block_target();
             self.write_cursor();
             let pos = BlockPos([self.camera.position[0] as i32, self.camera.position[1] as i32, self.camera.position[2] as i32]);
-            self.world_render.update(&pos, &self.world.read().unwrap(), &self.display);
+            self.world_render.update(&pos, &self.world.read(), &self.display);
             self.render();
         }
     }
@@ -107,7 +106,7 @@ impl Ui {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
                     print!("pos: {:?}\ndir: {:?}\nlook_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
-                        let world = self.world.read().unwrap();
+                        let world = self.world.read();
                         let biome_id = world.get_biome(print_block[0], print_block[2]).unwrap();
                         println!(
                             " ({:?})\n\
@@ -185,7 +184,7 @@ impl Ui {
     }
 
     fn update_block_target(&mut self) {
-        let new_block_target = self.world.read().unwrap().block_ray_trace(self.camera.position, self.camera.forward, 20.);
+        let new_block_target = self.world.read().block_ray_trace(self.camera.position, self.camera.forward, 20.);
         if new_block_target != self.block_target {
             self.block_target = new_block_target.clone();
             self.event_sender.send(Message::BlockTargetChanged { target: new_block_target }).unwrap();

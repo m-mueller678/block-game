@@ -1,3 +1,4 @@
+use noise::{Perlin, Seedable};
 use rand::{SeedableRng, IsaacRng, Rng};
 
 #[derive(Clone, Copy)]
@@ -27,5 +28,23 @@ impl WorldRngSeeder {
     }
     pub fn seed_32(&self) -> u32 {
         self.seed[0]
+    }
+    pub fn noises(&self, i: u32) -> NoiseIterator {
+        let seed = [self.seed[0], self.seed[1], i];
+        NoiseIterator { gen: IsaacRng::from_seed(&seed) }
+    }
+}
+
+#[derive(Clone)]
+pub struct NoiseIterator {
+    gen: IsaacRng,
+}
+
+impl Iterator for NoiseIterator {
+    type Item = Perlin;
+    fn next(&mut self) -> Option<Perlin> {
+        let p = Perlin::new();
+        p.set_seed(self.gen.gen());
+        Some(p)
     }
 }

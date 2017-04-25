@@ -1,7 +1,7 @@
 use glium;
 use super::{RenderChunk, ChunkUniforms};
 use glium::texture::CompressedSrgbTexture2dArray;
-use world::{CHUNK_SIZE, World, BlockPos, ChunkPos};
+use world::{CHUNK_SIZE, BlockPos, ChunkPos, WorldReadGuard, chunk_at};
 
 pub struct WorldRender {
     render_dist: i32,
@@ -53,8 +53,8 @@ impl WorldRender {
         }
         Ok(())
     }
-    pub fn update<F: glium::backend::Facade>(&mut self, player_pos: &BlockPos, world: &World, facade: &F) {
-        let chunk_pos = World::chunk_at(player_pos);
+    pub fn update<F: glium::backend::Facade>(&mut self, player_pos: &BlockPos, world: &WorldReadGuard, facade: &F) {
+        let chunk_pos = chunk_at(player_pos);
         let render_dist = self.render_dist;
         self.render_chunks.retain(|&(ref pos, _)| {
             (pos[0] - chunk_pos[0]).abs() <= render_dist

@@ -5,6 +5,12 @@ use world::CHUNK_SIZE;
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct BlockId(u32);
 
+impl Default for BlockId {
+    fn default() -> BlockId {
+        BlockId::empty()
+    }
+}
+
 pub struct AtomicBlockId(AtomicU32);
 
 impl AtomicBlockId {
