@@ -8,10 +8,10 @@ pub struct Generator {
     noise: [Perlin; 4],
 }
 
-const MOISTURE_SCALE: f32 = 1. / 128.;
-const TEMPERATURE_SCALE: f32 = 1. / 128.;
-const ELEVATION_SCALE: f32 = 1. / 128.;
-const MAGIC_SCALE: f32 = 1. / 128.;
+const MOISTURE_SCALE: f32 = 1. / 512.;
+const TEMPERATURE_SCALE: f32 = 1. / 512.;
+const ELEVATION_SCALE: f32 = 1. / 256.;
+const MAGIC_SCALE: f32 = 1. / 512.;
 
 impl Generator {
     pub fn new(s: &WorldRngSeeder) -> Self {
