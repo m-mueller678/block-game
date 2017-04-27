@@ -107,19 +107,15 @@ impl Ui {
                     print!("pos: {:?}\ndir: {:?}\nlook_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
                         let world = self.world.read();
-                        let biome_id = world.get_biome(print_block[0], print_block[2]).unwrap();
                         println!(
                             " ({:?})\n\
                         id: {:?}\n\
                         natural light: {:?}\n\
-                        artificial light: {:?}\n\
-                        biome: {} ({:?})",
+                        artificial light: {:?}\n",
                             print_block,
                             world.get_block(&print_block).unwrap(),
                             world.natural_light(&print_block).unwrap(),
                             world.artificial_light(&print_block).unwrap(),
-                            world.biomes()[biome_id].name(),
-                            biome_id
                         )
                     } else {
                         println!()

@@ -11,7 +11,6 @@ extern crate time;
 extern crate rand;
 extern crate noise;
 
-use noise::NoiseModule;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::DisplayBuild;
 use std::fs::File;
@@ -24,7 +23,6 @@ use std::thread;
 use block::{Block, LightType};
 use graphics::{DrawType, BlockTextureId};
 use ui::Message;
-use self::biome::*;
 
 mod window_util;
 mod graphics;
@@ -32,50 +30,6 @@ mod block;
 mod world;
 mod geometry;
 mod ui;
-mod biome;
-
-fn make_surface_map_builder(dirt: BlockId,
-                            sand: BlockId,
-                            biome_reg: &mut BiomeRegistry,
-                            seeder: WorldRngSeeder)
-                            -> SurfaceMapBuilder {
-    let desert_env_dat = EnvironmentData { moisture: -0.8, temperature: 0.8, elevation: 0., magic: -1. };
-    let desert_biome_id = biome_reg.push(Biome::new("desert".into(), desert_env_dat.clone()));
-    let dirt_env_dat = EnvironmentData { moisture: 0., temperature: 0., elevation: 0., magic: -1. };
-    let dirt_biome_id = biome_reg.push(Biome::new("dirt biome".into(), dirt_env_dat.clone()));
-    SurfaceMapBuilder::new(seeder)
-        .push_biome(desert_biome_id,
-                    desert_env_dat,
-                    EnvironmentDataWeight { moisture: 0.1, temperature: 0.1, elevation: 0., magic: 0.1 },
-                    Box::new(move |_, _, perlin, _| {
-                        (perlin * 32.) as i32
-                    }),
-                    Box::new(move |_, _, y_rel, _| {
-                        let mut ret = [BlockId::empty(); CHUNK_SIZE];
-                        for i in 0..CHUNK_SIZE {
-                            if i as i32 + y_rel < 0 {
-                                ret[i] = sand;
-                            }
-                        }
-                        ret
-                    }))
-        .push_biome(dirt_biome_id,
-                    dirt_env_dat,
-                    EnvironmentDataWeight { moisture: 0.4, temperature: 0.4, elevation: 0.1, magic: 0.1 },
-                    Box::new(move |x, z, perlin, seeder| {
-                        let local_noise = seeder.noises(1).next().unwrap().get([x as f32 / 128., z as f32 / 128.]);
-                        (32. * perlin + 8. * local_noise) as i32
-                    }),
-                    Box::new(move |_, _, y_rel, _| {
-                        let mut ret = [Default::default(); CHUNK_SIZE];
-                        for i in 0..CHUNK_SIZE {
-                            if i as i32 + y_rel < 0 {
-                                ret[i] = dirt;
-                            }
-                        }
-                        ret
-                    }))
-}
 
 fn load_image(path: &str) -> glium::texture::RawImage2d<u8> {
     let file = std::io::BufReader::new(File::open(path).unwrap());
@@ -88,12 +42,22 @@ fn main() {
     let mut bgs = BlockRegistry::new();
     let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
     let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
-    let mut biomes = BiomeRegistry::new();
     let seeder = world::WorldRngSeeder::new(1);
-    let surface_map = make_surface_map_builder(block_dirt, block_sand, &mut biomes, seeder);
-    let biomes = Arc::new(biomes);
-    let generator = world::Generator::new(seeder, surface_map);
-    let (world_reader, mut world_writer) = new_world(Arc::new(bgs), biomes, generator);
+    let generator = world::Generator::new(&seeder, vec![
+        WorldGenBlock::new(
+            block_dirt,
+            ParameterWeight::new(0., 1., 1., 1.),
+            ParameterWeight::new(0.5, 1., 0.3, 1.),
+            ParameterWeight::new(0., 3., 3., 1.),
+        ),
+        WorldGenBlock::new(
+            block_sand,
+            ParameterWeight::new(0., 1., 1., 1.),
+            ParameterWeight::new(0., 0.3, 0.2, 1.),
+            ParameterWeight::new(0., 3., 3., 1.),
+        )
+    ]);
+    let (world_reader, mut world_writer) = new_world(Arc::new(bgs), generator);
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = CompressedSrgbTexture2dArray::new(&display, vec![

@@ -5,16 +5,14 @@ mod position;
 mod inserter;
 mod random;
 mod generator;
-mod map_2d;
 
 pub const MAX_NATURAL_LIGHT: u8 = 5;
 
 pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::random::WorldRngSeeder;
 pub use self::position::*;
-pub use self::generator::{Generator, EnvironmentDataWeight, SurfaceMapBuilder};
+pub use self::generator::{Generator, ParameterWeight, WorldGenBlock};
 
-use biome::*;
 use block::{BlockId, BlockRegistry, LightType};
 use self::lighting::*;
 use std::collections::hash_map::HashMap;
@@ -32,14 +30,12 @@ pub type WorldWriteGuard<'a> = RwLockWriteGuard<'a, ChunkMap>;
 
 struct ChunkColumn {
     chunks: [Vec<Option<Chunk>>; 2],
-    biome: [BiomeId; CHUNK_SIZE * CHUNK_SIZE],
 }
 
 impl ChunkColumn {
-    fn new(biome: [BiomeId; CHUNK_SIZE * CHUNK_SIZE]) -> Self {
+    fn new() -> Self {
         ChunkColumn {
             chunks: [Vec::new(), Vec::new()],
-            biome: biome
         }
     }
     fn get(&self, y: i32) -> Option<&Chunk> {
@@ -79,7 +75,6 @@ impl ChunkColumn {
 pub struct ChunkMap {
     columns: HashMap<[i32; 2], ChunkColumn>,
     blocks: Arc<BlockRegistry>,
-    biomes: Arc<BiomeRegistry>,
 }
 
 impl ChunkMap {
@@ -183,16 +178,6 @@ impl ChunkMap {
             None
         }
     }
-    pub fn get_biome(&self, x: i32, z: i32) -> Option<BiomeId> {
-        let cs = CHUNK_SIZE as i32;
-        let col_x = x.div_floor(&cs);
-        let col_z = z.div_floor(&cs);
-        self.columns.get(&[col_x, col_z]).map(|col| {
-            let block_x = x.mod_floor(&cs) as usize;
-            let block_z = z.mod_floor(&cs) as usize;
-            col.biome[chunk_xz_index(block_x, block_z)]
-        })
-    }
     fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
         ArtificialLightMap {
             world: &self,
@@ -274,15 +259,11 @@ impl ChunkMap {
     pub fn blocks(&self) -> &BlockRegistry {
         &*self.blocks
     }
-    pub fn biomes(&self) -> &BiomeRegistry {
-        &*self.biomes
-    }
 }
 
-pub fn new_world(blocks: Arc<BlockRegistry>, biomes: Arc<BiomeRegistry>, generator: Generator) -> (WorldReader, WorldWriter) {
+pub fn new_world(blocks: Arc<BlockRegistry>, generator: Generator) -> (WorldReader, WorldWriter) {
     let chunk_map = Arc::new(RwLock::new(ChunkMap {
         columns: HashMap::new(),
-        biomes: biomes,
         blocks: blocks,
     }));
     let cm2 = chunk_map.clone();
