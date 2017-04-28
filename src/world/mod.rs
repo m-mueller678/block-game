@@ -22,6 +22,7 @@ use geometry::{Direction};
 use geometry::ray::{Ray, BlockIntersection};
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::sync::atomic::{Ordering};
+use std::ops::Deref;
 use num::Integer;
 use self::chunk::*;
 use self::inserter::Inserter;
@@ -286,7 +287,10 @@ pub fn new_world(blocks: Arc<BlockRegistry>, biomes: Arc<BiomeRegistry>, generat
         blocks: blocks,
     }));
     let cm2 = chunk_map.clone();
-    (WorldReader { chunks: cm2 }, WorldWriter { chunks: chunk_map, inserter: Inserter::new(generator) })
+    (WorldReader { chunks: cm2 }, WorldWriter {
+        reader: WorldReader{chunks:chunk_map},
+        inserter: Inserter::new(generator)
+    })
 }
 
 #[derive(Clone)]
@@ -301,26 +305,30 @@ impl WorldReader {
 }
 
 pub struct WorldWriter {
-    chunks: Arc<RwLock<ChunkMap>>,
+    reader:WorldReader,
     inserter: Inserter,
 }
 
-impl WorldWriter {
-    pub fn read(&self) -> WorldReadGuard {
-        self.chunks.read().unwrap()
+impl Deref for WorldWriter{
+    type Target=WorldReader;
+    fn deref(&self)->&WorldReader{
+        &self.reader
     }
+}
+
+impl WorldWriter {
     pub fn gen_area(&mut self, pos: &BlockPos, range: i32) {
         let base = chunk_at(pos);
         for x in (base[0] - range)..(base[0] + range + 1) {
             for y in (base[1] - range)..(base[1] + range + 1) {
                 for z in (base[2] - range)..(base[2] + range + 1) {
-                    self.inserter.insert(&ChunkPos([x, y, z]), &self.chunks.read().unwrap());
+                    self.inserter.insert(&ChunkPos([x, y, z]), &self.reader.read());
                 }
             }
         }
     }
     pub fn flush_chunk(&mut self) {
-        self.inserter.push_to_world(&mut self.chunks.write().unwrap());
+        self.inserter.push_to_world(&mut self.reader.chunks.write().unwrap());
     }
 }
 
