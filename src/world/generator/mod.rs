@@ -162,7 +162,7 @@ impl Generator {
         let mut total_weight = 0.;
         for i in 0..self.blocks.len() {
             let depth_weight = self.blocks[i].depth.weight(depth);
-            weight_buffer[i] = (xz_weights[i] * depth_weight);
+            weight_buffer[i] = xz_weights[i] * depth_weight;
             total_weight += xz_weights[i] * depth_weight;
         }
         let mut block_select = block_select * total_weight;

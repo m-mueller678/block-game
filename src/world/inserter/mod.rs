@@ -1,6 +1,8 @@
 use std::mem::replace;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
 use super::*;
@@ -15,48 +17,86 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    generator: Generator,
-    chunks: VecDeque<(QueuedChunk)>,
+    shared: Arc<(Generator,Mutex<InsertBuffer>)>,
     columns: Vec<(i32, i32, ChunkColumn)>,
+    threads: ThreadPool,
+}
+
+struct InsertBuffer {
+    chunks: VecDeque<(QueuedChunk)>,
+    pending: Vec<ChunkPos>,
 }
 
 impl Inserter {
     pub fn new(gen: Generator) -> Self {
         Inserter {
-            generator: gen,
-            chunks: VecDeque::new(),
+            shared: Arc::new((gen,Mutex::new(InsertBuffer {
+                chunks: VecDeque::new(),
+                pending: Vec::new(),
+            }))),
             columns: Vec::new(),
+            threads: ThreadPool::new_with_name("chunk generator".into(), 3),
         }
     }
+
     pub fn insert(&mut self, pos: &ChunkPos, world: &WorldReadGuard) {
-        if !world.chunk_loaded(pos) {
-            if !self.chunks.iter().any(|&ref chunk| chunk.pos == *pos) {
-                Self::column_or_insert(&mut self.columns, &world, pos[0], pos[2]);
-                let data = self.generator.gen_chunk(pos);
-                let sources = (0..(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)).filter_map(|i| {
-                    match *world.blocks.light_type(data[i]) {
-                        LightType::Source(l) => Some((BlockPos([
-                            pos[0] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE / CHUNK_SIZE) as i32,
-                            pos[1] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE % CHUNK_SIZE) as i32,
-                            pos[2] * CHUNK_SIZE as i32 + (i % CHUNK_SIZE) as i32
-                        ]), l)),
-                        LightType::Opaque | LightType::Transparent => None,
-                    }
-                }).collect();
-                let insert = QueuedChunk {
-                    light_sources: sources,
-                    pos: pos.clone(),
-                    data: AtomicBlockId::init_chunk(&data),
-                };
-                self.chunks.push_back(insert);
+        if world.chunk_loaded(pos) {
+            return;
+        }
+        {
+            let mut lock = self.shared.1.lock().unwrap();
+            if lock.chunks.iter().any(|chunk| chunk.pos == *pos) || lock.pending.iter().any(|p| p == pos) {
+                return;
+            }
+            lock.pending.push(pos.clone());
+        }
+        {
+            let shared = self.shared.clone();
+            let pos = pos.clone();
+            let blocks = world.blocks.clone();
+            self.threads.execute(move || Self::generate_chunk(shared, pos, blocks));
+        }
+        if !world.columns.contains_key(&[pos[0], pos[2]]) {
+            if !self.columns.iter().any(|&(x, z, _)| x == pos[0] && z == pos[2]) {
+                self.columns.push((pos[0], pos[2], ChunkColumn::new()))
             }
         }
     }
+
+    fn generate_chunk(
+        shared: Arc<(Generator,Mutex<InsertBuffer>)>,
+        pos: ChunkPos,
+        blocks: Arc<BlockRegistry>)
+    {
+        let data = shared.0.gen_chunk(&pos);
+        let sources = (0..(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)).filter_map(|i| {
+            match *blocks.light_type(data[i]) {
+                LightType::Source(l) => Some((BlockPos([
+                    pos[0] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE / CHUNK_SIZE) as i32,
+                    pos[1] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE % CHUNK_SIZE) as i32,
+                    pos[2] * CHUNK_SIZE as i32 + (i % CHUNK_SIZE) as i32
+                ]), l)),
+                LightType::Opaque | LightType::Transparent => None,
+            }
+        }).collect();
+        let insert = QueuedChunk {
+            light_sources: sources,
+            pos: pos.clone(),
+            data: AtomicBlockId::init_chunk(&data),
+        };
+        {
+            let mut lock = shared.1.lock().unwrap();
+            lock.chunks.push_back(insert);
+            let index = lock.pending.iter().position(|p| *p == pos).unwrap();
+            lock.pending.swap_remove(index);
+        }
+    }
+
     pub fn push_to_world(&mut self, chunks: &mut WorldWriteGuard) {
         self.flush_columns(chunks);
 
         let mut sources_to_trigger = UpdateQueue::new();
-        let insert_pos = if let Some(chunk) = self.chunks.pop_front() {
+        let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             let column = chunks.columns.get_mut(&[chunk.pos[0], chunk.pos[2]]).unwrap();
             column.insert(chunk.pos[1], Chunk {
                 natural_light: LightState::init_dark_chunk(),
@@ -116,29 +156,12 @@ impl Inserter {
             increase_light(&mut chunks.natural_lightmap(insert_pos.facing(Direction::NegY)), relight.build_queue(&mut lm));
         }
     }
+
     fn flush_columns(&mut self, chunks: &mut ChunkMap) {
         let columns = replace(&mut self.columns, Vec::new());
         for (x, z, col) in columns.into_iter() {
             let new = chunks.columns.insert([x, z], col).is_none();
             assert!(new);
-        }
-    }
-    fn column_or_insert<'a, 'b, 'c>(
-        columns: &'a mut Vec<(i32, i32, ChunkColumn)>,
-        chunks: &'b ChunkMap,
-        x: i32,
-        z: i32
-    ) -> &'c ChunkColumn
-        where 'a: 'c, 'b: 'c {
-        if let Some(ref col) = chunks.columns.get(&[x, z]) {
-            &col
-        } else {
-            if let Some(index) = columns.iter().position(|&(cx, cz, _)| cx == x && cz == z) {
-                return &columns[index].2
-            } else {
-                columns.push((x, z, ChunkColumn::new()));
-                &columns.last().unwrap().2
-            }
         }
     }
 }
