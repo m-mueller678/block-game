@@ -42,6 +42,7 @@ fn main() {
     let mut bgs = BlockRegistry::new();
     let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
     let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
+    let block_stone =bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2); 6]), LightType::Opaque));
     let seeder = world::WorldRngSeeder::new(1);
     let generator = world::Generator::new(&seeder, vec![
         WorldGenBlock::new(
@@ -55,14 +56,21 @@ fn main() {
             ParameterWeight::new(0., 1., 1., 1.),
             ParameterWeight::new(0., 0.3, 0.2, 1.),
             ParameterWeight::new(0., 3., 3., 1.),
+        ),WorldGenBlock::new(
+            block_stone,
+            ParameterWeight::new(0.,1.,1.,1.),
+            ParameterWeight::new(0.,1.,1.,1.),
+            ParameterWeight::new(5.,std::f32::INFINITY,2.,1.),
         )
+
     ]);
     let (world_reader, mut world_writer) = new_world(Arc::new(bgs), generator);
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = CompressedSrgbTexture2dArray::new(&display, vec![
         load_image("textures/sand.png"),
-        load_image("textures/dirt.png")
+        load_image("textures/dirt.png"),
+        load_image("textures/stone.png"),
     ]).unwrap();
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     let quad_shader = graphics::load_quad_shader(&display).expect("cannot load quad shader");
