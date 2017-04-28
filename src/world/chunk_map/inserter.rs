@@ -5,10 +5,9 @@ use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
+use world::generator::Generator;
+use world::{WorldReadGuard, WorldWriteGuard};
 use super::*;
-use super::generator::Generator;
-use super::lighting::*;
-use super::atomic_light::*;
 
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
@@ -17,7 +16,7 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    shared: Arc<(Generator,Mutex<InsertBuffer>)>,
+    shared: Arc<(Generator, Mutex<InsertBuffer>)>,
     columns: Vec<(i32, i32, ChunkColumn)>,
     threads: ThreadPool,
 }
@@ -30,7 +29,7 @@ struct InsertBuffer {
 impl Inserter {
     pub fn new(gen: Generator) -> Self {
         Inserter {
-            shared: Arc::new((gen,Mutex::new(InsertBuffer {
+            shared: Arc::new((gen, Mutex::new(InsertBuffer {
                 chunks: VecDeque::new(),
                 pending: Vec::new(),
             }))),
@@ -64,7 +63,7 @@ impl Inserter {
     }
 
     fn generate_chunk(
-        shared: Arc<(Generator,Mutex<InsertBuffer>)>,
+        shared: Arc<(Generator, Mutex<InsertBuffer>)>,
         pos: ChunkPos,
         blocks: Arc<BlockRegistry>)
     {

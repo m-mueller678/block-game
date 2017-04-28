@@ -1,4 +1,5 @@
 use super::atomic_light::LightState;
+use super::{ChunkPos,ChunkMap};
 use block::{AtomicBlockId, BlockId};
 use std::sync::atomic::AtomicBool;
 use num::Integer;
@@ -16,10 +17,6 @@ pub struct Chunk {
 
 pub struct ChunkReader<'a> {
     chunk: &'a Chunk,
-}
-
-pub fn chunk_xz_index(x: usize, z: usize) -> usize {
-    x * CHUNK_SIZE + z
 }
 
 pub fn chunk_index_global(p: &BlockPos) -> usize {
@@ -44,5 +41,31 @@ impl<'a> ChunkReader<'a> {
     }
     pub fn effective_light(&self, pos: usize) -> u8 {
         max(self.chunk.artificial_light[pos].level(), self.chunk.natural_light[pos].level())
+    }
+}
+
+pub struct ChunkCache<'a> {
+    pos: ChunkPos,
+    pub chunk: &'a Chunk,
+}
+
+impl<'a> ChunkCache<'a> {
+    pub fn new<'b: 'a>(pos: ChunkPos, chunks: &'b ChunkMap) -> Result<Self, ()> {
+        if let Some(cref) = chunks.columns.get(&[pos[0], pos[2]]).and_then(|col| col.get(pos[1])) {
+            Ok(ChunkCache {
+                pos: pos,
+                chunk: cref
+            })
+        } else {
+            Err(())
+        }
+    }
+    pub fn load<'b: 'a>(&mut self, pos: ChunkPos, chunks: &'b ChunkMap) -> Result<(), ()> {
+        if pos == self.pos {
+            Ok(())
+        } else {
+            *self = Self::new(pos, chunks)?;
+            Ok(())
+        }
     }
 }

@@ -1,5 +1,10 @@
 use geometry::{Direction, ALL_DIRECTIONS};
 use world::BlockPos;
+use super::{ChunkMap,ChunkCache,chunk_index_global,chunk_at};
+use block::LightType;
+use std::sync::atomic::Ordering;
+
+pub const MAX_NATURAL_LIGHT: u8 = 5;
 
 pub type Light = (u8, Option<Direction>);
 
@@ -151,5 +156,102 @@ pub fn increase_light<LM: LightMap>(lm: &mut LM, mut to_update: UpdateQueue) {
             }
         }
         to_update.levels.pop();
+    }
+}
+
+pub struct ArtificialLightMap<'a> {
+    world: &'a ChunkMap,
+    cache: ChunkCache<'a>,
+}
+
+impl<'a> ArtificialLightMap<'a>{
+    pub fn new(world:&'a ChunkMap,cache:ChunkCache<'a>)->Self{
+        ArtificialLightMap{world:world,cache}
+    }
+}
+
+impl<'a> LightMap for ArtificialLightMap<'a> {
+    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
+        if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
+            true
+        } else {
+            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
+        }
+    }
+
+    fn get_light(&mut self, pos: &BlockPos) -> Light {
+        if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
+            (0, None)
+        } else {
+            let atomic_light = &self.cache.chunk.artificial_light[chunk_index_global(pos)];
+            (atomic_light.level(), atomic_light.direction())
+        }
+    }
+
+    fn set_light(&mut self, pos: &BlockPos, light: Light) {
+        self.cache.chunk.artificial_light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.update_render.store(true, Ordering::Release);
+        self.world.update_adjacent_chunks(pos);
+    }
+    fn compute_light_to(&mut self, _: Direction, level: u8) -> u8 {
+        level - 1
+    }
+    fn internal_light(&mut self, pos: &BlockPos) -> u8 {
+        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+            0
+        } else {
+            match *self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()) {
+                LightType::Source(s) => s,
+                LightType::Opaque | LightType::Transparent => 0
+            }
+        }
+    }
+}
+
+pub struct NaturalLightMap<'a> {
+    world: &'a ChunkMap,
+    cache: ChunkCache<'a>,
+}
+
+impl<'a> NaturalLightMap<'a>{
+    pub fn new(world:&'a ChunkMap,cache:ChunkCache<'a>)->Self{
+        NaturalLightMap{world:world,cache}
+    }
+}
+
+impl<'a> LightMap for NaturalLightMap<'a> {
+    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
+        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+            true
+        } else {
+            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
+        }
+    }
+
+    fn get_light(&mut self, pos: &BlockPos) -> Light {
+        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+            (0, None)
+        } else {
+            let atomic_light = &self.cache.chunk.natural_light[chunk_index_global(pos)];
+            (atomic_light.level(), atomic_light.direction())
+        }
+    }
+
+    fn set_light(&mut self, pos: &BlockPos, light: Light) {
+        self.cache.chunk.natural_light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.update_render.store(true, Ordering::Release);
+        self.world.update_adjacent_chunks(pos);
+    }
+
+    fn compute_light_to(&mut self, d: Direction, level: u8) -> u8 {
+        if level == MAX_NATURAL_LIGHT && d == Direction::NegY {
+            MAX_NATURAL_LIGHT
+        } else {
+            level - 1
+        }
+    }
+
+    fn internal_light(&mut self, _: &BlockPos) -> u8 {
+        0
     }
 }
