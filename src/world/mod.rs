@@ -11,7 +11,7 @@ pub const MAX_NATURAL_LIGHT: u8 = 5;
 pub use self::chunk::{ChunkReader, chunk_index, chunk_index_global, CHUNK_SIZE};
 pub use self::random::WorldRngSeeder;
 pub use self::position::*;
-pub use self::generator::{Generator, ParameterWeight, WorldGenBlock};
+pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData};
 
 use block::{BlockId, BlockRegistry, LightType};
 use self::lighting::*;
@@ -268,14 +268,15 @@ pub fn new_world(blocks: Arc<BlockRegistry>, generator: Generator) -> (WorldRead
         blocks: blocks,
     }));
     let cm2 = chunk_map.clone();
-    (WorldReader { chunks: cm2 }, WorldWriter {
-        reader: WorldReader{chunks:chunk_map},
+    (WorldReader { chunks: cm2, env_data: generator.env_data().clone() }, WorldWriter {
+        reader: WorldReader { chunks: chunk_map, env_data: generator.env_data().clone() },
         inserter: Inserter::new(generator)
     })
 }
 
 #[derive(Clone)]
 pub struct WorldReader {
+    env_data: EnvironmentData,
     chunks: Arc<RwLock<ChunkMap>>,
 }
 
@@ -283,16 +284,19 @@ impl WorldReader {
     pub fn read(&self) -> WorldReadGuard {
         self.chunks.read().unwrap()
     }
+    pub fn env_data(&self) -> &EnvironmentData {
+        &self.env_data
+    }
 }
 
 pub struct WorldWriter {
-    reader:WorldReader,
+    reader: WorldReader,
     inserter: Inserter,
 }
 
-impl Deref for WorldWriter{
-    type Target=WorldReader;
-    fn deref(&self)->&WorldReader{
+impl Deref for WorldWriter {
+    type Target = WorldReader;
+    fn deref(&self) -> &WorldReader {
         &self.reader
     }
 }

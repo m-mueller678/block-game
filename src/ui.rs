@@ -104,19 +104,22 @@ impl Ui {
             use vecmath::{vec3_add, vec3_scale, vec3_sub};
             match ev {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
-                    print!("pos: {:?}\ndir: {:?}\nlook_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
+                    print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
+                        let env_data = self.world.env_data();
                         let world = self.world.read();
-                        println!(
-                            " ({:?})\n\
-                        id: {:?}\n\
-                        natural light: {:?}\n\
-                        artificial light: {:?}\n",
-                            print_block,
-                            world.get_block(&print_block).unwrap(),
-                            world.natural_light(&print_block).unwrap(),
-                            world.artificial_light(&print_block).unwrap(),
-                        )
+                        print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
+                                 print_block,
+                                 world.get_block(&print_block).unwrap(),
+                                 world.natural_light(&print_block).unwrap(),
+                                 world.artificial_light(&print_block).unwrap(),
+                        );
+                        let (x, z) = (print_block[0], print_block[2]);
+                        println!("temperature: {}, moisture: {}, base elevation: {}",
+                               env_data.temperature(x, z),
+                               env_data.moisture(x, z),
+                               env_data.base_elevation(x, z)
+                        );
                     } else {
                         println!()
                     }

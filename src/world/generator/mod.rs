@@ -45,7 +45,8 @@ impl WorldGenBlock {
     }
 }
 
-struct EnvironmentData {
+#[derive(Clone)]
+pub struct EnvironmentData {
     noises: [Perlin; 3],
 }
 
@@ -62,18 +63,21 @@ impl EnvironmentData {
             noises: [s1, s2, s3],
         }
     }
-    fn moisture(&self, x: i32, z: i32) -> f32 {
+    pub fn moisture(&self, x: i32, z: i32) -> f32 {
         let temperature = self.temperature(x, z);
         let max_moisture = (temperature * 4.).min(1.);
         max_moisture * (self.noises[2].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.)
     }
-    fn temperature(&self, x: i32, z: i32) -> f32 {
+    pub fn temperature(&self, x: i32, z: i32) -> f32 {
         let elevation = self.base_elevation(x, z);
         let max_temperature = 1. - (elevation * elevation * 0.5);
         max_temperature * (self.noises[1].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.)
     }
-    fn base_elevation(&self, x: i32, z: i32) -> f32 {
+    pub fn base_elevation(&self, x: i32, z: i32) -> f32 {
         self.noises[0].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.
+    }
+    pub fn surface_y(&self, x: i32, z: i32) -> i32 {
+        (self.base_elevation(x, z) * 16.) as i32
     }
 }
 
@@ -92,8 +96,8 @@ impl Generator {
         }
     }
 
-    pub fn surface_y(&self, x: i32, z: i32) -> i32 {
-        (self.env_data.base_elevation(x, z) * 16.) as i32
+    pub fn env_data(&self)->&EnvironmentData{
+        &self.env_data
     }
 
     pub fn gen_chunk(&self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
@@ -105,7 +109,7 @@ impl Generator {
             for z in 0..CHUNK_SIZE {
                 let abs_x = x as i32 + base_x;
                 let abs_z = z as i32 + base_z;
-                let surface_y = self.surface_y(abs_x, abs_z);
+                let surface_y = self.env_data.surface_y(abs_x, abs_z);
                 if surface_y > base_y {
                     let moisture = self.env_data.moisture(abs_x, abs_z);
                     let temperature = self.env_data.temperature(abs_x, abs_z);
