@@ -63,44 +63,44 @@ impl EnvironmentData {
     fn new(seeder: &WorldRngSeeder) -> Self {
         let mut noises = seeder.noises(0);
         let _ = noises.next();//used for random block in main generator
-        let mut ed=EnvironmentData {
-            elevation_base:Vec::with_capacity(ELEVATION_BASE_LAYERS),
-            moisture:Vec::with_capacity(MOISTURE_LAYERS),
-            temperature:Vec::with_capacity(TEMPERATURE_LAYERS),
+        let mut ed = EnvironmentData {
+            elevation_base: Vec::with_capacity(ELEVATION_BASE_LAYERS),
+            moisture: Vec::with_capacity(MOISTURE_LAYERS),
+            temperature: Vec::with_capacity(TEMPERATURE_LAYERS),
         };
-        for _ in 0..ELEVATION_BASE_LAYERS{ed.elevation_base.push(noises.next().unwrap())}
-        for _ in 0..MOISTURE_LAYERS{ed.moisture.push(noises.next().unwrap())}
-        for _ in 0..TEMPERATURE_LAYERS{ed.temperature.push(noises.next().unwrap())}
+        for _ in 0..ELEVATION_BASE_LAYERS { ed.elevation_base.push(noises.next().unwrap()) }
+        for _ in 0..MOISTURE_LAYERS { ed.moisture.push(noises.next().unwrap()) }
+        for _ in 0..TEMPERATURE_LAYERS { ed.temperature.push(noises.next().unwrap()) }
         ed
     }
     pub fn moisture(&self, x: i32, z: i32) -> f32 {
         let temperature = self.temperature(x, z);
         let max_moisture = (temperature * 4.).min(1.);
-        max_moisture * Self::make_noise(&self.moisture,ENV_SCALE,x as f32,z as f32)
+        max_moisture * Self::make_noise(&self.moisture, ENV_SCALE, x as f32, z as f32)
     }
     pub fn temperature(&self, x: i32, z: i32) -> f32 {
         let elevation = self.base_elevation(x, z);
         let max_temperature = 1. - (elevation * elevation * 0.5);
-        max_temperature * Self::make_noise(&self.temperature,ENV_SCALE,x as f32,z as f32)
+        max_temperature * Self::make_noise(&self.temperature, ENV_SCALE, x as f32, z as f32)
     }
     pub fn base_elevation(&self, x: i32, z: i32) -> f32 {
-        Self::make_noise(&self.elevation_base,ENV_SCALE,x as f32,z as f32)
+        Self::make_noise(&self.elevation_base, ENV_SCALE, x as f32, z as f32)
     }
     pub fn surface_y(&self, x: i32, z: i32) -> i32 {
         (self.base_elevation(x, z) * 64.) as i32
     }
-    fn make_noise(noises:&[Perlin],base_scale:f32,x:f32,z:f32)->f32{
-        let mut val_scale=1.;
-        let mut pos_scale=base_scale;
-        let mut max_abs=0.;
-        let mut total=0.;
-        for n in noises{
-            total+=n.get([x*pos_scale,z*pos_scale])*val_scale;
-            max_abs+=val_scale;
-            val_scale*=0.7;
-            pos_scale*=2.;
+    fn make_noise(noises: &[Perlin], base_scale: f32, x: f32, z: f32) -> f32 {
+        let mut val_scale = 1.;
+        let mut pos_scale = base_scale;
+        let mut max_abs = 0.;
+        let mut total = 0.;
+        for n in noises {
+            total += n.get([x * pos_scale, z * pos_scale]) * val_scale;
+            max_abs += val_scale;
+            val_scale *= 0.7;
+            pos_scale *= 2.;
         }
-        (total/max_abs*0.5+0.5)
+        (total / max_abs * 0.5 + 0.5)
     }
 }
 
@@ -128,6 +128,7 @@ impl Generator {
         let base_y = pos[1] * CHUNK_SIZE as i32;
         let base_z = pos[2] * CHUNK_SIZE as i32;
         let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        let mut weight_buffer = vec![0.; self.blocks.len()];
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 let abs_x = x as i32 + base_x;
@@ -149,7 +150,7 @@ impl Generator {
                         }
                         let depth = (surface_y - abs_y) as f32;
                         ret[chunk_index(&[x, y, z])] =
-                            self.pick_block(&xz_weights, depth, block_select)
+                            self.pick_block(&xz_weights, depth, block_select, &mut weight_buffer)
                     }
                 }
             }
@@ -157,18 +158,16 @@ impl Generator {
         ret
     }
 
-    fn pick_block(&self, xz_weights: &[f32], depth: f32, block_select: f32) -> BlockId {
-        let mut weight = Vec::with_capacity(self.blocks.len());
+    fn pick_block(&self, xz_weights: &[f32], depth: f32, block_select: f32, weight_buffer: &mut [f32]) -> BlockId {
         let mut total_weight = 0.;
-        assert!(xz_weights.len() == self.blocks.len());
         for i in 0..self.blocks.len() {
             let depth_weight = self.blocks[i].depth.weight(depth);
-            weight.push(xz_weights[i] * depth_weight);
+            weight_buffer[i] = (xz_weights[i] * depth_weight);
             total_weight += xz_weights[i] * depth_weight;
         }
         let mut block_select = block_select * total_weight;
-        for i in 0..weight.len() {
-            block_select -= weight[i];
+        for i in 0..self.blocks.len() {
+            block_select -= weight_buffer[i];
             if block_select <= 0. {
                 return self.blocks[i].id;
             }
@@ -178,21 +177,22 @@ impl Generator {
 }
 
 #[cfg(test)]
-mod tests{
-    use test::{Bencher,black_box};
+mod tests {
+    use test::{Bencher, black_box};
     use super::*;
     use world::WorldRngSeeder;
+
     #[bench]
-    fn generate_chunk_column8(b:&mut Bencher){
-        let gen_blocks=black_box(vec![WorldGenBlock::new(
-            BlockId::empty(),            ParameterWeight::new(0., 1., 1., 1.),
+    fn generate_chunk_column8(b: &mut Bencher) {
+        let gen_blocks = black_box(vec![WorldGenBlock::new(
+            BlockId::empty(), ParameterWeight::new(0., 1., 1., 1.),
             ParameterWeight::new(0.5, 1., 0.3, 1.),
             ParameterWeight::new(0., 3., 3., 1.),
-        );4]);
-        let gen=Generator::new(&WorldRngSeeder::new(black_box(4)),gen_blocks);
-        b.iter(||{
-            for y in -4..4{
-                gen.gen_chunk(black_box(&ChunkPos([0,y,0])));
+        ); 4]);
+        let gen = Generator::new(&WorldRngSeeder::new(black_box(4)), gen_blocks);
+        b.iter(|| {
+            for y in -4..4 {
+                gen.gen_chunk(black_box(&ChunkPos([0, y, 0])));
             }
         });
     }
