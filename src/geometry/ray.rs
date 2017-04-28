@@ -86,8 +86,11 @@ mod test {
                 for z in 0..4 {
                     let ray = Ray::new([x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5], [0., 1., 0.]);
                     let mut blocks = ray.blocks();
-                    for i in 0..100 {
-                        assert_eq!(blocks.next(), Some([x, y + i, z]));
+                    for i in 1..100 {
+                        assert_eq!(blocks.next(), Some(BlockIntersection {
+                            block: BlockPos([x, y + i, z]),
+                            face: Direction::NegY,
+                        }));
                     }
                 }
             }
@@ -99,8 +102,14 @@ mod test {
         let ray = Ray::new([0.5, 0., 0.], [1., 1., 0.]);
         let mut blocks = ray.blocks();
         for i in 0..100 {
-            assert_eq!(blocks.next(), Some([i, i, 0]));
-            assert_eq!(blocks.next(), Some([i, i + 1, 0]));
+            assert_eq!(blocks.next(), Some(BlockIntersection {
+                block: BlockPos([i+1, i , 0]),
+                face: Direction::NegX,
+            }));
+            assert_eq!(blocks.next(), Some(BlockIntersection {
+                block: BlockPos([i + 1, i + 1, 0]),
+                face: Direction::NegY
+            }));
         }
     }
 }

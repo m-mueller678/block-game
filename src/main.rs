@@ -1,5 +1,7 @@
 #![feature(integer_atomics)]
 #![feature(conservative_impl_trait)]
+#![feature(test)]
+extern crate test;
 
 #[macro_use]
 extern crate glium;

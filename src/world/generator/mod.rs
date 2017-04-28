@@ -3,6 +3,7 @@ use block::BlockId;
 use world::random::WorldRngSeeder;
 use super::{CHUNK_SIZE, chunk_index, ChunkPos};
 
+#[derive(Clone)]
 pub struct ParameterWeight {
     min: f32,
     max: f32,
@@ -28,6 +29,7 @@ impl ParameterWeight {
     }
 }
 
+#[derive(Clone)]
 pub struct WorldGenBlock {
     id: BlockId,
     temperature: ParameterWeight,
@@ -172,5 +174,26 @@ impl Generator {
             }
         }
         self.blocks.first().unwrap().id
+    }
+}
+
+#[cfg(test)]
+mod tests{
+    use test::{Bencher,black_box};
+    use super::*;
+    use world::WorldRngSeeder;
+    #[bench]
+    fn generate_chunk_column8(b:&mut Bencher){
+        let gen_blocks=black_box(vec![WorldGenBlock::new(
+            BlockId::empty(),            ParameterWeight::new(0., 1., 1., 1.),
+            ParameterWeight::new(0.5, 1., 0.3, 1.),
+            ParameterWeight::new(0., 3., 3., 1.),
+        );4]);
+        let gen=Generator::new(&WorldRngSeeder::new(black_box(4)),gen_blocks);
+        b.iter(||{
+            for y in -4..4{
+                gen.gen_chunk(black_box(&ChunkPos([0,y,0])));
+            }
+        });
     }
 }
