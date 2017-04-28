@@ -105,16 +105,17 @@ impl Ui {
             match ev {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
                     print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
-                    if let Some(print_block) = self.block_target.clone().map(|t| t.block.facing(t.face)) {
+                    if let Some((target,direction)) = self.block_target.clone().map(|t| (t.block,t.face)) {
+                        let print_block=target.facing(direction);
                         let env_data = self.world.env_data();
                         let world = self.world.read();
                         print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
                                  print_block,
-                                 world.get_block(&print_block).unwrap(),
+                                 world.get_block(&target).unwrap(),
                                  world.natural_light(&print_block).unwrap(),
                                  world.artificial_light(&print_block).unwrap(),
                         );
-                        let (x, z) = (print_block[0], print_block[2]);
+                        let (x, z) = (target[0], target[2]);
                         println!("temperature: {}, moisture: {}, base elevation: {}",
                                env_data.temperature(x, z),
                                env_data.moisture(x, z),

@@ -54,7 +54,7 @@ fn main() {
         WorldGenBlock::new(
             block_sand,
             ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0., 0.3, 0.2, 1.),
+            ParameterWeight::new(0., 0.2, 0.2, 1.),
             ParameterWeight::new(0., 3., 3., 1.),
         ),WorldGenBlock::new(
             block_stone,

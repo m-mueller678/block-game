@@ -40,8 +40,6 @@ pub struct NoiseIterator {
 impl Iterator for NoiseIterator {
     type Item = Perlin;
     fn next(&mut self) -> Option<Perlin> {
-        let p = Perlin::new();
-        p.set_seed(self.gen.gen());
-        Some(p)
+        Some(Perlin::new().set_seed(self.gen.gen()))
     }
 }

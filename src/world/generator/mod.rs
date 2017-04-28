@@ -50,7 +50,7 @@ pub struct EnvironmentData {
     noises: [Perlin; 3],
 }
 
-const ENV_SCALE: f32 = 1. / 128.;
+const ENV_SCALE: f32 = 1. / 512.;
 
 impl EnvironmentData {
     fn new(seeder: &WorldRngSeeder) -> Self {
@@ -66,18 +66,18 @@ impl EnvironmentData {
     pub fn moisture(&self, x: i32, z: i32) -> f32 {
         let temperature = self.temperature(x, z);
         let max_moisture = (temperature * 4.).min(1.);
-        max_moisture * (self.noises[2].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.)
+        max_moisture*(self.noises[2].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5)
     }
     pub fn temperature(&self, x: i32, z: i32) -> f32 {
         let elevation = self.base_elevation(x, z);
         let max_temperature = 1. - (elevation * elevation * 0.5);
-        max_temperature * (self.noises[1].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.)
+        max_temperature * (self.noises[1].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5)
     }
     pub fn base_elevation(&self, x: i32, z: i32) -> f32 {
-        self.noises[0].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 1.
+        self.noises[0].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5
     }
     pub fn surface_y(&self, x: i32, z: i32) -> i32 {
-        (self.base_elevation(x, z) * 16.) as i32
+        (self.base_elevation(x, z) * 32.) as i32
     }
 }
 
@@ -113,7 +113,7 @@ impl Generator {
                 if surface_y > base_y {
                     let moisture = self.env_data.moisture(abs_x, abs_z);
                     let temperature = self.env_data.temperature(abs_x, abs_z);
-                    let block_select = self.block_select_noise.get([abs_x as f32 * ENV_SCALE / 16., abs_z as f32 * ENV_SCALE / 16.]) * 0.5 + 1.;
+                    let block_select = self.block_select_noise.get([abs_x as f32 * ENV_SCALE / 16., abs_z as f32 * ENV_SCALE / 16.]) * 0.5 + 0.5;
                     let xz_weights: Vec<f32> = self.blocks.iter()
                         .map(|gen_block| {
                             gen_block.moisture.weight(moisture)
