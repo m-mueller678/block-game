@@ -31,7 +31,7 @@ impl Inserter {
     pub fn insert(&mut self, pos: &ChunkPos, world: &WorldReadGuard) {
         if !world.chunk_loaded(pos) {
             if !self.chunks.iter().any(|&ref chunk| chunk.pos == *pos) {
-                Self::column_or_insert(&mut self.columns, &self.generator, &world, pos[0], pos[2]);
+                Self::column_or_insert(&mut self.columns, &world, pos[0], pos[2]);
                 let data = self.generator.gen_chunk(pos);
                 let sources = (0..(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)).filter_map(|i| {
                     match *world.blocks.light_type(data[i]) {
@@ -125,7 +125,6 @@ impl Inserter {
     }
     fn column_or_insert<'a, 'b, 'c>(
         columns: &'a mut Vec<(i32, i32, ChunkColumn)>,
-        generator: &Generator,
         chunks: &'b ChunkMap,
         x: i32,
         z: i32
@@ -137,7 +136,7 @@ impl Inserter {
             if let Some(index) = columns.iter().position(|&(cx, cz, _)| cx == x && cz == z) {
                 return &columns[index].2
             } else {
-                columns.push((x, z, ChunkColumn::new(generator.gen_biome_map(x, z))));
+                columns.push((x, z, ChunkColumn::new()));
                 &columns.last().unwrap().2
             }
         }
