@@ -1,7 +1,7 @@
 use geometry::Direction;
 use std::ops::Index;
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Debug, Hash)]
 pub struct ChunkPos(pub [i32; 3]);
 
 #[derive(Eq, PartialEq, Clone, Debug)]

@@ -1,4 +1,4 @@
-use std::collections::hash_map::HashMap;
+use std::collections::hash_map::*;
 use std::sync::Arc;
 use std::sync::atomic::{Ordering};
 use num::Integer;
@@ -61,6 +61,14 @@ impl ChunkColumn {
             vec[index].as_mut().unwrap()
         }
     }
+    fn remove(&mut self, y: i32) -> Option<Chunk> {
+        let pos = y >= 0;
+        let index = if pos { y as usize } else { -y as usize - 1 };
+        self.chunks[pos as usize].get_mut(index).and_then(|ref mut opt| opt.take())
+    }
+    fn empty(&self) -> bool {
+        self.chunks.iter().all(|v| v.iter().all(|o| o.is_none()))
+    }
 }
 
 pub struct ChunkMap {
@@ -75,6 +83,17 @@ impl ChunkMap {
             blocks: blocks,
         }
     }
+    pub fn remove_chunk(&mut self, pos: &ChunkPos) -> Option<Chunk> {
+        if let Entry::Occupied(mut col) = self.columns.entry([pos[0], pos[2]]) {
+            let ret = col.get_mut().remove(pos[1]);
+            if col.get().empty() {
+                col.remove();
+            }
+            ret
+        } else {
+            None
+        }
+    }
     pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ()> {
         let chunk_pos = Self::chunk_at(pos);
         if let Some(chunk) = self.borrow_chunk(&chunk_pos) {
@@ -86,7 +105,7 @@ impl ChunkMap {
             }
             match (*self.blocks.light_type(before), *self.blocks.light_type(block)) {
                 (LightType::Transparent, LightType::Transparent)
-                | (LightType::Opaque, LightType::Opaque) => {},
+                | (LightType::Opaque, LightType::Opaque) => {}
                 (LightType::Source(s1), LightType::Source(s2)) => {
                     if s2 > s1 {
                         increase_light(
@@ -95,15 +114,15 @@ impl ChunkMap {
                     } else if s2 < s1 {
                         remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos.clone()]);
                     }
-                },
+                }
                 (LightType::Source(_), LightType::Transparent) => {
                     remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos.clone()]);
-                },
+                }
                 (LightType::Transparent, LightType::Source(s)) => {
                     increase_light(
                         &mut self.artificial_lightmap(chunk_pos),
                         UpdateQueue::single(s, pos.clone(), None));
-                },
+                }
                 (LightType::Opaque, _) => {
                     relight(&mut self.artificial_lightmap(chunk_pos.clone()), pos);
                     relight(&mut self.natural_lightmap(chunk_pos), pos);

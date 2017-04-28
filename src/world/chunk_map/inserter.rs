@@ -1,4 +1,3 @@
-use std::mem::replace;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
@@ -6,7 +5,6 @@ use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
 use world::generator::Generator;
-use world::{WorldReadGuard, WorldWriteGuard};
 use super::*;
 
 struct QueuedChunk {
@@ -17,7 +15,6 @@ struct QueuedChunk {
 
 pub struct Inserter {
     shared: Arc<(Generator, Mutex<InsertBuffer>)>,
-    columns: Vec<(i32, i32, ChunkColumn)>,
     threads: ThreadPool,
 }
 
@@ -33,12 +30,11 @@ impl Inserter {
                 chunks: VecDeque::new(),
                 pending: Vec::new(),
             }))),
-            columns: Vec::new(),
             threads: ThreadPool::new_with_name("chunk generator".into(), 3),
         }
     }
 
-    pub fn insert(&mut self, pos: &ChunkPos, world: &WorldReadGuard) {
+    pub fn insert(&self, pos: &ChunkPos, world: &ChunkMap) {
         if world.chunk_loaded(pos) {
             return;
         }
@@ -55,11 +51,17 @@ impl Inserter {
             let blocks = world.blocks.clone();
             self.threads.execute(move || Self::generate_chunk(shared, pos, blocks));
         }
-        if !world.columns.contains_key(&[pos[0], pos[2]]) {
-            if !self.columns.iter().any(|&(x, z, _)| x == pos[0] && z == pos[2]) {
-                self.columns.push((pos[0], pos[2], ChunkColumn::new()))
-            }
-        }
+    }
+
+    pub fn cancel_insertion(&self, pos: &ChunkPos) -> Result<(), ()> {
+        let mut lock = self.shared.1.lock().unwrap();
+        if let Some(pending_index) = lock.pending.iter().position(|p| *p == *pos) {
+            lock.pending.swap_remove(pending_index);
+            Ok(())
+        } else if let Some(generated_index) = lock.chunks.iter().position(|qc| qc.pos == *pos) {
+            lock.chunks.swap_remove_back(generated_index);
+            Ok(())
+        } else { Err(()) }
     }
 
     fn generate_chunk(
@@ -85,18 +87,17 @@ impl Inserter {
         };
         {
             let mut lock = shared.1.lock().unwrap();
-            lock.chunks.push_back(insert);
-            let index = lock.pending.iter().position(|p| *p == pos).unwrap();
-            lock.pending.swap_remove(index);
+            if let Some(index) = lock.pending.iter().position(|p| *p == pos) {
+                lock.pending.swap_remove(index);
+                lock.chunks.push_back(insert);
+            }
         }
     }
 
-    pub fn push_to_world(&mut self, chunks: &mut WorldWriteGuard) {
-        self.flush_columns(chunks);
-
+    pub fn push_to_world(&mut self, chunks: &mut ChunkMap) {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
-            let column = chunks.columns.get_mut(&[chunk.pos[0], chunk.pos[2]]).unwrap();
+            let column = chunks.columns.entry([chunk.pos[0], chunk.pos[2]]).or_insert(ChunkColumn::new());
             column.insert(chunk.pos[1], Chunk {
                 natural_light: LightState::init_dark_chunk(),
                 data: chunk.data,
@@ -153,14 +154,6 @@ impl Inserter {
                 }
             }
             increase_light(&mut chunks.natural_lightmap(insert_pos.facing(Direction::NegY)), relight.build_queue(&mut lm));
-        }
-    }
-
-    fn flush_columns(&mut self, chunks: &mut ChunkMap) {
-        let columns = replace(&mut self.columns, Vec::new());
-        for (x, z, col) in columns.into_iter() {
-            let new = chunks.columns.insert([x, z], col).is_none();
-            assert!(new);
         }
     }
 }

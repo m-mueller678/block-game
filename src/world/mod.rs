@@ -1,67 +1,51 @@
 mod random;
 mod generator;
 mod chunk_map;
+mod chunk_loading;
 
 pub use self::random::WorldRngSeeder;
 pub use self::chunk_map::*;
 pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData};
+pub use self::chunk_loading::LoadGuard;
 
 use block::BlockRegistry;
-use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
-use std::ops::Deref;
+use std::sync::{Arc, RwLock, RwLockReadGuard, Mutex};
+use self::chunk_loading::LoadMap;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
-pub type WorldWriteGuard<'a> = RwLockWriteGuard<'a, ChunkMap>;
 
-pub fn new_world(blocks: Arc<BlockRegistry>, generator: Generator) -> (WorldReader, WorldWriter) {
-    let chunk_map = Arc::new(RwLock::new(ChunkMap::new(blocks)));
-    let cm2 = chunk_map.clone();
-    (WorldReader { chunks: cm2, env_data: generator.env_data().clone() }, WorldWriter {
-        reader: WorldReader { chunks: chunk_map, env_data: generator.env_data().clone() },
-        inserter: Inserter::new(generator)
-    })
-}
-
-#[derive(Clone)]
-pub struct WorldReader {
+pub struct World {
     env_data: EnvironmentData,
-    chunks: Arc<RwLock<ChunkMap>>,
+    chunks: RwLock<ChunkMap>,
+    inserter: Mutex<Inserter>,
+    loaded: LoadMap,
 }
 
-impl WorldReader {
+impl World {
+    pub fn new(blocks: Arc<BlockRegistry>, gen: Generator) -> Self {
+        World {
+            env_data: gen.env_data().clone(),
+            chunks: RwLock::new(ChunkMap::new(blocks)),
+            inserter: Mutex::new(Inserter::new(gen)),
+            loaded: LoadMap::new(),
+        }
+    }
+
     pub fn read(&self) -> WorldReadGuard {
         self.chunks.read().unwrap()
     }
+
+    pub fn load_cube(&self, center: &ChunkPos, radius: i32) -> LoadGuard {
+        self.loaded.load_cube(center, radius)
+    }
+
     pub fn env_data(&self) -> &EnvironmentData {
         &self.env_data
     }
-}
 
-pub struct WorldWriter {
-    reader: WorldReader,
-    inserter: Inserter,
-}
-
-impl Deref for WorldWriter {
-    type Target = WorldReader;
-    fn deref(&self) -> &WorldReader {
-        &self.reader
+    pub fn flush_chunk(&self) {
+        let mut chunk_lock = self.chunks.write().unwrap();
+        let mut inserter_lock = self.inserter.lock().unwrap();
+        self.loaded.apply_to_world(&mut *chunk_lock, &mut *inserter_lock);
     }
 }
-
-impl WorldWriter {
-    pub fn gen_area(&mut self, pos: &BlockPos, range: i32) {
-        let base = chunk_at(pos);
-        for x in (base[0] - range)..(base[0] + range + 1) {
-            for y in (base[1] - range)..(base[1] + range + 1) {
-                for z in (base[2] - range)..(base[2] + range + 1) {
-                    self.inserter.insert(&ChunkPos([x, y, z]), &self.reader.read());
-                }
-            }
-        }
-    }
-    pub fn flush_chunk(&mut self) {
-        self.inserter.push_to_world(&mut self.reader.chunks.write().unwrap());
-    }
-}
-

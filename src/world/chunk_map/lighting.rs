@@ -166,7 +166,7 @@ pub struct ArtificialLightMap<'a> {
 
 impl<'a> ArtificialLightMap<'a>{
     pub fn new(world:&'a ChunkMap,cache:ChunkCache<'a>)->Self{
-        ArtificialLightMap{world:world,cache}
+        ArtificialLightMap { world: world, cache: cache }
     }
 }
 
@@ -215,7 +215,7 @@ pub struct NaturalLightMap<'a> {
 
 impl<'a> NaturalLightMap<'a>{
     pub fn new(world:&'a ChunkMap,cache:ChunkCache<'a>)->Self{
-        NaturalLightMap{world:world,cache}
+        NaturalLightMap { world: world, cache: cache }
     }
 }
 

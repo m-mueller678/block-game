@@ -3,8 +3,9 @@ use glium::backend::glutin_backend::GlutinFacade;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use graphics::*;
-use world::{BlockPos, WorldReader};
+use world::{BlockPos, World};
 use cam::Camera;
 use geometry::*;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul};
@@ -24,7 +25,7 @@ pub struct Ui {
     line_shader: Program,
     event_sender: Sender<Message>,
     textures: CompressedSrgbTexture2dArray,
-    world: WorldReader,
+    world: Arc<World>,
     camera: Camera,
     world_render: WorldRender,
     cursor_line_vertices: VertexBuffer<LineVertex>,
@@ -41,7 +42,7 @@ impl Ui {
         line_shader: Program,
         event_sender: Sender<Message>,
         textures: CompressedSrgbTexture2dArray,
-        world: WorldReader,
+        world: Arc<World>,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new
             (&display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
