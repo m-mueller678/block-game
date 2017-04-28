@@ -47,37 +47,58 @@ impl WorldGenBlock {
 
 #[derive(Clone)]
 pub struct EnvironmentData {
-    noises: [Perlin; 3],
+    elevation_base: Vec<Perlin>,
+    moisture: Vec<Perlin>,
+    temperature: Vec<Perlin>,
 }
 
 const ENV_SCALE: f32 = 1. / 512.;
+const ELEVATION_BASE_LAYERS: usize = 6;
+const MOISTURE_LAYERS: usize = 3;
+const TEMPERATURE_LAYERS: usize = 3;
 
 impl EnvironmentData {
     fn new(seeder: &WorldRngSeeder) -> Self {
-        let mut noise_iter = seeder.noises(0);
-        let _ = noise_iter.next();//used for random block in main generator
-        let s1 = noise_iter.next().unwrap();
-        let s2 = noise_iter.next().unwrap();
-        let s3 = noise_iter.next().unwrap();
-        EnvironmentData {
-            noises: [s1, s2, s3],
-        }
+        let mut noises = seeder.noises(0);
+        let _ = noises.next();//used for random block in main generator
+        let mut ed=EnvironmentData {
+            elevation_base:Vec::with_capacity(ELEVATION_BASE_LAYERS),
+            moisture:Vec::with_capacity(MOISTURE_LAYERS),
+            temperature:Vec::with_capacity(TEMPERATURE_LAYERS),
+        };
+        for _ in 0..ELEVATION_BASE_LAYERS{ed.elevation_base.push(noises.next().unwrap())}
+        for _ in 0..MOISTURE_LAYERS{ed.moisture.push(noises.next().unwrap())}
+        for _ in 0..TEMPERATURE_LAYERS{ed.temperature.push(noises.next().unwrap())}
+        ed
     }
     pub fn moisture(&self, x: i32, z: i32) -> f32 {
         let temperature = self.temperature(x, z);
         let max_moisture = (temperature * 4.).min(1.);
-        max_moisture*(self.noises[2].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5)
+        max_moisture * Self::make_noise(&self.moisture,ENV_SCALE,x as f32,z as f32)
     }
     pub fn temperature(&self, x: i32, z: i32) -> f32 {
         let elevation = self.base_elevation(x, z);
         let max_temperature = 1. - (elevation * elevation * 0.5);
-        max_temperature * (self.noises[1].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5)
+        max_temperature * Self::make_noise(&self.temperature,ENV_SCALE,x as f32,z as f32)
     }
     pub fn base_elevation(&self, x: i32, z: i32) -> f32 {
-        self.noises[0].get([x as f32 * ENV_SCALE, z as f32 * ENV_SCALE]) * 0.5 + 0.5
+        Self::make_noise(&self.elevation_base,ENV_SCALE,x as f32,z as f32)
     }
     pub fn surface_y(&self, x: i32, z: i32) -> i32 {
-        (self.base_elevation(x, z) * 32.) as i32
+        (self.base_elevation(x, z) * 64.) as i32
+    }
+    fn make_noise(noises:&[Perlin],base_scale:f32,x:f32,z:f32)->f32{
+        let mut val_scale=1.;
+        let mut pos_scale=base_scale;
+        let mut max_abs=0.;
+        let mut total=0.;
+        for n in noises{
+            total+=n.get([x*pos_scale,z*pos_scale])*val_scale;
+            max_abs+=val_scale;
+            val_scale*=0.7;
+            pos_scale*=2.;
+        }
+        (total/max_abs*0.5+0.5)
     }
 }
 
@@ -96,7 +117,7 @@ impl Generator {
         }
     }
 
-    pub fn env_data(&self)->&EnvironmentData{
+    pub fn env_data(&self) -> &EnvironmentData {
         &self.env_data
     }
 
