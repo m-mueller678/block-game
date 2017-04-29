@@ -43,10 +43,10 @@ fn load_image(path: &str) -> glium::texture::RawImage2d<u8> {
 
 fn main() {
     let mut bgs = BlockRegistry::new();
-    let block_light = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2);6]),LightType::Source(30)));
-    let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
-    let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
-    let block_stone = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2); 6]), LightType::Opaque));
+    let block_light = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0);6]),LightType::Source(30)));
+    let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
+    let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2); 6]), LightType::Opaque));
+    let block_stone = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(3); 6]), LightType::Opaque));
     let seeder = world::WorldRngSeeder::new(1);
     let generator = world::Generator::new(&seeder, vec![
         WorldGenBlock::new(
@@ -71,6 +71,7 @@ fn main() {
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     let texture = CompressedSrgbTexture2dArray::new(&display, vec![
+        load_image("textures/debug.png"),
         load_image("textures/sand.png"),
         load_image("textures/dirt.png"),
         load_image("textures/stone.png"),

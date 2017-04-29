@@ -98,7 +98,7 @@ impl RenderChunk {
     fn push_face(buffer: &mut Vec<QuadVertex>, pos: [f32; 3], direction: Direction, texture: BlockTextureId, light: u8) {
         use vecmath::vec3_add;
         let vertices = CUBE_FACES[direction as usize];
-        let tex_coords = [[0., 0.], [0., 1.], [1., 1.], [1., 0.]];
+        let tex_coords = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]];
         for i in 0..4 {
             let normal = direction.offset();
             buffer.push(QuadVertex {
