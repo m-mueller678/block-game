@@ -43,6 +43,7 @@ fn load_image(path: &str) -> glium::texture::RawImage2d<u8> {
 
 fn main() {
     let mut bgs = BlockRegistry::new();
+    let block_light = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2);6]),LightType::Source(30)));
     let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0); 6]), LightType::Opaque));
     let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
     let block_stone = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2); 6]), LightType::Opaque));
@@ -101,7 +102,7 @@ fn main() {
                         mouse_pressed_since[button] = Some(SteadyTime::now());
                         if button == 1 {
                             if let Some(ref block_target) = block_target {
-                                world.read().set_block(&block_target.block.facing(block_target.face), block_dirt).is_ok();
+                                world.read().set_block(&block_target.block.facing(block_target.face), block_light).is_ok();
                             }
                         }
                     }
@@ -122,7 +123,7 @@ fn main() {
                 } else {
                     if let Some(pressed_since) = mouse_pressed_since[1] {
                         if (SteadyTime::now() - pressed_since).num_milliseconds() > 500 {
-                            read_guard.set_block(&block_target.block.facing(block_target.face), block_dirt).is_ok();
+                            read_guard.set_block(&block_target.block.facing(block_target.face), block_light).is_ok();
                         }
                     }
                 }
