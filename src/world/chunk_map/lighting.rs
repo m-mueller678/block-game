@@ -1,6 +1,6 @@
 use geometry::{Direction, ALL_DIRECTIONS};
 use world::BlockPos;
-use super::{ChunkMap,ChunkCache,chunk_index_global,chunk_at};
+use super::{ChunkMap,ChunkCache,chunk_at};
 use block::LightType;
 use std::sync::atomic::Ordering;
 
@@ -175,7 +175,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
             true
         } else {
-            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
+            self.world.blocks.light_type(self.cache.chunk.data[*pos].load()).is_opaque()
         }
     }
 
@@ -183,13 +183,13 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.artificial_light[chunk_index_global(pos)];
+            let atomic_light = &self.cache.chunk.artificial_light[*pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
     fn set_light(&mut self, pos: &BlockPos, light: Light) {
-        self.cache.chunk.artificial_light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.artificial_light[*pos].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
         self.world.update_adjacent_chunks(pos);
     }
@@ -200,7 +200,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(chunk_at(pos), &self.world).is_err() {
             0
         } else {
-            match *self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()) {
+            match *self.world.blocks.light_type(self.cache.chunk.data[*pos].load()) {
                 LightType::Source(s) => s,
                 LightType::Opaque | LightType::Transparent => 0
             }
@@ -224,7 +224,7 @@ impl<'a> LightMap for NaturalLightMap<'a> {
         if self.cache.load(chunk_at(pos), &self.world).is_err() {
             true
         } else {
-            self.world.blocks.light_type(self.cache.chunk.data[chunk_index_global(pos)].load()).is_opaque()
+            self.world.blocks.light_type(self.cache.chunk.data[*pos].load()).is_opaque()
         }
     }
 
@@ -232,13 +232,13 @@ impl<'a> LightMap for NaturalLightMap<'a> {
         if self.cache.load(chunk_at(pos), &self.world).is_err() {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.natural_light[chunk_index_global(pos)];
+            let atomic_light = &self.cache.chunk.natural_light[*pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
     fn set_light(&mut self, pos: &BlockPos, light: Light) {
-        self.cache.chunk.natural_light[chunk_index_global(pos)].set(light.0, light.1);
+        self.cache.chunk.natural_light[*pos].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
         self.world.update_adjacent_chunks(pos);
     }

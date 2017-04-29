@@ -17,7 +17,6 @@ pub use self::inserter::Inserter;
 pub use self::chunk::*;
 
 use self::lighting::*;
-use self::atomic_light::*;
 
 struct ChunkColumn {
     chunks: [Vec<Option<Chunk>>; 2],
@@ -97,11 +96,10 @@ impl ChunkMap {
     pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ()> {
         let chunk_pos = Self::chunk_at(pos);
         if let Some(chunk) = self.borrow_chunk(&chunk_pos) {
-            let block_pos = chunk_index_global(pos);
             let before;
             {
-                before = chunk.data[block_pos].load();
-                chunk.data[block_pos].store(block);
+                before = chunk.data[*pos].load();
+                chunk.data[*pos].store(block);
             }
             match (*self.blocks.light_type(before), *self.blocks.light_type(block)) {
                 (LightType::Transparent, LightType::Transparent)
@@ -176,11 +174,11 @@ impl ChunkMap {
         unreachable!()// ray block iterator is infinite
     }
     pub fn get_block(&self, pos: &BlockPos) -> Option<BlockId> {
-        self.borrow_chunk(&Self::chunk_at(pos)).map(|c| c.data[chunk_index_global(pos)].load())
+        self.borrow_chunk(&Self::chunk_at(pos)).map(|c| c.data[*pos].load())
     }
     pub fn natural_light(&self, pos: &BlockPos) -> Option<(u8, Option<Direction>)> {
         if let Some(chunk) = self.borrow_chunk(&Self::chunk_at(pos)) {
-            let light = &chunk.natural_light[chunk_index_global(pos)];
+            let light = &chunk.natural_light[*pos];
             Some((light.level(), light.direction()))
         } else {
             None
@@ -188,7 +186,7 @@ impl ChunkMap {
     }
     pub fn artificial_light(&self, pos: &BlockPos) -> Option<(u8, Option<Direction>)> {
         if let Some(chunk) = self.borrow_chunk(&Self::chunk_at(pos)) {
-            let light = &chunk.artificial_light[chunk_index_global(pos)];
+            let light = &chunk.artificial_light[*pos];
             Some((light.level(), light.direction()))
         } else {
             None
@@ -225,8 +223,8 @@ impl ChunkMap {
                 block_pos[d1] = i;
                 block_pos[d2] = j;
                 block_pos[face_direction] = if positive { CHUNK_SIZE - 1 } else { 0 };
-                brightness[i][j].0 = chunk.artificial_light[chunk_index(&block_pos)].level();
-                brightness[i][j].1 = chunk.natural_light[chunk_index(&block_pos)].level();
+                brightness[i][j].0 = chunk.artificial_light[block_pos].level();
+                brightness[i][j].1 = chunk.natural_light[block_pos].level();
             }
         }
         let chunk_size = CHUNK_SIZE as i32;

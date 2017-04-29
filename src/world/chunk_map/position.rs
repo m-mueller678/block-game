@@ -1,10 +1,10 @@
 use geometry::Direction;
 use std::ops::Index;
 
-#[derive(Eq, PartialEq, Clone, Debug, Hash)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub struct ChunkPos(pub [i32; 3]);
 
-#[derive(Eq, PartialEq, Clone, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub struct BlockPos(pub [i32; 3]);
 
 impl ChunkPos {

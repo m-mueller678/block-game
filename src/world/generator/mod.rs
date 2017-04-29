@@ -1,7 +1,7 @@
 use noise::{Perlin, NoiseModule};
-use block::BlockId;
+use block::{AtomicBlockId, BlockId};
 use world::random::WorldRngSeeder;
-use super::{CHUNK_SIZE, chunk_index, ChunkPos};
+use super::{CHUNK_SIZE, ChunkPos, ChunkArray};
 
 #[derive(Clone)]
 pub struct ParameterWeight {
@@ -123,11 +123,11 @@ impl Generator {
         &self.env_data
     }
 
-    pub fn gen_chunk(&self, pos: &ChunkPos) -> [BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
+    pub fn gen_chunk(&self, pos: &ChunkPos) -> ChunkArray<AtomicBlockId> {
         let base_x = pos[0] * CHUNK_SIZE as i32;
         let base_y = pos[1] * CHUNK_SIZE as i32;
         let base_z = pos[2] * CHUNK_SIZE as i32;
-        let mut ret = [BlockId::empty(); CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE];
+        let mut ret: ChunkArray<AtomicBlockId> = Default::default();
         let mut weight_buffer = vec![0.; self.blocks.len()];
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
@@ -149,8 +149,9 @@ impl Generator {
                             break;
                         }
                         let depth = (surface_y - abs_y) as f32;
-                        ret[chunk_index(&[x, y, z])] =
-                            self.pick_block(&xz_weights, depth, block_select, &mut weight_buffer)
+                        ret[[x, y, z]]=AtomicBlockId::new(
+                            (self.pick_block(&xz_weights, depth, block_select, &mut weight_buffer))
+                        );
                     }
                 }
             }

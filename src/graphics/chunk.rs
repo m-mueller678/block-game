@@ -3,7 +3,7 @@ use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::backend::Facade;
 use glium::index::PrimitiveType;
-use world::{CHUNK_SIZE, ChunkReader, chunk_index, ChunkPos, WorldReadGuard};
+use world::{CHUNK_SIZE, ChunkReader, ChunkPos, WorldReadGuard};
 use block::BlockRegistry;
 use geometry::*;
 use super::DrawType;
@@ -58,7 +58,7 @@ impl RenderChunk {
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
-                    let id = chunk.block(chunk_index(&[x, y, z]));
+                    let id = chunk.block([x,y,z]);
                     match blocks.draw_type(id) {
                         DrawType::FullOpaqueBlock(textures) => {
                             for d in ALL_DIRECTIONS.iter() {
@@ -110,7 +110,7 @@ impl RenderChunk {
             });
         }
     }
-    fn get_block_at<'a, 'b>(chunk: &'b ChunkReader<'a>, adjacent: &'b [Option<ChunkReader<'a>>; 6], mut pos: [usize; 3], d: Direction) -> (Option<&'b ChunkReader<'a>>, usize) {
+    fn get_block_at<'a, 'b>(chunk: &'b ChunkReader<'a>, adjacent: &'b [Option<ChunkReader<'a>>; 6], mut pos: [usize; 3], d: Direction) -> (Option<&'b ChunkReader<'a>>, [usize;3]) {
         let outside = match d {
             Direction::PosX => pos[0] + 1 == CHUNK_SIZE,
             Direction::PosY => pos[1] + 1 == CHUNK_SIZE,
@@ -127,6 +127,6 @@ impl RenderChunk {
             Direction::NegY => pos[1] = (pos[1] + CHUNK_SIZE - 1) % CHUNK_SIZE,
             Direction::NegZ => pos[2] = (pos[2] + CHUNK_SIZE - 1) % CHUNK_SIZE,
         };
-        (if outside { adjacent[d as usize].as_ref() } else { Some(chunk) }, chunk_index(&pos))
+        (if outside { adjacent[d as usize].as_ref() } else { Some(chunk) }, pos)
     }
 }

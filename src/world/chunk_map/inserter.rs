@@ -10,7 +10,7 @@ use super::*;
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
     pos: ChunkPos,
-    data: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE],
+    data: ChunkArray<AtomicBlockId>,
 }
 
 pub struct Inserter {
@@ -70,20 +70,25 @@ impl Inserter {
         blocks: Arc<BlockRegistry>)
     {
         let data = shared.0.gen_chunk(&pos);
-        let sources = (0..(CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE)).filter_map(|i| {
-            match *blocks.light_type(data[i]) {
-                LightType::Source(l) => Some((BlockPos([
-                    pos[0] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE / CHUNK_SIZE) as i32,
-                    pos[1] * CHUNK_SIZE as i32 + (i / CHUNK_SIZE % CHUNK_SIZE) as i32,
-                    pos[2] * CHUNK_SIZE as i32 + (i % CHUNK_SIZE) as i32
-                ]), l)),
-                LightType::Opaque | LightType::Transparent => None,
+        let mut sources = Vec::new();
+        for x in 0..CHUNK_SIZE {
+            for y in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    match *blocks.light_type(data[[x, y, z]].load()) {
+                        LightType::Source(l) => sources.push((BlockPos([
+                            pos[0] * CHUNK_SIZE as i32 + x as i32,
+                            pos[1] * CHUNK_SIZE as i32 + y as i32,
+                            pos[2] * CHUNK_SIZE as i32 + z as i32
+                        ]), l)),
+                        LightType::Opaque | LightType::Transparent => {}
+                    }
+                }
             }
-        }).collect();
+        }
         let insert = QueuedChunk {
             light_sources: sources,
             pos: pos.clone(),
-            data: AtomicBlockId::init_chunk(&data),
+            data: data,
         };
         {
             let mut lock = shared.1.lock().unwrap();
@@ -99,9 +104,9 @@ impl Inserter {
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             let column = chunks.columns.entry([chunk.pos[0], chunk.pos[2]]).or_insert(ChunkColumn::new());
             column.insert(chunk.pos[1], Chunk {
-                natural_light: LightState::init_dark_chunk(),
+                natural_light: Default::default(),
                 data: chunk.data,
-                artificial_light: LightState::init_dark_chunk(),
+                artificial_light: Default::default(),
                 update_render: AtomicBool::new(false)
             });
             for source in chunk.light_sources.iter() {
@@ -148,7 +153,7 @@ impl Inserter {
                         insert_pos[1] * cs - 1,
                         insert_pos[2] * cs + z as i32,
                     ]);
-                    if inserted_cache.chunk.natural_light[chunk_index(&[x, 0, z])].level() != MAX_NATURAL_LIGHT {
+                    if inserted_cache.chunk.natural_light[[x, 0, z]].level() != MAX_NATURAL_LIGHT {
                         remove_light_rec(&mut lm, abs_pos, Direction::NegY, &mut relight);
                     }
                 }

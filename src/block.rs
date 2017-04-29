@@ -1,6 +1,5 @@
 use graphics::DrawType;
 use std::sync::atomic::{AtomicU32, Ordering};
-use world::CHUNK_SIZE;
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct BlockId(u32);
@@ -11,26 +10,18 @@ impl Default for BlockId {
     }
 }
 
+#[derive(Default)]
 pub struct AtomicBlockId(AtomicU32);
 
 impl AtomicBlockId {
+    pub fn new(id:BlockId)->Self{
+        AtomicBlockId(AtomicU32::new(id.0))
+    }
     pub fn store(&self, id: BlockId) {
         self.0.store(id.0, Ordering::Relaxed);
     }
     pub fn load(&self) -> BlockId {
         BlockId(self.0.load(Ordering::Relaxed))
-    }
-    pub fn init_chunk(data: &[BlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE])
-                      -> [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] {
-        use std::mem::uninitialized;
-        use std::ptr::write;
-        unsafe {
-            let mut array: [AtomicBlockId; CHUNK_SIZE * CHUNK_SIZE * CHUNK_SIZE] = uninitialized();
-            for i in 0..(array.len()) {
-                write(&mut array[i], AtomicBlockId(AtomicU32::new(data[i].0)));
-            }
-            array
-        }
     }
 }
 
