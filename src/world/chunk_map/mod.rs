@@ -18,80 +18,20 @@ pub use self::chunk::*;
 
 use self::lighting::*;
 
-struct ChunkColumn {
-    chunks: [Vec<Option<Chunk>>; 2],
-}
-
-impl ChunkColumn {
-    fn new() -> Self {
-        ChunkColumn {
-            chunks: [Vec::new(), Vec::new()],
-        }
-    }
-    fn get(&self, y: i32) -> Option<&Chunk> {
-        let pos = y >= 0;
-        let index = if pos {
-            y as usize
-        } else {
-            (-y - 1) as usize
-        };
-        self.chunks[pos as usize].get(index).map(|o| o.as_ref()).unwrap_or(None)
-    }
-    fn insert(&mut self, y: i32, chunk: Chunk) -> &mut Chunk {
-        let pos = y >= 0;
-        let index = if pos {
-            y as usize
-        } else {
-            (-y - 1) as usize
-        };
-        let vec = &mut self.chunks[pos as usize];
-        if index >= vec.len() {
-            let new_len = index + 1;
-            let len_dif = new_len - vec.len();
-            vec.reserve(len_dif);
-            for _ in 0..(len_dif - 1) {
-                vec.push(None);
-            }
-            vec.push(Some(chunk));
-            vec[index].as_mut().unwrap()
-        } else {
-            assert!(vec[index].is_none());
-            vec[index] = Some(chunk);
-            vec[index].as_mut().unwrap()
-        }
-    }
-    fn remove(&mut self, y: i32) -> Option<Chunk> {
-        let pos = y >= 0;
-        let index = if pos { y as usize } else { -y as usize - 1 };
-        self.chunks[pos as usize].get_mut(index).and_then(|ref mut opt| opt.take())
-    }
-    fn empty(&self) -> bool {
-        self.chunks.iter().all(|v| v.iter().all(|o| o.is_none()))
-    }
-}
-
 pub struct ChunkMap {
-    columns: HashMap<[i32; 2], ChunkColumn>,
+    chunks: HashMap<[i32; 3], Box<Chunk>>,
     blocks: Arc<BlockRegistry>,
 }
 
 impl ChunkMap {
     pub fn new(blocks: Arc<BlockRegistry>) -> Self {
         ChunkMap {
-            columns: HashMap::new(),
+            chunks: HashMap::new(),
             blocks: blocks,
         }
     }
-    pub fn remove_chunk(&mut self, pos: &ChunkPos) -> Option<Chunk> {
-        if let Entry::Occupied(mut col) = self.columns.entry([pos[0], pos[2]]) {
-            let ret = col.get_mut().remove(pos[1]);
-            if col.get().empty() {
-                col.remove();
-            }
-            ret
-        } else {
-            None
-        }
+    pub fn remove_chunk(&mut self, pos: &ChunkPos) -> Option<Box<Chunk>> {
+        self.chunks.remove(&[pos[0], pos[1], pos[2]])
     }
     pub fn set_block(&self, pos: &BlockPos, block: BlockId) -> Result<(), ()> {
         let chunk_pos = Self::chunk_at(pos);
@@ -265,7 +205,7 @@ impl ChunkMap {
         }
     }
     fn borrow_chunk(&self, p: &ChunkPos) -> Option<&Chunk> {
-        self.columns.get(&[p[0], p[2]]).and_then(|col| col.get(p[1]))
+        self.chunks.get(&[p[0], p[1], p[2]]).map(|b|b.as_ref())
     }
 }
 

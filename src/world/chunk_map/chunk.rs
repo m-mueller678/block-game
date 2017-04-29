@@ -78,7 +78,7 @@ pub struct ChunkCache<'a> {
 
 impl<'a> ChunkCache<'a> {
     pub fn new<'b: 'a>(pos: ChunkPos, chunks: &'b ChunkMap) -> Result<Self, ()> {
-        if let Some(cref) = chunks.columns.get(&[pos[0], pos[2]]).and_then(|col| col.get(pos[1])) {
+        if let Some(cref) = chunks.borrow_chunk(&pos) {
             Ok(ChunkCache {
                 pos: pos,
                 chunk: cref

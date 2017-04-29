@@ -102,13 +102,12 @@ impl Inserter {
     pub fn push_to_world(&mut self, chunks: &mut ChunkMap) {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
-            let column = chunks.columns.entry([chunk.pos[0], chunk.pos[2]]).or_insert(ChunkColumn::new());
-            column.insert(chunk.pos[1], Chunk {
+            chunks.chunks.insert([chunk.pos[0], chunk.pos[1], chunk.pos[2]], Box::new(Chunk {
                 natural_light: Default::default(),
                 data: chunk.data,
                 artificial_light: Default::default(),
-                update_render: AtomicBool::new(false)
-            });
+                update_render: AtomicBool::new(false),
+            }));
             for source in chunk.light_sources.iter() {
                 sources_to_trigger.push(source.1, source.0.clone(), None);
             }
