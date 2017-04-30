@@ -15,8 +15,9 @@ impl InnerMap {
             Entry::Occupied(mut o) => (*o.get_mut()) += 1,
             Entry::Vacant(v) => {
                 v.insert(1);
-                self.new_loaded.insert(pos.clone());
-                self.new_unloaded.remove(pos);
+                if !self.new_unloaded.remove(pos) {
+                    self.new_loaded.insert(pos.clone());
+                }
             }
         }
     }
@@ -28,8 +29,9 @@ impl InnerMap {
                 *count == 0
             } {
                 o.remove();
-                self.new_unloaded.insert(pos.clone());
-                self.new_loaded.remove(pos);
+                if !self.new_loaded.remove(pos) {
+                    self.new_unloaded.insert(pos.clone());
+                }
             }
         } else {
             panic!("load map count decreased below zero");
