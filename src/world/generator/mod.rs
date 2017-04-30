@@ -3,6 +3,10 @@ use block::{AtomicBlockId, BlockId};
 use world::random::WorldRngSeeder;
 use super::{CHUNK_SIZE, ChunkPos, ChunkArray};
 
+pub mod structure;
+
+use self::structure::{CombinedStructureGenerator,StructureFinder};
+
 #[derive(Clone)]
 pub struct ParameterWeight {
     min: f32,
@@ -108,14 +112,17 @@ pub struct Generator {
     block_select_noise: Perlin,
     env_data: EnvironmentData,
     blocks: Vec<WorldGenBlock>,
+    structures:CombinedStructureGenerator,
 }
 
 impl Generator {
-    pub fn new(rand: &WorldRngSeeder, blocks: Vec<WorldGenBlock>) -> Self {
+    pub fn new(rand: &WorldRngSeeder, blocks: Vec<WorldGenBlock>,structures:Vec<Box<StructureFinder>>) -> Self {
+        let env_dat=EnvironmentData::new(rand);
         Generator {
             block_select_noise: rand.noises(0).next().unwrap(),
-            env_data: EnvironmentData::new(rand),
+            env_data: env_dat.clone(),
             blocks: blocks,
+            structures:CombinedStructureGenerator::new(structures,rand.clone(),env_dat),
         }
     }
 
@@ -156,6 +163,7 @@ impl Generator {
                 }
             }
         }
+        self.structures.generate_chunk(*pos,&mut ret);
         ret
     }
 
@@ -181,6 +189,7 @@ impl Generator {
 mod tests {
     use test::{Bencher, black_box};
     use super::*;
+    use cross_structure::new_cross_finder;
     use world::WorldRngSeeder;
 
     #[bench]
@@ -190,7 +199,8 @@ mod tests {
             ParameterWeight::new(0.5, 1., 0.3, 1.),
             ParameterWeight::new(0., 3., 3., 1.),
         ); 4]);
-        let gen = Generator::new(&WorldRngSeeder::new(black_box(4)), gen_blocks);
+        let structures=black_box(vec![new_cross_finder(BlockId::empty())]);
+        let gen = Generator::new(&WorldRngSeeder::new(black_box(4)), gen_blocks,structures);
         b.iter(|| {
             for y in -4..4 {
                 gen.gen_chunk(black_box(&ChunkPos([0, y, 0])));

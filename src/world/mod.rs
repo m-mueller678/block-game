@@ -5,7 +5,7 @@ mod chunk_loading;
 
 pub use self::random::WorldRngSeeder;
 pub use self::chunk_map::*;
-pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData};
+pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData,structure};
 pub use self::chunk_loading::LoadGuard;
 
 use block::BlockRegistry;

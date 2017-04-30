@@ -1,5 +1,6 @@
 #![feature(integer_atomics)]
 #![feature(conservative_impl_trait)]
+#![feature(range_contains)]
 #![feature(test)]
 extern crate test;
 
@@ -13,6 +14,7 @@ extern crate time;
 extern crate rand;
 extern crate noise;
 extern crate threadpool;
+extern crate chashmap;
 
 use glium::texture::CompressedSrgbTexture2dArray;
 use glium::DisplayBuild;
@@ -33,6 +35,8 @@ mod block;
 mod world;
 mod geometry;
 mod ui;
+
+mod cross_structure;
 
 fn load_image(path: &str) -> glium::texture::RawImage2d<u8> {
     let file = std::io::BufReader::new(File::open(path).unwrap());
@@ -66,7 +70,7 @@ fn main() {
             ParameterWeight::new(0., 1., 1., 1.),
             ParameterWeight::new(5., std::f32::INFINITY, 2., 1.),
         )
-    ]);
+    ],vec![cross_structure::new_cross_finder(block_stone)]);
     let world = Arc::new(World::new(Arc::new(bgs), generator));
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();

@@ -185,7 +185,7 @@ impl Ui {
     }
 
     fn update_block_target(&mut self) {
-        let new_block_target = self.world.read().block_ray_trace(self.camera.position, self.camera.forward, 20.);
+        let new_block_target = self.world.read().block_ray_trace(self.camera.position, self.camera.forward, 100.);
         if new_block_target != self.block_target {
             self.block_target = new_block_target.clone();
             self.event_sender.send(Message::BlockTargetChanged { target: new_block_target }).unwrap();

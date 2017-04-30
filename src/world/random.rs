@@ -15,12 +15,13 @@ impl WorldRngSeeder {
             ],
         }
     }
-    pub fn make_gen(&self, x: i32, z: i32) -> impl Rng {
+    pub fn make_gen(&self, x: i32, z: i32, y:i32) -> IsaacRng {
         let seed = [
             self.seed[0],
             self.seed[1],
             x as u32,
             z as u32,
+            y as u32,
         ];
         let gen = IsaacRng::from_seed(&seed);
         gen
