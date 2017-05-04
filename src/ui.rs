@@ -3,7 +3,7 @@ use glium::backend::glutin_backend::GlutinFacade;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use std::sync::mpsc::Sender;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use graphics::*;
 use world::{BlockPos, World};
 use cam::Camera;
@@ -21,8 +21,7 @@ pub enum Message {
 
 pub struct Ui {
     display: GlutinFacade,
-    quad_shader: Program,
-    line_shader: Program,
+    shader: Shader,
     event_sender: Sender<Message>,
     textures: CompressedSrgbTexture2dArray,
     world: Arc<World>,
@@ -33,13 +32,15 @@ pub struct Ui {
     yaw: f32,
     pitch: f32,
     block_target: Option<ray::BlockIntersection>,
+    shared_position: Arc<Mutex<[f32; 3]>>,
+    overlays: Vec<(BlockOverlay, String)>,
+    current_overlay: usize,
 }
 
 impl Ui {
     pub fn new(
         display: GlutinFacade,
-        quad_shader: Program,
-        line_shader: Program,
+        shader: Shader,
         event_sender: Sender<Message>,
         textures: CompressedSrgbTexture2dArray,
         world: Arc<World>,
@@ -48,10 +49,9 @@ impl Ui {
             (&display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
         let vertex_buffer = VertexBuffer::new(&display, &
             [LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] }; 10]).unwrap();
-        Ui {
+        let mut ret = Ui {
             display: display,
-            quad_shader: quad_shader,
-            line_shader: line_shader,
+            shader: shader,
             event_sender: event_sender,
             textures: textures,
             world: world,
@@ -62,7 +62,12 @@ impl Ui {
             yaw: 0.,
             pitch: 0.,
             block_target: None,
-        }
+            shared_position: Arc::new(Mutex::new([0.; 3])),
+            overlays: Vec::new(),
+            current_overlay: 0,
+        };
+        ret.load_overlays();
+        ret
     }
 
     pub fn run(&mut self) {
@@ -106,21 +111,21 @@ impl Ui {
             match ev {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
                     print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
-                    if let Some((target,direction)) = self.block_target.clone().map(|t| (t.block,t.face)) {
-                        let print_block=target.facing(direction);
+                    if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
+                        let print_block = target.facing(direction);
                         let env_data = self.world.env_data();
                         let world = self.world.read();
                         print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
-                                 print_block,
-                                 world.get_block(&target).unwrap(),
-                                 world.natural_light(&print_block).unwrap(),
-                                 world.artificial_light(&print_block).unwrap(),
+                               print_block,
+                               world.get_block(&target).unwrap(),
+                               world.natural_light(&print_block).unwrap(),
+                               world.artificial_light(&print_block).unwrap(),
                         );
                         let (x, z) = (target[0], target[2]);
                         println!("temperature: {}, moisture: {}, base elevation: {}",
-                               env_data.temperature(x, z),
-                               env_data.moisture(x, z),
-                               env_data.base_elevation(x, z)
+                                 env_data.temperature(x, z),
+                                 env_data.moisture(x, z),
+                                 env_data.base_elevation(x, z)
                         );
                     } else {
                         println!()
@@ -135,31 +140,35 @@ impl Ui {
                         self.camera.set_yaw_pitch(self.yaw, self.pitch);
                     }
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::W)) => {
                     self.camera.position = vec3_add(self.camera.position, vec3_scale(self.camera.forward, 0.5));
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::S)) => {
                     self.camera.position = vec3_sub(self.camera.position, vec3_scale(self.camera.forward, 0.5));
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::D)) => {
                     self.camera.position = vec3_add(self.camera.position, vec3_scale(self.camera.right, 0.5));
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::A)) => {
                     self.camera.position = vec3_sub(self.camera.position, vec3_scale(self.camera.right, 0.5));
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::E)) => {
                     self.camera.position = vec3_add(self.camera.position, vec3_scale(self.camera.up, 0.5));
                     cam_changed = true;
-                },
+                }
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Q)) => {
                     self.camera.position = vec3_sub(self.camera.position, vec3_scale(self.camera.up, 0.5));
                     cam_changed = true;
-                },
+                }
+                glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::O)) => {
+                    self.current_overlay = (self.current_overlay + 1) % (self.overlays.len() + 1);
+                    println!("set overlay to: {:?}", self.overlays.get(self.current_overlay).map(|o| &o.1));
+                }
                 glutin::Event::MouseInput(state, button) => {
                     let button_id = match button {
                         glutin::MouseButton::Left => 0,
@@ -169,17 +178,18 @@ impl Ui {
                     match state {
                         glutin::ElementState::Pressed => {
                             self.event_sender.send(Message::MousePressed { button: button_id }).unwrap();
-                        },
+                        }
                         glutin::ElementState::Released => {
                             self.event_sender.send(Message::MouseReleased { button: button_id }).unwrap();
-                        },
+                        }
                     }
-                },
+                }
                 _ => ()
             }
         }
         if cam_changed {
             self.event_sender.send(Message::CamChanged { pos: self.camera.position, direction: self.camera.forward }).unwrap();
+            *self.shared_position.lock().unwrap() = self.camera.position;
         }
         true
     }
@@ -199,7 +209,7 @@ impl Ui {
             let perspective = {
                 let f = (0.5 as f32).tan();
                 let aspect_ratio = 9. / 16.;
-                let zfar = 1000.;
+                let zfar = 400.;
                 let znear = 0.01;
                 [
                     [f * aspect_ratio, 0.0, 0.0, 0.0],
@@ -210,9 +220,39 @@ impl Ui {
             };
             let matrix = col_mat4_mul(perspective, self.camera.orthogonal());
             let sampler = self.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
-            self.world_render.draw(&mut target, matrix, sampler, &self.quad_shader).unwrap();
-            target.draw(&self.cursor_line_vertices, &self.cursor_line_indices, &self.line_shader, &uniform! {transform:matrix}, &Default::default()).unwrap();
+            self.world_render.draw(&mut target, matrix, sampler, &self.shader.quad).unwrap();
+            if let Some(overlay) = self.overlays.get_mut(self.current_overlay) {
+                overlay.0.draw(&mut target, &self.shader.overlay, matrix).unwrap();
+            }
+            target.draw(&self.cursor_line_vertices, &self.cursor_line_indices, &self.shader.line, &uniform! {transform:matrix}, &Default::default()).unwrap();
         }
         target.finish().unwrap();
     }
+
+    fn load_overlays(&mut self) {
+        let (w1, p1) = (self.world.clone(), self.shared_position.clone());
+        let (w2, p2) = (self.world.clone(), self.shared_position.clone());
+        self.overlays = vec![
+            (BlockOverlay::new(Box::new(Overlay2d::new(
+                move |x, z| {
+                    let temperature = w1.env_data().temperature(x, z);
+                    [temperature / 2., temperature / 4., 1. - temperature]
+                },
+                move || load_shared_pos(&p1),
+                64, self.world.clone())), &self.display), "temperature".into()),
+            (BlockOverlay::new(Box::new(Overlay2d::new(
+                move |x, z| {
+                    let moisture = w2.env_data().moisture(x, z);
+                    [1. - moisture, 1. - moisture, moisture / 4.]
+                },
+                move || load_shared_pos(&p2),
+                64, self.world.clone())), &self.display), "moisture".into())
+        ];
+        self.current_overlay = self.overlays.len();
+    }
+}
+
+fn load_shared_pos(shared_pos: &Arc<Mutex<[f32; 3]>>) -> BlockPos {
+    let pos = shared_pos.lock().unwrap();
+    BlockPos([pos[0] as i32, pos[1] as i32, pos[2] as i32])
 }

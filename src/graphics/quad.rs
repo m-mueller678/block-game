@@ -5,6 +5,19 @@ pub fn load_quad_shader<F: Facade>(facade: &F) -> Result<Program, ProgramCreatio
     Program::from_source(facade, VERTEX_SHADER_SRC, FRAGMENT_SHADER_SRC, None)
 }
 
+pub fn get_triangle_indices(quad_count: usize) -> Vec<u32> {
+    let mut ind = Vec::with_capacity(quad_count * 6);
+    for i in 0..(quad_count as u32) {
+        ind.push(i * 4 + 0);
+        ind.push(i * 4 + 1);
+        ind.push(i * 4 + 2);
+        ind.push(i * 4 + 0);
+        ind.push(i * 4 + 2);
+        ind.push(i * 4 + 3);
+    }
+    ind
+}
+
 #[derive(Copy, Clone, Debug)]
 pub struct Vertex {
     pub position: [f32; 3],
@@ -53,7 +66,6 @@ const FRAGMENT_SHADER_SRC: &'static str = r#"
 
 
     void main() {
-        color=texture(sampler,vec3(v_tex_coords,floor(v_texture_id+0.5)))*brightness
-        ;
+        color=texture(sampler,vec3(v_tex_coords,floor(v_texture_id+0.5)))*brightness;
     }
 "#;

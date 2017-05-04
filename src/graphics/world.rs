@@ -43,10 +43,10 @@ impl WorldRender {
                 .map(|c| col_mat4_transform(transform, [c[0], c[1], c[2], 1.]))
                 .map(|c| [c[0] / c[3], c[1] / c[3], c[2] / c[3]]).collect();
             corners.iter().any(|c| c[2] < 1.)
-                & &corners.iter().any(|c| c[0] < 1.)
-                & &corners.iter().any(|c| c[0] > -1.)
-                & &corners.iter().any(|c| c[1] < 1.)
-                & &corners.iter().any(|c| c[1] > -1.)
+                && corners.iter().any(|c| c[0] < 1.)
+                && corners.iter().any(|c| c[0] > -1.)
+                && corners.iter().any(|c| c[1] < 1.)
+                && corners.iter().any(|c| c[1] > -1.)
         });
         for chunk in chunk_iter {
             chunk.1.draw(surface, &uniforms, &params, quad_shader)?;

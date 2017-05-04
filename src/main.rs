@@ -81,8 +81,7 @@ fn main() {
         load_image("textures/stone.png"),
     ]).unwrap();
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
-    let quad_shader = graphics::load_quad_shader(&display).expect("cannot load quad shader");
-    let line_shader = graphics::load_line_shader(&display).unwrap();
+    let shader=graphics::Shader::new(&display).unwrap();
     let w2 = world.clone();
     thread::spawn(move || {
         let mut chunk_load_guard = None;
@@ -137,6 +136,6 @@ fn main() {
             thread::sleep(std::time::Duration::from_millis(20));
         }
     });
-    let mut ui = ui::Ui::new(display, quad_shader, line_shader, send, texture, w2);
+    let mut ui = ui::Ui::new(display, shader, send, texture, w2);
     ui.run()
 }
