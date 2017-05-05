@@ -51,13 +51,15 @@ impl LightType {
 pub struct Block {
     draw: DrawType,
     light: LightType,
+    name:String,
 }
 
 impl Block {
-    pub fn new(draw: DrawType, light: LightType) -> Self {
+    pub fn new(draw: DrawType, light: LightType,name:String) -> Self {
         Block {
             draw: draw,
             light: light,
+            name:name,
         }
     }
 }
@@ -69,7 +71,7 @@ pub struct BlockRegistry {
 impl BlockRegistry {
     pub fn new() -> Self {
         BlockRegistry {
-            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent }]
+            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent ,name:"empty".into()}]
         }
     }
     pub fn add(&mut self, block: Block) -> BlockId {
@@ -88,5 +90,12 @@ impl BlockRegistry {
         } else {
             false
         }
+    }
+    pub fn by_name(&self,name:&str)-> Option<BlockId>{
+        self.blocks.iter()
+            .enumerate()
+            .filter(|&(_,block)|block.name==name)
+            .map(|(i,_)|BlockId(i as u32))
+            .next()
     }
 }

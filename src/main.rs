@@ -16,72 +16,45 @@ extern crate noise;
 extern crate threadpool;
 extern crate chashmap;
 
-use glium::texture::CompressedSrgbTexture2dArray;
 use glium::DisplayBuild;
-use std::fs::File;
 use std::sync::Arc;
 use world::*;
 use block::{BlockId, BlockRegistry};
 use time::SteadyTime;
 use std::sync::mpsc::{channel, TryRecvError};
 use std::thread;
-use block::{Block, LightType};
-use graphics::{DrawType, BlockTextureId};
+use graphics::DrawType;
 use ui::Message;
 
 mod window_util;
 mod graphics;
 mod block;
+mod block_texture_loader;
 mod world;
 mod geometry;
 mod ui;
+mod module;
 
-mod cross_structure;
-
-fn load_image(path: &str) -> glium::texture::RawImage2d<u8> {
-    let file = std::io::BufReader::new(File::open(path).unwrap());
-    let image = image::load(file, image::PNG).unwrap().to_rgba();
-    let image_dimensions = image.dimensions();
-    glium::texture::RawImage2d::from_raw_rgba_reversed(image.into_raw(), image_dimensions)
-}
+mod base_module;
 
 fn main() {
-    let mut bgs = BlockRegistry::new();
-    let block_light = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(0);6]),LightType::Source(30)));
-    let block_sand = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(1); 6]), LightType::Opaque));
-    let block_dirt = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(2); 6]), LightType::Opaque));
-    let block_stone = bgs.add(Block::new(DrawType::FullOpaqueBlock([BlockTextureId::new(3); 6]), LightType::Opaque));
+    let mut block_registry = BlockRegistry::new();
+    let mut texture_loader = block_texture_loader::TextureLoader::new();
+    let mut world_gen_blocks = Vec::new();
+    let mut structures= Vec::new();
+    base_module::module().init(&mut texture_loader,
+                               &mut block_registry,
+                               &mut |block| world_gen_blocks.push(block),
+                               &mut |structure| structures.push(structure)
+    );
+    let block_light = block_registry.by_name("debug_light").unwrap();
     let seeder = world::WorldRngSeeder::new(1);
-    let generator = world::Generator::new(&seeder, vec![
-        WorldGenBlock::new(
-            block_dirt,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0.5, 1., 0.3, 1.),
-            ParameterWeight::new(0., 3., 3., 1.),
-        ),
-        WorldGenBlock::new(
-            block_sand,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0., 0.2, 0.2, 1.),
-            ParameterWeight::new(0., 3., 3., 1.),
-        ), WorldGenBlock::new(
-            block_stone,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(5., std::f32::INFINITY, 2., 1.),
-        )
-    ],vec![cross_structure::new_cross_finder(block_stone)]);
-    let world = Arc::new(World::new(Arc::new(bgs), generator));
+    let generator = world::Generator::new(&seeder, world_gen_blocks, structures);
+    let world = Arc::new(World::new(Arc::new(block_registry), generator));
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
-    let texture = CompressedSrgbTexture2dArray::new(&display, vec![
-        load_image("textures/debug.png"),
-        load_image("textures/sand.png"),
-        load_image("textures/dirt.png"),
-        load_image("textures/stone.png"),
-    ]).unwrap();
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
-    let shader=graphics::Shader::new(&display).unwrap();
+    let shader = graphics::Shader::new(&display).unwrap();
     let w2 = world.clone();
     thread::spawn(move || {
         let mut chunk_load_guard = None;
@@ -136,6 +109,7 @@ fn main() {
             thread::sleep(std::time::Duration::from_millis(20));
         }
     });
+    let texture = texture_loader.load(&display);
     let mut ui = ui::Ui::new(display, shader, send, texture, w2);
     ui.run()
 }

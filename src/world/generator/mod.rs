@@ -182,27 +182,3 @@ impl Generator {
         self.blocks.first().unwrap().id
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use test::{Bencher, black_box};
-    use super::*;
-    use cross_structure::new_cross_finder;
-    use world::WorldRngSeeder;
-
-    #[bench]
-    fn generate_chunk_column8(b: &mut Bencher) {
-        let gen_blocks = black_box(vec![WorldGenBlock::new(
-            BlockId::empty(), ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0.5, 1., 0.3, 1.),
-            ParameterWeight::new(0., 3., 3., 1.),
-        ); 4]);
-        let structures=black_box(vec![new_cross_finder(BlockId::empty())]);
-        let gen = Generator::new(&WorldRngSeeder::new(black_box(4)), gen_blocks,structures);
-        b.iter(|| {
-            for y in -4..4 {
-                gen.gen_chunk(black_box(&ChunkPos([0, y, 0])));
-            }
-        });
-    }
-}

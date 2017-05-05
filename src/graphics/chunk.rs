@@ -94,7 +94,7 @@ impl RenderChunk {
                 position: vec3_add(pos, CORNER_OFFSET[vertices[i]]),
                 normal: [normal[0] as f32, normal[1] as f32, normal[2] as f32],
                 tex_coords: tex_coords[i],
-                texture_id: texture.to_f32(),
+                texture_id: texture.to_u32() as f32,
                 light_level: light as f32 / 15.,
             });
         }
