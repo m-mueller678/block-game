@@ -236,14 +236,14 @@ impl Ui {
             (BlockOverlay::new(Box::new(Overlay2d::new(
                 move |x, z| {
                     let temperature = w1.env_data().temperature(x, z);
-                    [temperature / 2., temperature / 4., 1. - temperature]
+                    [temperature, temperature , 1. - temperature]
                 },
                 move || load_shared_pos(&p1),
                 64, self.world.clone())), &self.display), "temperature".into()),
             (BlockOverlay::new(Box::new(Overlay2d::new(
                 move |x, z| {
                     let moisture = w2.env_data().moisture(x, z);
-                    [1. - moisture, 1. - moisture, moisture / 4.]
+                    [1. - moisture, 1.-moisture*0.4,1.- moisture ]
                 },
                 move || load_shared_pos(&p2),
                 64, self.world.clone())), &self.display), "moisture".into())
