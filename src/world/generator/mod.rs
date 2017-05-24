@@ -58,7 +58,7 @@ pub struct EnvironmentData {
     temperature: Vec<Perlin>,
 }
 
-const ENV_SCALE: f32 = 1. / 4096.;
+const ENV_SCALE: f32 = 1. / 512.;
 const ELEVATION_BASE_LAYERS: usize = 6;
 const MOISTURE_LAYERS: usize = 3;
 const TEMPERATURE_LAYERS: usize = 3;
@@ -80,7 +80,7 @@ impl EnvironmentData {
     pub fn moisture(&self, x: i32, z: i32) -> f32 {
         let temperature = self.temperature(x, z);
         let max_moisture = (temperature * 4.).min(1.);
-        max_moisture * Self::make_noise(&self.moisture, ENV_SCALE*8., x as f32, z as f32)
+        max_moisture * Self::make_noise(&self.moisture, ENV_SCALE, x as f32, z as f32)
     }
     pub fn temperature(&self, x: i32, z: i32) -> f32 {
         let elevation = self.base_elevation(x, z);
@@ -88,7 +88,7 @@ impl EnvironmentData {
         max_temperature * Self::make_noise(&self.temperature, ENV_SCALE, x as f32, z as f32)
     }
     pub fn base_elevation(&self, x: i32, z: i32) -> f32 {
-        Self::make_noise(&self.elevation_base, ENV_SCALE*8., x as f32, z as f32)
+        Self::make_noise(&self.elevation_base, ENV_SCALE, x as f32, z as f32)
     }
     pub fn surface_y(&self, x: i32, z: i32) -> i32 {
         (self.base_elevation(x, z) * 64.) as i32
@@ -96,13 +96,15 @@ impl EnvironmentData {
     fn make_noise(noises: &[Perlin], base_scale: f32, x: f32, z: f32) -> f32 {
         let mut val_scale = 1.;
         let mut pos_scale = base_scale;
-        let mut total:f32 = 0.;
+        let mut max_abs = 0.;
+        let mut total = 0.;
         for n in noises {
-            total += n.get([x * pos_scale, z * pos_scale]) * val_scale * (1.-total.abs());
-            val_scale *= 0.5;
+            total += n.get([x * pos_scale, z * pos_scale]) * val_scale;
+            max_abs += val_scale;
+            val_scale *= 0.7;
             pos_scale *= 2.;
         }
-        total* 0.5 + 0.5
+        (total / max_abs * 0.5 + 0.5)
     }
 }
 
