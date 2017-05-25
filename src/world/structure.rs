@@ -112,6 +112,11 @@ impl CombinedStructureGenerator {
         }
     }
 
+    pub fn reseed(&mut self,s:&WorldRngSeeder){
+        self.seeder=s.clone();
+        self.cached.clear();
+    }
+
     pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>,parent:&WorldGenerator) {
         let cs = CHUNK_SIZE as i32;
         let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);

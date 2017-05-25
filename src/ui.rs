@@ -230,7 +230,8 @@ impl Ui {
     fn load_overlays(&mut self) {
         let (w1, p1) = (self.world.clone(), self.shared_position.clone());
         let (w2, p2) = (self.world.clone(), self.shared_position.clone());
-        self.overlays = vec![];
+        self.overlays = vec![
+        ];
         self.current_overlay = self.overlays.len();
     }
 }
