@@ -3,13 +3,16 @@ mod chunk_loading;
 
 pub mod structure;
 pub mod random;
+pub mod biome;
 
 pub use self::random::WorldRngSeeder;
 pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use block::AtomicBlockId;
+use biome::BiomeId;
 
 pub trait Generator where Self:Send+Sync{
+    fn biome_map(&self,chunk_x:i32,chunk_z:i32)->[[BiomeId;CHUNK_SIZE];CHUNK_SIZE];
     fn surface_y(&self,x:i32,z:i32)->i32;
     fn gen_chunk(&self, pos: &ChunkPos) -> ChunkArray<AtomicBlockId>;
     fn reseed(&mut self,&WorldRngSeeder);
