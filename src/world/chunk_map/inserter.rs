@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
-use world::generator::Generator;
+use world::Generator;
 use super::*;
 
 struct QueuedChunk {
@@ -14,8 +14,8 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    shared: Arc<(Generator, Mutex<InsertBuffer>)>,
-    threads: ThreadPool,
+    shared: Arc<(Box<Generator>, Mutex<InsertBuffer>)>,
+    threads: Mutex<ThreadPool>,
 }
 
 struct InsertBuffer {
@@ -24,14 +24,18 @@ struct InsertBuffer {
 }
 
 impl Inserter {
-    pub fn new(gen: Generator) -> Self {
+    pub fn new(gen: Box<Generator>) -> Self {
         Inserter {
             shared: Arc::new((gen, Mutex::new(InsertBuffer {
                 chunks: VecDeque::new(),
                 pending: Vec::new(),
             }))),
-            threads: ThreadPool::new_with_name("chunk generator".into(), 3),
+            threads: Mutex::new(ThreadPool::new_with_name("chunk generator".into(), 3)),
         }
+    }
+
+    pub fn generator(&self)->&Generator{
+        self.shared.0.as_ref()
     }
 
     pub fn insert(&self, pos: &ChunkPos, world: &ChunkMap) {
@@ -49,7 +53,7 @@ impl Inserter {
             let shared = self.shared.clone();
             let pos = pos.clone();
             let blocks = world.blocks.clone();
-            self.threads.execute(move || Self::generate_chunk(shared, pos, blocks));
+            self.threads.lock().unwrap().execute(move || Self::generate_chunk(shared, pos, blocks));
         }
     }
 
@@ -65,7 +69,7 @@ impl Inserter {
     }
 
     fn generate_chunk(
-        shared: Arc<(Generator, Mutex<InsertBuffer>)>,
+        shared: Arc<(Box<Generator>, Mutex<InsertBuffer>)>,
         pos: ChunkPos,
         blocks: Arc<BlockRegistry>)
     {
@@ -99,7 +103,7 @@ impl Inserter {
         }
     }
 
-    pub fn push_to_world(&mut self, chunks: &mut ChunkMap) {
+    pub fn push_to_world(& self, chunks: &mut ChunkMap) {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             chunks.chunks.insert([chunk.pos[0], chunk.pos[1], chunk.pos[2]], Box::new(Chunk {

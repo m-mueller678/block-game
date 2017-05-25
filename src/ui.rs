@@ -113,7 +113,7 @@ impl Ui {
                     print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
                         let print_block = target.facing(direction);
-                        let env_data = self.world.env_data();
+                        let generator = self.world.generator();
                         let world = self.world.read();
                         print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
                                print_block,
@@ -122,10 +122,8 @@ impl Ui {
                                world.artificial_light(&print_block).unwrap(),
                         );
                         let (x, z) = (target[0], target[2]);
-                        println!("temperature: {}, moisture: {}, base elevation: {}",
-                                 env_data.temperature(x, z),
-                                 env_data.moisture(x, z),
-                                 env_data.base_elevation(x, z)
+                        println!("surface: {}",
+                                 generator.surface_y(x, z)
                         );
                     } else {
                         println!()
@@ -232,22 +230,7 @@ impl Ui {
     fn load_overlays(&mut self) {
         let (w1, p1) = (self.world.clone(), self.shared_position.clone());
         let (w2, p2) = (self.world.clone(), self.shared_position.clone());
-        self.overlays = vec![
-            (BlockOverlay::new(Box::new(Overlay2d::new(
-                move |x, z| {
-                    let temperature = w1.env_data().temperature(x, z);
-                    [temperature / 2., temperature / 4., 1. - temperature]
-                },
-                move || load_shared_pos(&p1),
-                64, self.world.clone())), &self.display), "temperature".into()),
-            (BlockOverlay::new(Box::new(Overlay2d::new(
-                move |x, z| {
-                    let moisture = w2.env_data().moisture(x, z);
-                    [1. - moisture, 1. - moisture, moisture / 4.]
-                },
-                move || load_shared_pos(&p2),
-                64, self.world.clone())), &self.display), "moisture".into())
-        ];
+        self.overlays = vec![];
         self.current_overlay = self.overlays.len();
     }
 }

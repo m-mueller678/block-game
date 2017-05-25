@@ -3,12 +3,13 @@ use std::cmp;
 use vecmath::*;
 use chashmap::*;
 use num::Integer;
-use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder, EnvironmentData};
+use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder};
 use block::{AtomicBlockId, BlockId};
 use rand::IsaacRng;
+use world::Generator as WorldGenerator;
 
 pub trait Structure where Self: Send + Sync {
-    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, &mut IsaacRng, &EnvironmentData);
+    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, &mut IsaacRng, &WorldGenerator);
 }
 
 pub struct StructureList(Vec<(Box<Structure>, BlockPos, [Range<i32>; 3])>, );
@@ -27,11 +28,11 @@ impl StructureList {
 }
 
 pub trait StructureFinder where Self: Send + Sync {
-    fn push(&self,
-            chunk: ChunkPos,
-            seeder: &mut IsaacRng,
-            env: &EnvironmentData,
-            out: &mut StructureList);
+    fn push_structures(&self,
+                       chunk: ChunkPos,
+                       seeder: &mut IsaacRng,
+                       parent: &WorldGenerator,
+                       out: &mut StructureList);
     fn max_bounds(&self) -> [[i32; 2]; 3];
 }
 
@@ -85,11 +86,10 @@ pub struct CombinedStructureGenerator {
     cached: CHashMap<ChunkPos, StructureList>,
     max_bounds: [Range<i32>; 3],
     seeder: WorldRngSeeder,
-    env_dat: EnvironmentData,
 }
 
 impl CombinedStructureGenerator {
-    pub fn new(finders: Vec<Box<StructureFinder>>, seeder: WorldRngSeeder, env_dat: EnvironmentData) -> Self {
+    pub fn new(finders: Vec<Box<StructureFinder>>, seeder: WorldRngSeeder) -> Self {
         let mut bounds = [[0; 2]; 3];
         for fb in finders.iter().map(|f| f.max_bounds()) {
             for i in 0..3 {
@@ -109,11 +109,10 @@ impl CombinedStructureGenerator {
             cached: CHashMap::new(),
             max_bounds: chunk_range,
             seeder: seeder,
-            env_dat: env_dat,
         }
     }
 
-    pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>) {
+    pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>,parent:&WorldGenerator) {
         let cs = CHUNK_SIZE as i32;
         let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
         for x in self.max_bounds[0].clone() {
@@ -131,32 +130,32 @@ impl CombinedStructureGenerator {
                                 chunk: chunk,
                                 struct_pos: rel_struct_pos,
                             };
-                            s.0.generate(&mut gen_chunk, &mut rand, &self.env_dat);
+                            s.0.generate(&mut gen_chunk, &mut rand,parent);
                         }
-                    });
+                    },parent);
                 }
             }
         }
     }
 
-    fn with_chunk<F: FnOnce(&StructureList)>(&self, pos: ChunkPos, f: F) {
+    fn with_chunk<F: FnOnce(&StructureList)>(&self, pos: ChunkPos, f: F,gen:&WorldGenerator) {
         self.cached.alter(pos, |opt_list| {
             if let Some(list) = opt_list {
                 f(&list);
                 Some(list)
             } else {
-                let list = self.find_structures(pos);
+                let list = self.find_structures(pos,gen);
                 f(&list);
                 Some(list)
             }
         });
     }
 
-    fn find_structures(&self, pos: ChunkPos) -> StructureList {
+    fn find_structures(&self, pos: ChunkPos,gen:&WorldGenerator) -> StructureList {
         let mut ret = StructureList(Vec::new());
         let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
         for finder in self.finders.iter() {
-            finder.push(pos, &mut rand, &self.env_dat, &mut ret);
+            finder.push_structures(pos, &mut rand, gen, &mut ret);
         }
         ret
     }

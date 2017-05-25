@@ -37,7 +37,7 @@ impl InnerMap {
             panic!("load map count decreased below zero");
         }
     }
-    fn apply_to_world(&mut self, map: &mut ChunkMap, inserter: &mut Inserter) {
+    fn apply_to_world(&mut self, map: &mut ChunkMap, inserter: &Inserter) {
         for pos in self.new_unloaded.drain() {
             if map.remove_chunk(&pos).is_none() {
                 inserter.cancel_insertion(&pos).unwrap();
@@ -80,7 +80,7 @@ impl LoadMap {
             size: radius,
         }
     }
-    pub fn apply_to_world(&self, map: &mut ChunkMap, inserter: &mut Inserter) {
+    pub fn apply_to_world(&self, map: &mut ChunkMap, inserter: & Inserter) {
         self.loaded.lock().unwrap().apply_to_world(map, inserter);
     }
 }

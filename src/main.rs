@@ -40,16 +40,14 @@ mod base_module;
 fn main() {
     let mut block_registry = BlockRegistry::new();
     let mut texture_loader = block_texture_loader::TextureLoader::new();
-    let mut world_gen_blocks = Vec::new();
-    let mut structures= Vec::new();
+    let mut generator=None;
     base_module::module().init(&mut texture_loader,
                                &mut block_registry,
-                               &mut |block| world_gen_blocks.push(block),
-                               &mut |structure| structures.push(structure)
+                               &mut |gen:Box<Generator>| generator=Some(gen)
     );
     let block_light = block_registry.by_name("debug_light").unwrap();
     let seeder = world::WorldRngSeeder::new(1);
-    let generator = world::Generator::new(&seeder, world_gen_blocks, structures);
+    let generator = generator.unwrap();
     let world = Arc::new(World::new(Arc::new(block_registry), generator));
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();

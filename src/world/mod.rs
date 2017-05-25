@@ -1,12 +1,19 @@
-mod random;
-mod generator;
 mod chunk_map;
 mod chunk_loading;
 
+pub mod structure;
+pub mod random;
+
 pub use self::random::WorldRngSeeder;
 pub use self::chunk_map::*;
-pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData,structure};
 pub use self::chunk_loading::LoadGuard;
+use block::AtomicBlockId;
+
+pub trait Generator where Self:Send+Sync{
+    fn surface_y(&self,x:i32,z:i32)->i32;
+    fn gen_chunk(&self, pos: &ChunkPos) -> ChunkArray<AtomicBlockId>;
+    fn reseed(&mut self,&WorldRngSeeder);
+}
 
 use block::BlockRegistry;
 use std::sync::{Arc, RwLock, RwLockReadGuard, Mutex};
@@ -15,20 +22,22 @@ use self::chunk_loading::LoadMap;
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
 
 pub struct World {
-    env_data: EnvironmentData,
     chunks: RwLock<ChunkMap>,
-    inserter: Mutex<Inserter>,
+    inserter: Inserter,
     loaded: LoadMap,
 }
 
 impl World {
-    pub fn new(blocks: Arc<BlockRegistry>, gen: Generator) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, gen: Box<Generator>) -> Self {
         World {
-            env_data: gen.env_data().clone(),
             chunks: RwLock::new(ChunkMap::new(blocks)),
-            inserter: Mutex::new(Inserter::new(gen)),
+            inserter: Inserter::new(gen),
             loaded: LoadMap::new(),
         }
+    }
+
+    pub fn generator(&self)->&Generator{
+        self.inserter.generator()
     }
 
     pub fn read(&self) -> WorldReadGuard {
@@ -39,13 +48,8 @@ impl World {
         self.loaded.load_cube(center, radius)
     }
 
-    pub fn env_data(&self) -> &EnvironmentData {
-        &self.env_data
-    }
-
     pub fn flush_chunk(&self) {
         let mut chunk_lock = self.chunks.write().unwrap();
-        let mut inserter_lock = self.inserter.lock().unwrap();
-        self.loaded.apply_to_world(&mut *chunk_lock, &mut *inserter_lock);
+        self.loaded.apply_to_world(&mut *chunk_lock, &self.inserter);
     }
 }

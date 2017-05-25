@@ -1,12 +1,14 @@
 use std;
 use rand::{IsaacRng, Rng};
 use num::Integer;
-use world::structure::*;
-use world::{ChunkPos, EnvironmentData, CHUNK_SIZE, BlockPos, WorldGenBlock,ParameterWeight};
 use block::{BlockId, BlockRegistry, Block, LightType};
 use graphics::DrawType;
 use module::Module;
 use block_texture_loader::TextureLoader;
+use world::*;
+use world::structure::*;
+
+mod generator;
 
 struct BaseModule {}
 
@@ -14,8 +16,7 @@ impl Module for BaseModule {
     fn init(&mut self,
             textures: &mut TextureLoader,
             block_registry: &mut BlockRegistry,
-            world_gen_block: &mut FnMut(WorldGenBlock),
-            register_structure: &mut FnMut(Box<StructureFinder>)
+            world_gen: &mut FnMut(Box<Generator>),
     ) {
         //blocks
         let block_sand = block_registry.add(Block::new(
@@ -38,29 +39,6 @@ impl Module for BaseModule {
             LightType::Source(15),
             "debug_light".into()
         ));
-
-        //world gen blocks
-        world_gen_block(WorldGenBlock::new(
-            block_dirt,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0.5, 1., 0.3, 1.),
-            ParameterWeight::new(0., 3., 3., 1.),
-        ));
-        world_gen_block(WorldGenBlock::new(
-            block_sand,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0., 0.2, 0.2, 1.),
-            ParameterWeight::new(0., 3., 3., 1.),
-        ));
-        world_gen_block(WorldGenBlock::new(
-            block_stone,
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(0., 1., 1., 1.),
-            ParameterWeight::new(5., std::f32::INFINITY, 2., 1.),
-        ));
-
-        //structures
-        register_structure(Box::new(CrossFinder { block: block_light }));
     }
 }
 
@@ -73,12 +51,12 @@ struct CrossFinder {
 }
 
 impl StructureFinder for CrossFinder {
-    fn push<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b mut IsaacRng, env_dat: &'c EnvironmentData, out: &'d mut StructureList) {
+    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b mut IsaacRng, p:&Generator, out: &'d mut StructureList) {
         let cs = CHUNK_SIZE as i32;
         if rand.gen_weighted_bool(10) {
             let x = chunk[0] * cs + rand.gen_range(0, cs);
             let z = chunk[2] * cs + rand.gen_range(0, cs);
-            let surface = env_dat.surface_y(x, z);
+            let surface = p.surface_y(x, z);
             if surface.div_floor(&cs) == chunk[1] {
                 out.push(Box::new(CrossGenerator { block: self.block }), BlockPos([x, surface, z]), self.max_bounds());
             }
@@ -94,7 +72,7 @@ struct CrossGenerator {
 }
 
 impl Structure for CrossGenerator {
-    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &mut IsaacRng, _: &EnvironmentData) {
+    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &mut IsaacRng,_:&Generator) {
         for i in -10..11 {
             chunk.set_block([i, 0, i], self.block);
             chunk.set_block([i, 0, -i], self.block);
