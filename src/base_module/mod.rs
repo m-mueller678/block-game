@@ -50,8 +50,9 @@ struct CrossFinder {
 }
 
 impl StructureFinder for CrossFinder {
-    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b mut IsaacRng, t: &TerrainInformation, out: &'d mut StructureList) {
+    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b WorldRngSeeder, t: &TerrainInformation, out: &'d mut StructureList) {
         let cs = CHUNK_SIZE as i32;
+        let mut rand=rand.rng();
         if rand.gen_weighted_bool(10) {
             let x = rand.gen_range(0, CHUNK_SIZE);
             let z = rand.gen_range(0, CHUNK_SIZE);
@@ -79,7 +80,7 @@ struct CrossGenerator {
 }
 
 impl Structure for CrossGenerator {
-    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &mut IsaacRng, _: &TerrainInformation) {
+    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: & WorldRngSeeder, _: &TerrainInformation) {
         for i in -10..11 {
             chunk.set_block([i, 0, i], self.block);
             chunk.set_block([i, 0, -i], self.block);

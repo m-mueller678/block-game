@@ -5,7 +5,7 @@ use num::Integer;
 use world::generator::structure::*;
 use world::generator::Generator;
 use world::*;
-use block::{AtomicBlockId,BlockId};
+use block::{AtomicBlockId, BlockId};
 use world::biome::*;
 use world::generator::noise::NoiseParameters;
 
@@ -24,17 +24,17 @@ struct OverworldGenerator {
     biomes: Vec<BiomeId>,
     terrain_parameters: Vec<BiomeTerrainGenerator>,
     biome_maps: CHashMap<[i32; 2], BiomeMap>,
-    seeder: WorldRngSeeder,
+    rand: WorldRngSeeder,
 }
 
 impl OverworldGenerator {
-    pub fn new(structures: Vec<Box<StructureFinder>>, biomes: Vec<BiomeId>) -> Self {
+    pub fn new(structures: Vec<Box<StructureFinder>>, biomes: Vec<BiomeId>, rand: WorldRngSeeder) -> Self {
         OverworldGenerator {
-            structures: CombinedStructureGenerator::new(structures, WorldRngSeeder::new(0)),
+            structures: CombinedStructureGenerator::new(structures, rand),
             biomes: biomes,
             terrain_parameters: vec![],
             biome_maps: CHashMap::new(),
-            seeder: WorldRngSeeder::new(0),
+            rand: rand,
         }
     }
 
@@ -54,16 +54,16 @@ impl OverworldGenerator {
         map[0][BIOME_GEN_SIZE + 1] = self.corner_biome(x, z + 1);
         map[BIOME_GEN_SIZE + 1][0] = self.corner_biome(x + 1, z);
         map[BIOME_GEN_SIZE + 1][BIOME_GEN_SIZE + 1] = self.corner_biome(x + 1, z + 1);
-        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.seeder.make_gen(x, z, 0), &mut |map, i| &mut map[0][i]);
-        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.seeder.make_gen(x, z, 1), &mut |map, i| &mut map[i][0]);
-        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.seeder.make_gen(x + 1, z, 0), &mut |map, i| &mut map[BIOME_GEN_SIZE][i]);
-        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.seeder.make_gen(x, z + 1, 1), &mut |map, i| &mut map[i][BIOME_GEN_SIZE]);
-        spread_biomes_from_borders(&mut map, x, z, &self.seeder);
+        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[1,x,z]).rng(), &mut |map, i| &mut map[0][i]);
+        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[2,x,z]).rng(), &mut |map, i| &mut map[i][0]);
+        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[3,x+1,z]).rng(), &mut |map, i| &mut map[BIOME_GEN_SIZE][i]);
+        spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[4,x,z+1]).rng(), &mut |map, i| &mut map[i][BIOME_GEN_SIZE]);
+        spread_biomes_from_borders(&mut map, x, z, &self.rand);
         map
     }
 
     fn corner_biome(&self, x: i32, z: i32, ) -> usize {
-        let mut gen = self.seeder.make_gen(x, z, 1);
+        let mut gen = self.rand.push_num(5).pushi(&[x,z]).rng();
         gen.gen_range(0, self.biomes.len())
     }
 }
@@ -95,7 +95,7 @@ impl Generator for OverworldGenerator {
     }
 
     fn reseed(&mut self, s: &WorldRngSeeder) {
-        self.seeder = s.clone();
+        self.rand = s.clone();
         self.structures.reseed(s);
         self.biome_maps.clear();
     }
@@ -118,7 +118,7 @@ fn spread_1d<R, I>(min: usize, max: usize, map: &mut BiomeMap, rand: &mut R, ind
 fn spread_biomes_from_borders(map: &mut BiomeMap, x: i32, z: i32, seeder: &WorldRngSeeder) {
     assert!(BIOME_GEN_SIZE.count_ones() == 1);//power of two
     let mut size = BIOME_GEN_SIZE;
-    let mut rand = seeder.make_gen(x, z, 0);
+    let mut rand = seeder.pushi(&[x, z]).rng();
     while size > 2 {
         let mut x = 0;
         while x < BIOME_GEN_CHUNKS * CHUNK_SIZE {

@@ -5,11 +5,10 @@ use chashmap::*;
 use num::Integer;
 use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder};
 use block::{AtomicBlockId, BlockId};
-use rand::IsaacRng;
 use world::generator::TerrainInformation;
 
 pub trait Structure where Self: Send + Sync {
-    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, &mut IsaacRng, &TerrainInformation);
+    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, & WorldRngSeeder, &TerrainInformation);
 }
 
 pub struct StructureList(Vec<(Box<Structure>, BlockPos, [Range<i32>; 3])>, );
@@ -30,7 +29,7 @@ impl StructureList {
 pub trait StructureFinder where Self: Send + Sync {
     fn push_structures(&self,
                        chunk: ChunkPos,
-                       seeder: &mut IsaacRng,
+                       seeder: & WorldRngSeeder,
                        terrain: &TerrainInformation,
                        out: &mut StructureList);
     fn max_bounds(&self) -> [[i32; 2]; 3];
@@ -119,7 +118,7 @@ impl CombinedStructureGenerator {
 
     pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>,terrain:&TerrainInformation) {
         let cs = CHUNK_SIZE as i32;
-        let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
+        let mut rand = self.seeder.pushi(&*pos);
         for x in self.max_bounds[0].clone() {
             for y in self.max_bounds[1].clone() {
                 for z in self.max_bounds[2].clone() {
@@ -135,7 +134,7 @@ impl CombinedStructureGenerator {
                                 chunk: chunk,
                                 struct_pos: rel_struct_pos,
                             };
-                            s.0.generate(&mut gen_chunk, &mut rand,terrain);
+                            s.0.generate(&mut gen_chunk, &rand,terrain);
                         }
                     },terrain);
                 }
@@ -158,9 +157,9 @@ impl CombinedStructureGenerator {
 
     fn find_structures(&self, pos: ChunkPos,terrain:&TerrainInformation) -> StructureList {
         let mut ret = StructureList(Vec::new());
-        let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
+        let mut rand = self.seeder.pushi(&*pos);
         for finder in self.finders.iter() {
-            finder.push_structures(pos, &mut rand, terrain, &mut ret);
+            finder.push_structures(pos, & rand, terrain, &mut ret);
         }
         ret
     }

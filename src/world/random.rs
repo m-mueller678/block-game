@@ -1,40 +1,60 @@
+use std::ops::{Deref, DerefMut};
 use noise::{Perlin, Seedable};
-use rand::{SeedableRng, IsaacRng, Rng};
+use rand::{SeedableRng, XorShiftRng, Rng};
 
-#[derive(Clone, Copy)]
+#[derive(Copy,Clone)]
 pub struct WorldRngSeeder {
-    seed: [u32; 2],
+    seed: [u32; 4],
+    pos: usize,
 }
+
+pub type WorldGenRng=XorShiftRng;
 
 impl WorldRngSeeder {
     pub fn new(seed: u64) -> Self {
         WorldRngSeeder {
             seed: [
                 seed as u32,
-                (seed / (u32::max_value() as u64 + 1)) as u32,
+                (seed >> 32) as u32,
+                0x12345678,
+                0xfedcba98,
             ],
+            pos: 0,
         }
     }
-    pub fn make_gen(&self, x: i32, z: i32, y:i32) -> IsaacRng {
-        let seed = [
-            self.seed[0],
-            self.seed[1],
-            x as u32,
-            z as u32,
-            y as u32,
-        ];
-        let gen = IsaacRng::from_seed(&seed);
-        gen
+    pub fn push_num(&self, n: u32) -> Self {
+        let mut ret = self.clone();
+        ret.pos %= 4;
+        ret.seed[self.pos] ^= n;
+        ret.pos += 1;
+        ret
+    }
+    pub fn pushi(&self,source:&[i32])->Self{
+        let mut ret=self.clone();
+        for s in source{
+            ret=ret.push_num(*s as u32);
+        }
+        ret
+    }
+    pub fn pushu(&self,source:&[u32])->Self{
+        let mut ret=self.clone();
+        for s in source{
+            ret=ret.push_num(*s);
+        }
+        ret
     }
     pub fn noises(&self, i: u32) -> NoiseIterator {
-        let seed = [self.seed[0], self.seed[1], i];
-        NoiseIterator { gen: IsaacRng::from_seed(&seed) }
+        NoiseIterator { gen: self.rng() }
+    }
+    pub fn rng(&self) -> WorldGenRng {
+        XorShiftRng::from_seed(self.seed)
     }
 }
 
+
 #[derive(Clone)]
 pub struct NoiseIterator {
-    gen: IsaacRng,
+    gen: WorldGenRng,
 }
 
 impl Iterator for NoiseIterator {
