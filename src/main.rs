@@ -23,7 +23,6 @@ use block::{BlockId, BlockRegistry};
 use time::SteadyTime;
 use std::sync::mpsc::{channel, TryRecvError};
 use std::thread;
-use graphics::DrawType;
 use ui::Message;
 
 mod window_util;
@@ -43,7 +42,7 @@ fn main() {
     let mut generator=None;
     base_module::module().init(&mut texture_loader,
                                &mut block_registry,
-                               &mut |gen:Box<Generator>| generator=Some(gen)
+                               &mut |gen:Box<generator::Generator>| generator=Some(gen)
     );
     let block_light = block_registry.by_name("debug_light").unwrap();
     let seeder = world::WorldRngSeeder::new(1);

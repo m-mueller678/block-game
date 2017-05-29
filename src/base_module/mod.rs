@@ -6,9 +6,8 @@ use graphics::DrawType;
 use module::Module;
 use block_texture_loader::TextureLoader;
 use world::*;
-use world::structure::*;
-
-mod generator;
+use world::generator::structure::*;
+use world::generator::{Generator, TerrainInformation};
 
 struct BaseModule {}
 
@@ -51,14 +50,22 @@ struct CrossFinder {
 }
 
 impl StructureFinder for CrossFinder {
-    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b mut IsaacRng, p:&Generator, out: &'d mut StructureList) {
+    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b mut IsaacRng, t: &TerrainInformation, out: &'d mut StructureList) {
         let cs = CHUNK_SIZE as i32;
         if rand.gen_weighted_bool(10) {
-            let x = chunk[0] * cs + rand.gen_range(0, cs);
-            let z = chunk[2] * cs + rand.gen_range(0, cs);
-            let surface = p.surface_y(x, z);
+            let x = rand.gen_range(0, CHUNK_SIZE);
+            let z = rand.gen_range(0, CHUNK_SIZE);
+            let surface = t.abs_surface_y(x, z);
             if surface.div_floor(&cs) == chunk[1] {
-                out.push(Box::new(CrossGenerator { block: self.block }), BlockPos([x, surface, z]), self.max_bounds());
+                out.push(
+                    Box::new(CrossGenerator { block: self.block }),
+                    BlockPos([
+                        chunk[0] * cs + x as i32,
+                        surface,
+                        chunk[2] * cs + z as i32
+                    ]),
+                    self.max_bounds()
+                );
             }
         }
     }
@@ -72,7 +79,7 @@ struct CrossGenerator {
 }
 
 impl Structure for CrossGenerator {
-    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &mut IsaacRng,_:&Generator) {
+    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &mut IsaacRng, _: &TerrainInformation) {
         for i in -10..11 {
             chunk.set_block([i, 0, i], self.block);
             chunk.set_block([i, 0, -i], self.block);

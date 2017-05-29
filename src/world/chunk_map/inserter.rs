@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
-use world::Generator;
+use world::generator::Generator;
 use super::*;
 
 struct QueuedChunk {

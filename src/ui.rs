@@ -121,10 +121,6 @@ impl Ui {
                                world.natural_light(&print_block).unwrap(),
                                world.artificial_light(&print_block).unwrap(),
                         );
-                        let (x, z) = (target[0], target[2]);
-                        println!("surface: {}",
-                                 generator.surface_y(x, z)
-                        );
                     } else {
                         println!()
                     }
