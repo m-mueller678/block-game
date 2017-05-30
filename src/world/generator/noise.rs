@@ -2,7 +2,6 @@ use noise::NoiseModule;
 use std::ops::Mul;
 
 pub struct NoiseParameters {
-    base: f32,
     parameters: Vec<Parameter>
 }
 
@@ -14,9 +13,8 @@ struct Parameter {
 }
 
 impl NoiseParameters {
-    pub fn new(base: f32) -> Self {
+    pub fn new() -> Self {
         NoiseParameters {
-            base: base,
             parameters: vec![]
         }
     }
@@ -31,16 +29,18 @@ impl NoiseParameters {
         self
     }
 
-    pub fn generate<N: NoiseModule<[f32;2]>>(&self, x: f32, z: f32, noise:&N) -> f32
-    where N::Output: Mul<f32,Output=f32>{
-        let mut ret = self.base;
+    pub fn generate<'a, I, N>(&self, x: f32, z: f32, mut noise: I) -> f32
+        where N: NoiseModule<[f32; 2]> + 'a,
+              N::Output: Mul<f32, Output=f32>,
+              I: Iterator<Item=&'a N> {
+        let mut ret = 0.;
         for p in &self.parameters {
-            let n=noise.get([x*p.scale,z*p.scale])*p.amplitude;
-            ret+=n;
-            if ret<p.min{
-                ret=p.min;
-            }else if ret <p.max{
-                ret=p.max;
+            let n = noise.next().expect("end of noise iterator").get([x * p.scale, z * p.scale]) * p.amplitude;
+            ret += n;
+            if ret < p.min {
+                ret = p.min;
+            } else if ret < p.max {
+                ret = p.max;
             }
         }
         ret

@@ -43,7 +43,7 @@ impl WorldRngSeeder {
         }
         ret
     }
-    pub fn noises(&self, i: u32) -> NoiseIterator {
+    pub fn noises(&self) -> NoiseIterator {
         NoiseIterator { gen: self.rng() }
     }
     pub fn rng(&self) -> WorldGenRng {

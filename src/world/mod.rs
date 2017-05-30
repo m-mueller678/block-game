@@ -5,7 +5,7 @@ pub mod random;
 pub mod biome;
 pub mod generator;
 
-pub use self::random::WorldRngSeeder;
+pub use self::random::{WorldRngSeeder,WorldGenRng};
 pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use block::AtomicBlockId;
