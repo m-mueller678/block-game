@@ -9,10 +9,10 @@ pub struct GroundGen {
 }
 
 impl GroundGen {
-    pub fn new(r:&WorldRngSeeder)->Self{
+    pub fn new()->Self{
         GroundGen{
             layers:vec![],
-            noise_iter:r.noises(),
+            noise_iter:WorldRngSeeder::new(0).noises(),
         }
     }
     pub fn reseed(&mut self,r:&WorldRngSeeder){
@@ -25,14 +25,18 @@ impl GroundGen {
         self
     }
     pub fn gen_column<F: FnMut(usize, BlockId)>(&self, gen_depth: i32, set_block: &mut F, x: i32, z: i32)->usize {
-        let mut iter = self.layers.iter().skip_while(|&&(_, _, _, max)| max < gen_depth as f32);
+        let mut layer_iter = self.layers.iter().skip_while(|&&(_, _, _, max)| max < gen_depth as f32);
         let mut i = 0;
         if gen_depth <= 0 {
+            //skip above surface
             i = (-gen_depth) as usize + 1;
+            if i>=CHUNK_SIZE {
+                return CHUNK_SIZE;
+            }
         }
         let mut depth = 0.;
         while i < CHUNK_SIZE  {
-            match iter.next() {
+            match layer_iter.next() {
                 None => { return i; }
                 Some(&(block, ref perlin, min_thickness, max_depth)) => {
                     let max_thickness = (max_depth - depth) as f32;

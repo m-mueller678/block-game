@@ -18,12 +18,14 @@ extern crate chashmap;
 
 use glium::DisplayBuild;
 use std::sync::Arc;
+use module::*;
 use world::*;
 use block::{BlockId, BlockRegistry};
 use time::SteadyTime;
 use std::sync::mpsc::{channel, TryRecvError};
 use std::thread;
 use ui::Message;
+use world::biome::BiomeRegistry;
 
 mod window_util;
 mod graphics;
@@ -37,21 +39,14 @@ mod module;
 mod base_module;
 
 fn main() {
-    let mut block_registry = BlockRegistry::new();
-    let mut texture_loader = block_texture_loader::TextureLoader::new();
-    let mut generator=None;
-    base_module::module().init(&mut texture_loader,
-                               &mut block_registry,
-                               &mut |gen:Box<generator::Generator>| generator=Some(gen)
-    );
-    let block_light = block_registry.by_name("debug_light").unwrap();
-    let seeder = world::WorldRngSeeder::new(1);
-    let generator = generator.unwrap();
-    let world = Arc::new(World::new(Arc::new(block_registry), generator));
+    let start=module::start([base_module::module()].iter().map(|m|m.init()));
+    let block_light = start.block.by_name("debug_light").unwrap();
+
     let (send, rec) = channel();
     let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
     display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     let shader = graphics::Shader::new(&display).unwrap();
+    let world=start.world;
     let w2 = world.clone();
     thread::spawn(move || {
         let mut chunk_load_guard = None;
@@ -106,7 +101,7 @@ fn main() {
             thread::sleep(std::time::Duration::from_millis(20));
         }
     });
-    let texture = texture_loader.load(&display);
+    let texture = start.textures.load(&display);
     let mut ui = ui::Ui::new(display, shader, send, texture, w2);
     ui.run()
 }

@@ -1,5 +1,6 @@
 use noise::NoiseModule;
 use std::ops::Mul;
+use std;
 
 pub struct NoiseParameters {
     parameters: Vec<Parameter>
@@ -19,12 +20,14 @@ impl NoiseParameters {
         }
     }
 
-    pub fn push(mut self, amplitude: f32, wavelength: f32, min: f32, max: f32) -> Self {
+    pub fn push<MI,MA>(mut self, amplitude: f32, wavelength: f32, min: MI, max: MA) -> Self
+    where MI:Into<Option<f32>>,
+          MA:Into<Option<f32>>{
         self.parameters.push(Parameter {
             scale: wavelength.recip(),
             amplitude: amplitude,
-            min: min,
-            max: max
+            min: min.into().unwrap_or(std::f32::NEG_INFINITY),
+            max: max.into().unwrap_or(std::f32::INFINITY),
         });
         self
     }
@@ -39,7 +42,7 @@ impl NoiseParameters {
             ret += n;
             if ret < p.min {
                 ret = p.min;
-            } else if ret < p.max {
+            } else if ret > p.max {
                 ret = p.max;
             }
         }
