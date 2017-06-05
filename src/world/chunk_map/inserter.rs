@@ -10,7 +10,7 @@ use super::*;
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
     pos: ChunkPos,
-    data: ChunkArray<AtomicBlockId>,
+    data: Box<ChunkArray<AtomicBlockId>>,
 }
 
 pub struct Inserter {
@@ -108,7 +108,7 @@ impl Inserter {
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             chunks.chunks.insert([chunk.pos[0], chunk.pos[1], chunk.pos[2]], Box::new(Chunk {
                 natural_light: Default::default(),
-                data: chunk.data,
+                data: *chunk.data,
                 artificial_light: Default::default(),
                 update_render: AtomicBool::new(false),
             }));

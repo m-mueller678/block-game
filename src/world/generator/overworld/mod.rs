@@ -99,9 +99,9 @@ impl OverworldGenerator {
         gen.gen_range(0, self.biomes.len())
     }
 
-    fn gen_base_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> HeightMap {
+    fn gen_base_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> Box<HeightMap> {
         let cs = CHUNK_SIZE as i32;
-        let mut ret: HeightMap = Default::default();
+        let mut ret: Box<HeightMap> = Default::default();
         for x in 0..cs {
             for z in 0..cs {
                 let mut y = 0;
@@ -117,7 +117,7 @@ impl OverworldGenerator {
         ret
     }
 
-    fn gen_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> HeightMap {
+    fn gen_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> Box<HeightMap> {
         let cs = CHUNK_SIZE as i32;
         let mut hm = self.gen_base_height_map(cx, cz,reader);
         for x in 0..cs {
@@ -152,20 +152,20 @@ impl Generator for OverworldGenerator {
         self.extract_chunk_biomes(&self.read_biome_map(pos[0].div_floor(&bgc), pos[2].div_floor(&bgc)), rel_x, rel_z)
     }
 
-    fn gen_chunk(&self, pos: &ChunkPos) -> ChunkArray<AtomicBlockId> {
+    fn gen_chunk(&self, pos: &ChunkPos) -> Box<ChunkArray<AtomicBlockId>> {
         let mut biome_reader=BiomeReader::new(self);
         let hm = self.gen_height_map(pos[0], pos[2],&mut biome_reader);
-        let mut chunk = ChunkArray::<AtomicBlockId>::default();
+        let mut chunk = Box::new(ChunkArray::<AtomicBlockId>::default());
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
                 let biome = biome_reader.get(x as i32+pos[0]*CHUNK_SIZE as i32,z as i32+pos[2]*CHUNK_SIZE as i32);
                 let end_index = CHUNK_SIZE - 1;
                 let depth = hm[x][z] - (pos[1] * CHUNK_SIZE as i32 + end_index as i32);
                 let gen_depth = self.ground_layers[biome].gen_column(depth, &mut |d, block| {
-                    chunk[[x, z, end_index - d]] = AtomicBlockId::new(block)
+                    chunk[[x, end_index - d,z,]] = AtomicBlockId::new(block)
                 }, x as i32 + pos[0] * CHUNK_SIZE as i32, z as i32 + pos[2] * CHUNK_SIZE as i32);
                 for i in 0..(CHUNK_SIZE - gen_depth) {
-                    chunk[[x, z, i]] = AtomicBlockId::new(self.ground);
+                    chunk[[x, i, z]] = AtomicBlockId::new(self.ground);
                 }
             }
         }
