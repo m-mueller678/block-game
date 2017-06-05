@@ -159,13 +159,13 @@ impl Generator for OverworldGenerator {
 
     fn gen_chunk(&self, pos: &ChunkPos) -> ChunkArray<AtomicBlockId> {
         let hm = self.gen_height_map(pos[0], pos[2]);
-        let biome_map_quad = self.read_biome_map(pos[0] * CHUNK_SIZE as i32, pos[2] * CHUNK_SIZE as i32);
+        let biome_map_guard = self.read_biome_map(pos[0] * CHUNK_SIZE as i32, pos[2] * CHUNK_SIZE as i32);
         let biome_x = pos[0].mod_floor(&(BIOME_GEN_CHUNKS as i32)) as usize * CHUNK_SIZE;
         let biome_z = pos[2].mod_floor(&(BIOME_GEN_CHUNKS as i32)) as usize * CHUNK_SIZE;
         let mut chunk = ChunkArray::<AtomicBlockId>::default();
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                let biome = biome_map_quad[biome_x + x][biome_z + z];
+                let biome = biome_map_guard[biome_x + x][biome_z + z];
                 let end_index = CHUNK_SIZE - 1;
                 let depth = hm[x][z] - (pos[1] * CHUNK_SIZE as i32 + end_index as i32);
                 let gen_depth = self.ground_layers[biome].gen_column(depth, &mut |d, block| {
