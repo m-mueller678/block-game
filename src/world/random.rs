@@ -46,7 +46,11 @@ impl WorldRngSeeder {
         NoiseIterator { gen: self.rng() }
     }
     pub fn rng(&self) -> WorldGenRng {
-        XorShiftRng::from_seed(self.seed)
+        let mut r=XorShiftRng::from_seed(self.seed);
+        for _ in 0..4{
+            r.next_u32();
+        }
+        r
     }
 }
 
