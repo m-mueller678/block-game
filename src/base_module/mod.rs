@@ -9,44 +9,62 @@ use world::generator::*;
 use world::generator::noise::NoiseParameters;
 use world::generator::overworld::GroundGen;
 use world::biome::*;
+use geometry::Direction;
 
 struct BaseModule {}
 
 struct InitT1();
 
-struct InitT2(BiomeId, BlockId, BlockId);
+struct InitT2 ();
 
 impl Init1 for InitT1 {
     fn run(self: Box<Self>, p1: &mut Phase1) -> Box<Init2> {
-        let biome1 = p1.biomes.register(Biome::new());
-        p1.blocks.add(Block::new(
-            DrawType::FullOpaqueBlock([p1.textures.get("sand"); 6]),
-            LightType::Opaque,
-            "sand".into()
-        ));
+        p1.biomes.register(Biome::new("plain".into()));
+        p1.biomes.register(Biome::new("rock".into()));
         p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("stone"); 6]),
             LightType::Opaque,
             "stone".into()
         ));
-        let block_dirt = p1.blocks.add(Block::new(
+        p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("dirt"); 6]),
             LightType::Opaque,
             "dirt".into()
         ));
-        let block_light = p1.blocks.add(Block::new(
+        p1.blocks.add(Block::new(
+            {
+                let mut texture=[p1.textures.get("grass");6];
+                texture[Direction::NegY as usize]=p1.textures.get("dirt");
+                DrawType::FullOpaqueBlock(texture)
+            },
+            LightType::Opaque,
+            "grass".into()
+        ));
+        p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("debug"); 6]),
             LightType::Source(15),
             "debug_light".into()
         ));
-        Box::new(InitT2(biome1, block_dirt, block_light))
+        Box::new(InitT2())
     }
 }
 
 impl Init2 for InitT2 {
     fn run(self: Box<Self>, p2: &mut Phase2) {
-        p2.add_overworld_biome(self.0, NoiseParameters::new().push(32., 512., None, None), 0, GroundGen::new().push_layer(self.1, 1., 3.));
-        p2.add_structure(Box::new(CrossFinder { block: self.2 }));
+        p2.add_overworld_biome(
+            p2.biomes.by_name("plain").unwrap(),
+            NoiseParameters::new().push(32., 512., None, None),
+            0,
+            GroundGen::new()
+                .push_layer(p2.blocks.by_name("grass").unwrap(),1.,1.)
+                .push_layer(p2.blocks.by_name("dirt").unwrap(), 1., 4.));
+        p2.add_overworld_biome(
+            p2.biomes.by_name("rock").unwrap(),
+            NoiseParameters::new().push(32.,512.,None,None),
+            32,
+            GroundGen::new()
+        );
+        p2.add_structure(Box::new(CrossFinder { block: p2.blocks.by_name("debug_light").unwrap() }));
     }
 }
 

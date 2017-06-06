@@ -64,6 +64,10 @@ impl Inserter {
         } else { Err(()) }
     }
 
+    pub fn generator(&self)->&Generator{
+        self.shared.0.as_ref()
+    }
+
     fn generate_chunk(
         shared: Arc<(Box<Generator>, Mutex<InsertBuffer>)>,
         pos: ChunkPos,

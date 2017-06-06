@@ -43,7 +43,7 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
     };
     let block_registry = Arc::new(block_registry);
     let biome_registry = Arc::new(biome_registry);
-    let world = Arc::new(World::new(block_registry.clone(), Box::new(generator)));
+    let world = Arc::new(World::new(block_registry.clone(), Box::new(generator),biome_registry.clone()));
     StartComplete {
         block: block_registry,
         biomes: biome_registry,

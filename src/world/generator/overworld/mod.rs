@@ -66,7 +66,7 @@ impl OverworldGenerator {
     }
 
     fn gen_biome_map(&self, x: i32, z: i32) -> Box<BiomeMap> {
-        let mut map = Box::new([[0; BIOME_GEN_SIZE + 1]; BIOME_GEN_SIZE + 1]);
+        let mut map = Box::new([[usize::max_value(); BIOME_GEN_SIZE + 1]; BIOME_GEN_SIZE + 1]);
         map[0][0] = self.corner_biome(x, z);
         map[0][BIOME_GEN_SIZE] = self.corner_biome(x, z + 1);
         map[BIOME_GEN_SIZE][0] = self.corner_biome(x + 1, z);
@@ -75,7 +75,15 @@ impl OverworldGenerator {
         spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[2, x, z]).rng(), &mut |map, i| &mut map[i][0]);
         spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[3, x + 1, z]).rng(), &mut |map, i| &mut map[BIOME_GEN_SIZE][i]);
         spread_1d(0, BIOME_GEN_SIZE, &mut map, &mut self.rand.pushi(&[4, x, z + 1]).rng(), &mut |map, i| &mut map[i][BIOME_GEN_SIZE]);
-        spread_biomes_from_borders(&mut map, x, z, &self.rand);
+        for i in 0..BIOME_GEN_SIZE + 1 {
+            assert_ne!(map[0][i], usize::max_value());
+            assert_ne!(map[i][0], usize::max_value());
+            assert_ne!(map[BIOME_GEN_SIZE][i], usize::max_value());
+            assert_ne!(map[i][BIOME_GEN_SIZE], usize::max_value());
+        }
+
+
+        spread_biomes(&mut map, &mut self.rand.rng(), 0, 0, BIOME_GEN_SIZE, false, false);
         map
     }
 
@@ -99,14 +107,14 @@ impl OverworldGenerator {
         gen.gen_range(0, self.biomes.len())
     }
 
-    fn base_height_at(&self, x: i32, z: i32,reader:&mut BiomeReader) -> i32 {
+    fn base_height_at(&self, x: i32, z: i32, reader: &mut BiomeReader) -> i32 {
         (
             (-10..11).map(|dx| self.terrain_bases[reader.get(x + dx, z)]).sum::<i32>()
                 + (-10..11).map(|dz| self.terrain_bases[reader.get(x, z + dz)]).sum::<i32>()
         ) / 42
     }
 
-    fn noise_height_at(&self, x: i32, z: i32,reader:&mut BiomeReader)->i32{
+    fn noise_height_at(&self, x: i32, z: i32, reader: &mut BiomeReader) -> i32 {
         let biome = reader.get(x, z);
         let biome_nx = reader.get(x + 1, z);
         let biome_nz = reader.get(x, z + 1);
@@ -128,7 +136,7 @@ impl OverworldGenerator {
         let mut ret: Box<HeightMap> = Default::default();
         for x in 0..cs {
             for z in 0..cs {
-                ret[x as usize][z as usize] = self.base_height_at(cx*cs+x,cz*cs+z,reader);
+                ret[x as usize][z as usize] = self.base_height_at(cx * cs + x, cz * cs + z, reader);
             }
         }
         ret
@@ -139,7 +147,7 @@ impl OverworldGenerator {
         let mut hm = self.gen_base_height_map(cx, cz, reader);
         for x in 0..cs {
             for z in 0..cs {
-                hm[x as usize][z as usize] += self.noise_height_at(cx * cs + x,cz * cs + z,reader);
+                hm[x as usize][z as usize] += self.noise_height_at(cx * cs + x, cz * cs + z, reader);
             }
         }
         hm
@@ -149,7 +157,7 @@ impl OverworldGenerator {
 impl TerrainInformation for OverworldGenerator {
     fn surface_y(&self, x: i32, z: i32) -> i32 {
         let mut reader = BiomeReader::new(&self);
-        self.base_height_at(x,z,&mut reader)+self.noise_height_at(x,z,&mut reader)
+        self.base_height_at(x, z, &mut reader) + self.noise_height_at(x, z, &mut reader)
     }
 }
 
@@ -159,6 +167,11 @@ impl Generator for OverworldGenerator {
         let rel_x = pos[0].mod_floor(&bgc) as usize;
         let rel_z = pos[2].mod_floor(&bgc) as usize;
         self.extract_chunk_biomes(&self.read_biome_map(pos[0].div_floor(&bgc), pos[2].div_floor(&bgc)), rel_x, rel_z)
+    }
+
+    fn biome_at(&self, x: i32, z: i32) -> BiomeId {
+        let mut reader = BiomeReader::new(self);
+        self.biomes[reader.get(x, z)]
     }
 
     fn gen_chunk(&self, pos: &ChunkPos) -> Box<ChunkArray<AtomicBlockId>> {
@@ -202,44 +215,33 @@ fn spread_1d<R, I>(min: usize, max: usize, map: &mut BiomeMap, rand: &mut R, ind
     };
     *index(map, (min + max) / 2) = center_biome;
     if max - min > 2 {
-        spread_1d(min, (min + max) / 2 + 1, map, rand, index);
+        spread_1d(min, (min + max) / 2, map, rand, index);
         spread_1d((min + max) / 2, max, map, rand, index);
     }
 }
 
-fn spread_biomes_from_borders(map: &mut BiomeMap, x: i32, z: i32, seeder: &WorldRngSeeder) {
-    assert!(BIOME_GEN_SIZE.count_ones() == 1);//power of two
-    let mut size = BIOME_GEN_SIZE;
-    let mut rand = seeder.pushi(&[x, z]).rng();
-    while size > 2 {
-        let mut x = 0;
-        while x < BIOME_GEN_SIZE {
-            let mut z = 0;
-            while z < BIOME_GEN_SIZE {
-                spread_biomes(map, x, x + size, z, z + size, &mut rand);
-                z += size
-            }
-            x += size;
-        }
-        size /= 2;
+fn spread_biomes(map: &mut BiomeMap, rand: &mut WorldGenRng, x: usize, z: usize, s: usize, px: bool, pz: bool) {
+    assert_ne!(map[x][z], usize::max_value());
+    assert_ne!(map[x + s][z], usize::max_value());
+    assert_ne!(map[x][z + s], usize::max_value());
+    assert_ne!(map[x + s][z + s], usize::max_value());
+    let rnd_val: u8 = rand.gen();
+    let hs = s / 2;
+    let cx = x + hs;
+    let cz = z + hs;
+    map[cx][cz] = map[if (rnd_val & 1) != 0 { x } else { x + s }][if (rnd_val & 2) != 0 { z } else { z + s }];
+    if px {
+        map[x + s][cz] = map[x + s][if (rnd_val & 4) != 0 { z } else { z + s }];
     }
-}
-
-fn spread_biomes<R: Rng>(map: &mut BiomeMap, x1: usize, x2: usize, z1: usize, z2: usize, rand: &mut R) {
-    let rnd: u8 = rand.gen();
-    let avg_x = (x1 + x2) / 2;
-    let avg_z = (z1 + z2) / 2;
-    //don't overwrite borders
-    if z1 != 0 {
-        map[avg_x][z1] = map[if (rnd & 1) != 0 { x1 } else { x2 }][z1];
+    if pz {
+        map[cx][z + s] = map[if (rnd_val & 8) != 0 { x } else { x + s }][z + s];
     }
-    //don't overwrite borders
-    if x1 != 0 {
-        map[x1][avg_z] = map[x1][if (rnd & 2) != 0 { z1 } else { z2 }];
+    if s > 2 {
+        spread_biomes(map, rand, x, z, hs, true, true);
+        spread_biomes(map, rand, cx, z, hs, px, true);
+        spread_biomes(map, rand, x, cz, hs, true, pz);
+        spread_biomes(map, rand, cx, cz, hs, px, pz);
     }
-    map[avg_x][avg_z] = map
-        [if (rnd & 4) != 0 { x1 } else { x2 }]
-        [if (rnd & 8) != 0 { z1 } else { z2 }];
 }
 
 struct BiomeReader<'a> {

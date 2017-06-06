@@ -13,6 +13,7 @@ use block::BlockRegistry;
 use std::sync::{Arc, RwLock, RwLockReadGuard};
 use self::chunk_loading::LoadMap;
 use self::generator::Generator;
+use self::biome::BiomeRegistry;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
 
@@ -20,15 +21,25 @@ pub struct World {
     chunks: RwLock<ChunkMap>,
     inserter: Inserter,
     loaded: LoadMap,
+    biomes: Arc<BiomeRegistry>,
 }
 
 impl World {
-    pub fn new(blocks: Arc<BlockRegistry>, gen: Box<Generator>) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, gen: Box<Generator>,biomes:Arc<BiomeRegistry>) -> Self {
         World {
             chunks: RwLock::new(ChunkMap::new(blocks)),
             inserter: Inserter::new(gen),
             loaded: LoadMap::new(),
+            biomes:biomes,
         }
+    }
+
+    pub fn generator(&self)->&Generator{
+        self.inserter.generator()
+    }
+
+    pub fn biomes(&self)->&BiomeRegistry{
+        &self.biomes
     }
 
     pub fn read(&self) -> WorldReadGuard {
