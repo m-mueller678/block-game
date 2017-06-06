@@ -31,10 +31,6 @@ impl World {
         }
     }
 
-    pub fn generator(&self)->&Generator{
-        self.inserter.generator()
-    }
-
     pub fn read(&self) -> WorldReadGuard {
         self.chunks.read().unwrap()
     }

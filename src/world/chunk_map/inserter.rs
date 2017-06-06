@@ -34,10 +34,6 @@ impl Inserter {
         }
     }
 
-    pub fn generator(&self)->&Generator{
-        self.shared.0.as_ref()
-    }
-
     pub fn insert(&self, pos: &ChunkPos, world: &ChunkMap) {
         if world.chunk_loaded(pos) {
             return;

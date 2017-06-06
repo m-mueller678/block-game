@@ -35,6 +35,7 @@ impl WorldRngSeeder {
         }
         ret
     }
+    #[allow(dead_code)]
     pub fn pushu(&self,source:&[u32])->Self{
         let mut ret=self.clone();
         for s in source{

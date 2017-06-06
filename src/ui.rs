@@ -228,8 +228,3 @@ impl Ui {
         self.current_overlay = self.overlays.len();
     }
 }
-
-fn load_shared_pos(shared_pos: &Arc<Mutex<[f32; 3]>>) -> BlockPos {
-    let pos = shared_pos.lock().unwrap();
-    BlockPos([pos[0] as i32, pos[1] as i32, pos[2] as i32])
-}

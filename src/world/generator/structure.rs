@@ -53,7 +53,7 @@ impl<'a> GeneratingChunk<'a> {
             None
         }
     }
-
+    #[allow(dead_code)]
     pub fn pos(&self) -> [i32; 3] {
         vec3_scale(self.struct_pos, -1)
     }
@@ -66,7 +66,7 @@ impl<'a> GeneratingChunk<'a> {
             false
         }
     }
-
+    #[allow(dead_code)]
     pub fn get_block(&mut self, pos: [i32; 3]) -> Option<BlockId> {
         if let Some(pos) = self.pos_in_chunk(pos) {
             Some(self.chunk[pos].load())
@@ -74,7 +74,7 @@ impl<'a> GeneratingChunk<'a> {
             None
         }
     }
-
+    #[allow(dead_code)]
     pub fn blocks(&mut self) -> &mut ChunkArray<AtomicBlockId> {
         &mut self.chunk
     }
