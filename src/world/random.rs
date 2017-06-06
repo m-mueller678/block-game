@@ -1,4 +1,3 @@
-use std::ops::{Deref, DerefMut};
 use noise::{Perlin, Seedable};
 use rand::{SeedableRng, XorShiftRng, Rng};
 

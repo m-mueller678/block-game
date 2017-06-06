@@ -17,15 +17,12 @@ extern crate threadpool;
 extern crate chashmap;
 
 use glium::DisplayBuild;
-use std::sync::Arc;
-use module::*;
 use world::*;
-use block::{BlockId, BlockRegistry};
+use block::BlockId;
 use time::SteadyTime;
 use std::sync::mpsc::{channel, TryRecvError};
 use std::thread;
 use ui::Message;
-use world::biome::BiomeRegistry;
 
 mod window_util;
 mod graphics;

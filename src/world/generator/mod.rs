@@ -1,6 +1,5 @@
 use world::biome::BiomeId;
 use world::*;
-use block::BlockId;
 
 pub mod overworld;
 pub mod noise;

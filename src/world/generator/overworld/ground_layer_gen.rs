@@ -2,7 +2,7 @@ use noise::{Perlin, NoiseModule};
 use world::CHUNK_SIZE;
 use world::random::*;
 use block::BlockId;
-use std::cmp::{min,max};
+use std::cmp::max;
 
 pub struct GroundGen {
     layers: Vec<(BlockId, Perlin, f32, f32)>,
@@ -43,7 +43,7 @@ impl GroundGen {
                     let max_thickness = (max_depth - depth) as f32;
                     assert!(max_thickness-min_thickness>-0.01);
                     let noise = (0.5 * perlin.get([x as f32 / 32., z as f32 / 32.])) + 0.5;
-                    let mut thickness = min_thickness+ noise * (max_thickness-min_thickness);
+                    let thickness = min_thickness+ noise * (max_thickness-min_thickness);
                     depth += thickness;
                     let depth=depth.round() as i32;
                     while i<CHUNK_SIZE && (i as i32 +gen_depth as i32)<depth{

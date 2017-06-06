@@ -113,7 +113,6 @@ impl Ui {
                     print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
                         let print_block = target.facing(direction);
-                        let generator = self.world.generator();
                         let world = self.world.read();
                         print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
                                print_block,
@@ -224,8 +223,6 @@ impl Ui {
     }
 
     fn load_overlays(&mut self) {
-        let (w1, p1) = (self.world.clone(), self.shared_position.clone());
-        let (w2, p2) = (self.world.clone(), self.shared_position.clone());
         self.overlays = vec![
         ];
         self.current_overlay = self.overlays.len();

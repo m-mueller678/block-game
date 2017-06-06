@@ -9,9 +9,8 @@ pub use self::random::{WorldRngSeeder,WorldGenRng};
 pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use block::AtomicBlockId;
-use biome::BiomeId;
 use block::BlockRegistry;
-use std::sync::{Arc, RwLock, RwLockReadGuard, Mutex};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use self::chunk_loading::LoadMap;
 use self::generator::Generator;
 

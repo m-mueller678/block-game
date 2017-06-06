@@ -34,9 +34,5 @@ impl BiomeRegistry {
         self.biomes.push(b);
         BiomeId(self.biomes.len() as u32)
     }
-
-    pub fn list(&self) -> &[BiomeId] {
-        &self.ids
-    }
 }
 

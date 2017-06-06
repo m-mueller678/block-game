@@ -118,7 +118,7 @@ impl CombinedStructureGenerator {
 
     pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>,terrain:&TerrainInformation) {
         let cs = CHUNK_SIZE as i32;
-        let mut rand = self.seeder.pushi(&*pos);
+        let rand = self.seeder.pushi(&*pos);
         for x in self.max_bounds[0].clone() {
             for y in self.max_bounds[1].clone() {
                 for z in self.max_bounds[2].clone() {
@@ -157,7 +157,7 @@ impl CombinedStructureGenerator {
 
     fn find_structures(&self, pos: ChunkPos,terrain:&TerrainInformation) -> StructureList {
         let mut ret = StructureList(Vec::new());
-        let mut rand = self.seeder.pushi(&*pos);
+        let rand = self.seeder.pushi(&*pos);
         for finder in self.finders.iter() {
             finder.push_structures(pos, & rand, terrain, &mut ret);
         }

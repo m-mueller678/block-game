@@ -1,4 +1,3 @@
-use std::sync::{Arc, RwLock};
 use noise::Perlin;
 use chashmap::*;
 use rand::Rng;

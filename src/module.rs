@@ -24,7 +24,7 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
             blocks: &mut block_registry,
             biomes: &mut biome_registry,
         };
-        init1.map(|mut m: Box<Init1>| {
+        init1.map(|m: Box<Init1>| {
             m.run(&mut p1)
         }).collect()
     };
@@ -36,7 +36,7 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
             gen_biomes: vec![],
             structures: vec![],
         };
-        let i3:Vec<()>=i2.into_iter().map(|m: Box<Init2>| {
+        let _:Vec<()>=i2.into_iter().map(|m: Box<Init2>| {
             m.run(&mut p2)
         }).collect();
         p2.build(block_registry.by_name("stone").unwrap(), &WorldRngSeeder::new(42))

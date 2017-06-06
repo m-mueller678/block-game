@@ -1,10 +1,8 @@
-use std;
-use rand::{IsaacRng, Rng};
+use rand::Rng;
 use num::Integer;
-use block::{BlockId, BlockRegistry, Block, LightType};
+use block::{BlockId, Block, LightType};
 use graphics::DrawType;
 use module::*;
-use block_texture_loader::TextureLoader;
 use world::*;
 use world::generator::structure::*;
 use world::generator::*;
@@ -14,18 +12,19 @@ use world::biome::*;
 
 struct BaseModule {}
 
-struct InitT1 ();
-struct InitT2 (BiomeId,BlockId);
+struct InitT1();
+
+struct InitT2(BiomeId, BlockId, BlockId);
 
 impl Init1 for InitT1 {
     fn run(self: Box<Self>, p1: &mut Phase1) -> Box<Init2> {
-        let biome1=p1.biomes.register(Biome::new());
-        let block_sand = p1.blocks.add(Block::new(
+        let biome1 = p1.biomes.register(Biome::new());
+        p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("sand"); 6]),
             LightType::Opaque,
             "sand".into()
         ));
-        let block_stone = p1.blocks.add(Block::new(
+        p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("stone"); 6]),
             LightType::Opaque,
             "stone".into()
@@ -40,13 +39,14 @@ impl Init1 for InitT1 {
             LightType::Source(15),
             "debug_light".into()
         ));
-        Box::new(InitT2(biome1,block_dirt))
+        Box::new(InitT2(biome1, block_dirt, block_light))
     }
 }
 
 impl Init2 for InitT2 {
     fn run(self: Box<Self>, p2: &mut Phase2) {
-        p2.add_overworld_biome(self.0,NoiseParameters::new().push(32.,512.,None,None),0,GroundGen::new().push_layer(self.1,1.,3.))
+        p2.add_overworld_biome(self.0, NoiseParameters::new().push(32., 512., None, None), 0, GroundGen::new().push_layer(self.1, 1., 3.));
+        p2.add_structure(Box::new(CrossFinder { block: self.2 }));
     }
 }
 
