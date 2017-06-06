@@ -8,6 +8,7 @@ use world::*;
 use block::{AtomicBlockId, BlockId};
 use world::biome::*;
 use world::generator::noise::NoiseParameters;
+use world::generator::TerrainInformation;
 
 pub use self::ground_layer_gen::GroundGen;
 
@@ -98,48 +99,57 @@ impl OverworldGenerator {
         gen.gen_range(0, self.biomes.len())
     }
 
-    fn gen_base_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> Box<HeightMap> {
+    fn base_height_at(&self, x: i32, z: i32,reader:&mut BiomeReader) -> i32 {
+        (
+            (-10..11).map(|dx| self.terrain_bases[reader.get(x + dx, z)]).sum::<i32>()
+                + (-10..11).map(|dz| self.terrain_bases[reader.get(x, z + dz)]).sum::<i32>()
+        ) / 42
+    }
+
+    fn noise_height_at(&self, x: i32, z: i32,reader:&mut BiomeReader)->i32{
+        let biome = reader.get(x, z);
+        let biome_nx = reader.get(x + 1, z);
+        let biome_nz = reader.get(x, z + 1);
+        let height = if biome == biome_nx && biome == biome_nz {
+            self.terrain_parameters[biome]
+                .generate(x as f32, z as f32, self.noise_gen.iter())
+        } else {
+            [biome, biome_nx, biome_nz].iter()
+                .map(|b| {
+                    self.terrain_parameters[*b]
+                        .generate(x as f32, z as f32, self.noise_gen.iter())
+                }).sum::<f32>() / 3.
+        };
+        height.round() as i32
+    }
+
+    fn gen_base_height_map(&self, cx: i32, cz: i32, reader: &mut BiomeReader) -> Box<HeightMap> {
         let cs = CHUNK_SIZE as i32;
         let mut ret: Box<HeightMap> = Default::default();
         for x in 0..cs {
             for z in 0..cs {
-                let mut y = 0;
-                for dx in -10..11 {
-                    y += self.terrain_bases[reader.get(cx * cs + x + dx, cz * cs + z)]
-                }
-                for dz in -10..11 {
-                    y += self.terrain_bases[reader.get(cx * cs + x, cz * cs + z + dz)]
-                }
-                ret[x as usize][z as usize] = y / 42;
+                ret[x as usize][z as usize] = self.base_height_at(cx*cs+x,cz*cs+z,reader);
             }
         }
         ret
     }
 
-    fn gen_height_map(&self, cx: i32, cz: i32,reader:&mut BiomeReader) -> Box<HeightMap> {
+    fn gen_height_map(&self, cx: i32, cz: i32, reader: &mut BiomeReader) -> Box<HeightMap> {
         let cs = CHUNK_SIZE as i32;
-        let mut hm = self.gen_base_height_map(cx, cz,reader);
+        let mut hm = self.gen_base_height_map(cx, cz, reader);
         for x in 0..cs {
             for z in 0..cs {
-                let abs_x = cx * cs + x;
-                let abs_z = cz * cs + z;
-                let biome = reader.get(abs_x, abs_z);
-                let biome_nx = reader.get(abs_x + 1, abs_z);
-                let biome_nz = reader.get(abs_x, abs_z + 1);
-                let height = if biome == biome_nx && biome == biome_nz {
-                    self.terrain_parameters[biome]
-                        .generate(abs_x as f32, abs_z as f32, self.noise_gen.iter())
-                } else {
-                    [biome, biome_nx, biome_nz].iter()
-                        .map(|b| {
-                            self.terrain_parameters[*b]
-                                .generate(abs_x as f32, abs_z as f32, self.noise_gen.iter())
-                        }).sum::<f32>() / 3.
-                };
-                hm[x as usize][z as usize] += height.round() as i32;
+                hm[x as usize][z as usize] += self.noise_height_at(cx * cs + x,cz * cs + z,reader);
             }
         }
         hm
+    }
+}
+
+impl TerrainInformation for OverworldGenerator {
+    fn surface_y(&self, x: i32, z: i32) -> i32 {
+        let mut reader = BiomeReader::new(&self);
+        self.base_height_at(x,z,&mut reader)+self.noise_height_at(x,z,&mut reader)
     }
 }
 
@@ -152,22 +162,23 @@ impl Generator for OverworldGenerator {
     }
 
     fn gen_chunk(&self, pos: &ChunkPos) -> Box<ChunkArray<AtomicBlockId>> {
-        let mut biome_reader=BiomeReader::new(self);
-        let hm = self.gen_height_map(pos[0], pos[2],&mut biome_reader);
+        let mut biome_reader = BiomeReader::new(self);
+        let hm = self.gen_height_map(pos[0], pos[2], &mut biome_reader);
         let mut chunk = Box::new(ChunkArray::<AtomicBlockId>::default());
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                let biome = biome_reader.get(x as i32+pos[0]*CHUNK_SIZE as i32,z as i32+pos[2]*CHUNK_SIZE as i32);
+                let biome = biome_reader.get(x as i32 + pos[0] * CHUNK_SIZE as i32, z as i32 + pos[2] * CHUNK_SIZE as i32);
                 let end_index = CHUNK_SIZE - 1;
                 let depth = hm[x][z] - (pos[1] * CHUNK_SIZE as i32 + end_index as i32);
                 let gen_depth = self.ground_layers[biome].gen_column(depth, &mut |d, block| {
-                    chunk[[x, end_index - d,z,]] = AtomicBlockId::new(block)
+                    chunk[[x, end_index - d, z, ]] = AtomicBlockId::new(block)
                 }, x as i32 + pos[0] * CHUNK_SIZE as i32, z as i32 + pos[2] * CHUNK_SIZE as i32);
                 for i in 0..(CHUNK_SIZE - gen_depth) {
                     chunk[[x, i, z]] = AtomicBlockId::new(self.ground);
                 }
             }
         }
+        self.structures.generate_chunk(*pos, &mut chunk, self);
         chunk
     }
 
@@ -242,19 +253,19 @@ impl<'a> BiomeReader<'a> {
         BiomeReader {
             generator: gen,
             guard: None,
-            pos: [0,0],
+            pos: [0, 0],
         }
     }
     fn get(&mut self, x: i32, z: i32) -> usize {
         let bgs = BIOME_GEN_SIZE as i32;
         let new_pos = [x.div_floor(&bgs), z.div_floor(&bgs)];
-        if new_pos == self.pos{
-            if self.guard.is_none(){
-                self.guard=Some(self.generator.read_biome_map(new_pos[0], new_pos[1]));
+        if new_pos == self.pos {
+            if self.guard.is_none() {
+                self.guard = Some(self.generator.read_biome_map(new_pos[0], new_pos[1]));
             }
-        }else{
+        } else {
             self.pos = new_pos;
-            self.guard=None; //drop old lock
+            self.guard = None; //drop old lock
             self.guard = Some(self.generator.read_biome_map(new_pos[0], new_pos[1]));
         }
         self.guard.as_ref().unwrap()[x.mod_floor(&bgs) as usize][z.mod_floor(&bgs) as usize]

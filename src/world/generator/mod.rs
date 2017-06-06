@@ -11,12 +11,6 @@ pub trait Generator where Self:Send+Sync{
     fn reseed(&mut self,&WorldRngSeeder);
 }
 
-pub struct TerrainInformation{
-    surface:[[i32;CHUNK_SIZE];CHUNK_SIZE],
-}
-
-impl TerrainInformation{
-    pub fn abs_surface_y(&self,x:usize,z:usize)->i32{
-        self.surface[x][z]
-    }
+pub trait TerrainInformation{
+    fn surface_y(&self,x:i32,z:i32)->i32;
 }

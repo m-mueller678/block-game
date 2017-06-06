@@ -67,17 +67,13 @@ impl StructureFinder for CrossFinder {
         let cs = CHUNK_SIZE as i32;
         let mut rand = rand.rng();
         if rand.gen_weighted_bool(10) {
-            let x = rand.gen_range(0, CHUNK_SIZE);
-            let z = rand.gen_range(0, CHUNK_SIZE);
-            let surface = t.abs_surface_y(x, z);
+            let x = chunk[0] * cs + rand.gen_range(0, cs);
+            let z = chunk[2] * cs + rand.gen_range(0, cs);
+            let surface = t.surface_y(x, z);
             if surface.div_floor(&cs) == chunk[1] {
                 out.push(
                     Box::new(CrossGenerator { block: self.block }),
-                    BlockPos([
-                        chunk[0] * cs + x as i32,
-                        surface,
-                        chunk[2] * cs + z as i32
-                    ]),
+                    BlockPos([x, surface, z]),
                     self.max_bounds()
                 );
             }
