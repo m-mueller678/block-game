@@ -15,7 +15,7 @@ struct BaseModule {}
 
 struct InitT1();
 
-struct InitT2 ();
+struct InitT2();
 
 impl Init1 for InitT1 {
     fn run(self: Box<Self>, p1: &mut Phase1) -> Box<Init2> {
@@ -33,8 +33,8 @@ impl Init1 for InitT1 {
         ));
         p1.blocks.add(Block::new(
             {
-                let mut texture=[p1.textures.get("grass");6];
-                texture[Direction::NegY as usize]=p1.textures.get("dirt");
+                let mut texture = [p1.textures.get("grass"); 6];
+                texture[Direction::NegY as usize] = p1.textures.get("dirt");
                 DrawType::FullOpaqueBlock(texture)
             },
             LightType::Opaque,
@@ -53,14 +53,19 @@ impl Init2 for InitT2 {
     fn run(self: Box<Self>, p2: &mut Phase2) {
         p2.add_overworld_biome(
             p2.biomes.by_name("plain").unwrap(),
-            NoiseParameters::new().push(32., 512., None, None),
+            NoiseParameters::new()
+                .push(8., 512., None, None)
+                .push(4., 128., None, None)
+                .push(2., 64., None, None),
             0,
             GroundGen::new()
-                .push_layer(p2.blocks.by_name("grass").unwrap(),1.,1.)
+                .push_layer(p2.blocks.by_name("grass").unwrap(), 1., 1.)
                 .push_layer(p2.blocks.by_name("dirt").unwrap(), 1., 4.));
         p2.add_overworld_biome(
             p2.biomes.by_name("rock").unwrap(),
-            NoiseParameters::new().push(32.,512.,None,None),
+            NoiseParameters::new()
+                .push(8., 128., 0., None)
+                .push(4., 32., None, None),
             32,
             GroundGen::new()
         );

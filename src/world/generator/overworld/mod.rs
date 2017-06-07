@@ -108,10 +108,17 @@ impl OverworldGenerator {
     }
 
     fn base_height_at(&self, x: i32, z: i32, reader: &mut BiomeReader) -> i32 {
-        (
-            (-10..11).map(|dx| self.terrain_bases[reader.get(x + dx, z)]).sum::<i32>()
-                + (-10..11).map(|dz| self.terrain_bases[reader.get(x, z + dz)]).sum::<i32>()
-        ) / 42
+        let mut r=0;
+        let mut count=0;
+        for dist in &[1,2,3,4,8]{
+            for dx in -1..2{
+                for dz in -1..2{
+                    r+=self.terrain_bases[reader.get(x+dx*dist,z+dz*dist)];
+                    count+=1;
+                }
+            }
+        }
+        r/count
     }
 
     fn noise_height_at(&self, x: i32, z: i32, reader: &mut BiomeReader) -> i32 {
