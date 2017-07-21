@@ -6,6 +6,7 @@ mod line;
 mod chunk;
 mod block;
 mod world;
+#[allow(dead_code)]
 mod block_overlay;
 
 pub use self::chunk::{RenderChunk, ChunkUniforms};

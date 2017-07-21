@@ -112,21 +112,15 @@ impl Ui {
                 glutin::Event::KeyboardInput(glutin::ElementState::Pressed, _, Some(glutin::VirtualKeyCode::Z)) => {
                     print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.camera.position, self.camera.forward, self.block_target);
                     if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
-                        let print_block = target.facing(direction);
-                        let env_data = self.world.env_data();
-                        let world = self.world.read();
-                        print!(" ({:?})\nid: {:?}\natural light: {:?}, artificial light: {:?}\n",
-                               print_block,
-                               world.get_block(&target).unwrap(),
-                               world.natural_light(&print_block).unwrap(),
-                               world.artificial_light(&print_block).unwrap(),
+                        let facing_block = target.facing(direction);
+                        let world_r = self.world.read();
+                        println!(" ({:?})",facing_block);
+                        println!("id: {:?}",world_r.get_block(&target).unwrap());
+                        println!("natural light: {:?}, artificial light: {:?}",
+                               world_r.natural_light(&facing_block).unwrap(),
+                               world_r.artificial_light(&facing_block).unwrap()
                         );
-                        let (x, z) = (target[0], target[2]);
-                        println!("temperature: {}, moisture: {}, base elevation: {}",
-                                 env_data.temperature(x, z),
-                                 env_data.moisture(x, z),
-                                 env_data.base_elevation(x, z)
-                        );
+                        println!("gen-biome: {}",self.world.biomes()[self.world.generator().biome_at(target[0],target[2])].name());
                     } else {
                         println!()
                     }
@@ -230,29 +224,8 @@ impl Ui {
     }
 
     fn load_overlays(&mut self) {
-        let (w1, p1) = (self.world.clone(), self.shared_position.clone());
-        let (w2, p2) = (self.world.clone(), self.shared_position.clone());
         self.overlays = vec![
-            (BlockOverlay::new(Box::new(Overlay2d::new(
-                move |x, z| {
-                    let temperature = w1.env_data().temperature(x, z);
-                    [temperature, temperature , 1. - temperature]
-                },
-                move || load_shared_pos(&p1),
-                64, self.world.clone())), &self.display), "temperature".into()),
-            (BlockOverlay::new(Box::new(Overlay2d::new(
-                move |x, z| {
-                    let moisture = w2.env_data().moisture(x, z);
-                    [1. - moisture, 1.-moisture*0.4,1.- moisture ]
-                },
-                move || load_shared_pos(&p2),
-                64, self.world.clone())), &self.display), "moisture".into())
         ];
         self.current_overlay = self.overlays.len();
     }
-}
-
-fn load_shared_pos(shared_pos: &Arc<Mutex<[f32; 3]>>) -> BlockPos {
-    let pos = shared_pos.lock().unwrap();
-    BlockPos([pos[0] as i32, pos[1] as i32, pos[2] as i32])
 }

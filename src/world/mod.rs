@@ -1,34 +1,45 @@
-mod random;
-mod generator;
 mod chunk_map;
 mod chunk_loading;
 
-pub use self::random::WorldRngSeeder;
-pub use self::chunk_map::*;
-pub use self::generator::{Generator, ParameterWeight, WorldGenBlock, EnvironmentData,structure};
-pub use self::chunk_loading::LoadGuard;
+pub mod random;
+pub mod biome;
+pub mod generator;
 
+pub use self::random::{WorldRngSeeder,WorldGenRng};
+pub use self::chunk_map::*;
+pub use self::chunk_loading::LoadGuard;
+use block::AtomicBlockId;
 use block::BlockRegistry;
-use std::sync::{Arc, RwLock, RwLockReadGuard, Mutex};
+use std::sync::{Arc, RwLock, RwLockReadGuard};
 use self::chunk_loading::LoadMap;
+use self::generator::Generator;
+use self::biome::BiomeRegistry;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
 
 pub struct World {
-    env_data: EnvironmentData,
     chunks: RwLock<ChunkMap>,
-    inserter: Mutex<Inserter>,
+    inserter: Inserter,
     loaded: LoadMap,
+    biomes: Arc<BiomeRegistry>,
 }
 
 impl World {
-    pub fn new(blocks: Arc<BlockRegistry>, gen: Generator) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, gen: Box<Generator>,biomes:Arc<BiomeRegistry>) -> Self {
         World {
-            env_data: gen.env_data().clone(),
             chunks: RwLock::new(ChunkMap::new(blocks)),
-            inserter: Mutex::new(Inserter::new(gen)),
+            inserter: Inserter::new(gen),
             loaded: LoadMap::new(),
+            biomes:biomes,
         }
+    }
+
+    pub fn generator(&self)->&Generator{
+        self.inserter.generator()
+    }
+
+    pub fn biomes(&self)->&BiomeRegistry{
+        &self.biomes
     }
 
     pub fn read(&self) -> WorldReadGuard {
@@ -39,13 +50,8 @@ impl World {
         self.loaded.load_cube(center, radius)
     }
 
-    pub fn env_data(&self) -> &EnvironmentData {
-        &self.env_data
-    }
-
     pub fn flush_chunk(&self) {
         let mut chunk_lock = self.chunks.write().unwrap();
-        let mut inserter_lock = self.inserter.lock().unwrap();
-        self.loaded.apply_to_world(&mut *chunk_lock, &mut *inserter_lock);
+        self.loaded.apply_to_world(&mut *chunk_lock, &self.inserter);
     }
 }

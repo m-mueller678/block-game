@@ -3,12 +3,12 @@ use std::cmp;
 use vecmath::*;
 use chashmap::*;
 use num::Integer;
-use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder, EnvironmentData};
+use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder};
 use block::{AtomicBlockId, BlockId};
-use rand::IsaacRng;
+use world::generator::TerrainInformation;
 
 pub trait Structure where Self: Send + Sync {
-    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, &mut IsaacRng, &EnvironmentData);
+    fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, & WorldRngSeeder, &TerrainInformation);
 }
 
 pub struct StructureList(Vec<(Box<Structure>, BlockPos, [Range<i32>; 3])>, );
@@ -27,11 +27,11 @@ impl StructureList {
 }
 
 pub trait StructureFinder where Self: Send + Sync {
-    fn push(&self,
-            chunk: ChunkPos,
-            seeder: &mut IsaacRng,
-            env: &EnvironmentData,
-            out: &mut StructureList);
+    fn push_structures(&self,
+                       chunk: ChunkPos,
+                       seeder: & WorldRngSeeder,
+                       terrain: &TerrainInformation,
+                       out: &mut StructureList);
     fn max_bounds(&self) -> [[i32; 2]; 3];
 }
 
@@ -53,7 +53,7 @@ impl<'a> GeneratingChunk<'a> {
             None
         }
     }
-
+    #[allow(dead_code)]
     pub fn pos(&self) -> [i32; 3] {
         vec3_scale(self.struct_pos, -1)
     }
@@ -66,7 +66,7 @@ impl<'a> GeneratingChunk<'a> {
             false
         }
     }
-
+    #[allow(dead_code)]
     pub fn get_block(&mut self, pos: [i32; 3]) -> Option<BlockId> {
         if let Some(pos) = self.pos_in_chunk(pos) {
             Some(self.chunk[pos].load())
@@ -74,7 +74,7 @@ impl<'a> GeneratingChunk<'a> {
             None
         }
     }
-
+    #[allow(dead_code)]
     pub fn blocks(&mut self) -> &mut ChunkArray<AtomicBlockId> {
         &mut self.chunk
     }
@@ -85,11 +85,10 @@ pub struct CombinedStructureGenerator {
     cached: CHashMap<ChunkPos, StructureList>,
     max_bounds: [Range<i32>; 3],
     seeder: WorldRngSeeder,
-    env_dat: EnvironmentData,
 }
 
 impl CombinedStructureGenerator {
-    pub fn new(finders: Vec<Box<StructureFinder>>, seeder: WorldRngSeeder, env_dat: EnvironmentData) -> Self {
+    pub fn new(finders: Vec<Box<StructureFinder>>, seeder: WorldRngSeeder) -> Self {
         let mut bounds = [[0; 2]; 3];
         for fb in finders.iter().map(|f| f.max_bounds()) {
             for i in 0..3 {
@@ -109,13 +108,17 @@ impl CombinedStructureGenerator {
             cached: CHashMap::new(),
             max_bounds: chunk_range,
             seeder: seeder,
-            env_dat: env_dat,
         }
     }
 
-    pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>) {
+    pub fn reseed(&mut self,s:&WorldRngSeeder){
+        self.seeder=s.clone();
+        self.cached.clear();
+    }
+
+    pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>,terrain:&TerrainInformation) {
         let cs = CHUNK_SIZE as i32;
-        let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
+        let rand = self.seeder.pushi(&*pos);
         for x in self.max_bounds[0].clone() {
             for y in self.max_bounds[1].clone() {
                 for z in self.max_bounds[2].clone() {
@@ -131,32 +134,32 @@ impl CombinedStructureGenerator {
                                 chunk: chunk,
                                 struct_pos: rel_struct_pos,
                             };
-                            s.0.generate(&mut gen_chunk, &mut rand, &self.env_dat);
+                            s.0.generate(&mut gen_chunk, &rand,terrain);
                         }
-                    });
+                    },terrain);
                 }
             }
         }
     }
 
-    fn with_chunk<F: FnOnce(&StructureList)>(&self, pos: ChunkPos, f: F) {
+    fn with_chunk<F: FnOnce(&StructureList)>(&self, pos: ChunkPos, f: F,terrain:&TerrainInformation) {
         self.cached.alter(pos, |opt_list| {
             if let Some(list) = opt_list {
                 f(&list);
                 Some(list)
             } else {
-                let list = self.find_structures(pos);
+                let list = self.find_structures(pos,terrain);
                 f(&list);
                 Some(list)
             }
         });
     }
 
-    fn find_structures(&self, pos: ChunkPos) -> StructureList {
+    fn find_structures(&self, pos: ChunkPos,terrain:&TerrainInformation) -> StructureList {
         let mut ret = StructureList(Vec::new());
-        let mut rand = self.seeder.make_gen(pos[0], pos[1], pos[2]);
+        let rand = self.seeder.pushi(&*pos);
         for finder in self.finders.iter() {
-            finder.push(pos, &mut rand, &self.env_dat, &mut ret);
+            finder.push_structures(pos, & rand, terrain, &mut ret);
         }
         ret
     }
