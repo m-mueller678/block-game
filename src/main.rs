@@ -54,7 +54,7 @@ fn main() {
     let w2 = world.clone();
     let player = Arc::new(Mutex::new(player::Player::new()));
     let p2 = player.clone();
-    thread::spawn(move || {
+    thread::Builder::new().name("logic".into()).spawn(move || {
         let mut chunk_load_guard;
         let mut chunk_pos = ChunkPos([2_000_000_000; 3]);
         let mut mouse_pressed_since = [None; 2];
@@ -131,7 +131,7 @@ fn main() {
                 println!("tick time: {:?}",sleep_duration)
             }
         }
-    });
+    }).expect("cannot create main logic thread");
     let texture = start.textures.load(&display);
     let mut ui = ui::Ui::new(display, shader, send, texture, w2, p2);
     ui.run(&mut events_loop);
