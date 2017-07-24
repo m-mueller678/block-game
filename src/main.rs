@@ -16,13 +16,16 @@ extern crate noise;
 extern crate threadpool;
 extern crate chashmap;
 
-use glium::DisplayBuild;
+use glium::glutin::{MouseButton, ElementState};
+use num::Integer;
 use world::*;
 use block::BlockId;
-use time::SteadyTime;
+use time::{SteadyTime,Duration};
 use std::sync::mpsc::{channel, TryRecvError};
+use std::sync::{Arc, Mutex};
 use std::thread;
 use ui::Message;
+
 
 mod window_util;
 mod graphics;
@@ -32,49 +35,75 @@ mod world;
 mod geometry;
 mod ui;
 mod module;
+mod physics;
+mod player;
 
 mod base_module;
 
+const TICK_TIME: f64 = 1. / 32.;
+
 fn main() {
-    let start=module::start([base_module::module()].iter().map(|m|m.init()));
+    let start = module::start([base_module::module()].iter().map(|m| m.init()));
     let block_light = start.block.by_name("debug_light").unwrap();
 
     let (send, rec) = channel();
-    let display = glium::glutin::WindowBuilder::new().with_depth_buffer(24).with_vsync().build_glium().unwrap();
-    display.get_window().unwrap().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
+    let (display, mut events_loop) = window_util::create_window();
+    display.gl_window().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     let shader = graphics::Shader::new(&display).unwrap();
-    let world=start.world;
+    let world = start.world;
     let w2 = world.clone();
+    let player = Arc::new(Mutex::new(player::Player::new()));
+    let p2 = player.clone();
     thread::spawn(move || {
-        let mut chunk_load_guard = None;
+        let mut chunk_load_guard;
+        let mut chunk_pos = ChunkPos([2_000_000_000; 3]);
         let mut mouse_pressed_since = [None; 2];
         let mut block_target = None;
+        let mut scheduled_tick_end=SteadyTime::now()+Duration::nanoseconds((TICK_TIME*1e9) as i64);
         loop {
-            chunk_load_guard.is_some();//prevent unused assignment warning as required attribute is experimental
+            let pos = player.lock().unwrap().position();
+            let block_pos = BlockPos([
+                (pos[0].floor() as i32),
+                (pos[1].floor() as i32),
+                (pos[2].floor() as i32),
+            ]);
+            let new_chunk_pos = ChunkPos([
+                block_pos[0].div_floor(&(CHUNK_SIZE as i32)),
+                block_pos[1].div_floor(&(CHUNK_SIZE as i32)),
+                block_pos[2].div_floor(&(CHUNK_SIZE as i32)),
+            ]);
+            if new_chunk_pos != chunk_pos {
+                chunk_pos = new_chunk_pos;
+                #[allow(unused_assignments)]{
+                    chunk_load_guard = world.load_cube(&chunk_at(&block_pos), 2);
+                }
+            }
             loop {
                 match rec.try_recv() {
-                    Ok(Message::CamChanged { pos, .. }) => {
-                        let block_pos = BlockPos([pos[0] as i32, pos[1] as i32, pos[2] as i32]);
-                        chunk_load_guard = Some(world.load_cube(&chunk_at(&block_pos), 2));
-                    }
                     Ok(Message::BlockTargetChanged { target }) => {
                         for p in mouse_pressed_since.iter_mut() {
                             *p = p.map(|_| SteadyTime::now());
                         }
                         block_target = target;
                     }
-                    Ok(Message::MousePressed { button }) => {
-                        assert! (button < 2);
-                        mouse_pressed_since[button] = Some(SteadyTime::now());
-                        if button == 1 {
+                    Ok(Message::MouseInput { state: ElementState::Pressed, button }) => {
+                        mouse_pressed_since[match button {
+                            MouseButton::Left => 0,
+                            MouseButton::Right => 1,
+                            _ => continue,
+                        }] = Some(SteadyTime::now());
+                        if button == MouseButton::Right {
                             if let Some(ref block_target) = block_target {
                                 world.read().set_block(&block_target.block.facing(block_target.face), block_light).is_ok();
                             }
                         }
                     }
-                    Ok(Message::MouseReleased { button }) => {
-                        assert! (button < 2);
-                        mouse_pressed_since[button] = None;
+                    Ok(Message::MouseInput { state: ElementState::Released, button }) => {
+                        mouse_pressed_since[match button {
+                            MouseButton::Left => 0,
+                            MouseButton::Right => 1,
+                            _ => continue,
+                        }] = None;
                     }
                     Err(TryRecvError::Disconnected) => return,
                     Err(TryRecvError::Empty) => break,
@@ -95,10 +124,15 @@ fn main() {
                 }
             }
             world.flush_chunk();
-            thread::sleep(std::time::Duration::from_millis(20));
+            player.lock().unwrap().tick(&world.read());
+            if let Ok(sleep_duration)=(scheduled_tick_end-SteadyTime::now()).to_std(){
+                thread::sleep(sleep_duration);
+                scheduled_tick_end=SteadyTime::now()+Duration::nanoseconds((TICK_TIME*1e9) as i64);
+                println!("tick time: {:?}",sleep_duration)
+            }
         }
     });
     let texture = start.textures.load(&display);
-    let mut ui = ui::Ui::new(display, shader, send, texture, w2);
-    ui.run()
+    let mut ui = ui::Ui::new(display, shader, send, texture, w2, p2);
+    ui.run(&mut events_loop);
 }
