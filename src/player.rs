@@ -36,17 +36,23 @@ impl Player{
         self.camera.position=[p[0]as f32,p[1]as f32,p[2]as f32];
     }
 
-    pub fn set_movement(&mut self,mut m:[f64;3]){
-        use vecmath::vec3_normalized;
-        m[1]=0.;
-        let movement=vec3_normalized(m);
-        let (sin,cos)=self.yaw.sin_cos();
-        let (sin,cos)=(sin as f64,cos as f64);
-        let rot_movement=[
-            cos*movement[0]-sin*movement[2],
-            self.physics.v()[1],
-            sin*movement[0]+cos*movement[2],
-        ];
+    pub fn set_movement(&mut self,m:[f64;3]){
+        let len=(m[0].powi(2)+m[1].powi(2)).sqrt();
+        let rot_movement=if len<1e-6{
+            [
+                0.,
+                self.physics.v()[1],
+                0.,
+            ]
+        }else{
+            let (sin,cos)=self.yaw.sin_cos();
+            let (sin,cos)=(sin as f64,cos as f64);
+            [
+                (cos*m[0]-sin*m[2])/len,
+                self.physics.v()[1],
+                (sin*m[0]+cos*m[2])/len,
+            ]
+        };
         self.set_v(rot_movement);
     }
 
