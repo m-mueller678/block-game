@@ -191,6 +191,7 @@ impl Ui {
                 let mut player=self.player.lock().unwrap();
                 let set_to=!player.ignores_physics();
                 player.set_ignores_physics(set_to);
+                println!("ignore physics set to: {}",set_to);
             }
             _ => {}
         }
@@ -203,8 +204,8 @@ impl Ui {
         if self.key_state.pressed(VirtualKeyCode::S) {movement[0]-=1.;}
         if self.key_state.pressed(VirtualKeyCode::E) {movement[1]+=1.;}
         if self.key_state.pressed(VirtualKeyCode::Q) {movement[1]-=1.;}
-        if self.key_state.pressed(VirtualKeyCode::A) {movement[2]+=1.;}
-        if self.key_state.pressed(VirtualKeyCode::D) {movement[2]-=1.;}
+        if self.key_state.pressed(VirtualKeyCode::D) {movement[2]+=1.;}
+        if self.key_state.pressed(VirtualKeyCode::A) {movement[2]-=1.;}
         self.player.lock().unwrap().set_movement(movement);
     }
 

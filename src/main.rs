@@ -40,7 +40,7 @@ mod player;
 
 mod base_module;
 
-const TICK_TIME: f64 = 1. / 32.;
+const TICK_TIME: f64 = 1. / 16.;
 
 fn main() {
     let start = module::start([base_module::module()].iter().map(|m| m.init()));
@@ -59,7 +59,7 @@ fn main() {
         let mut chunk_pos = ChunkPos([2_000_000_000; 3]);
         let mut mouse_pressed_since = [None; 2];
         let mut block_target = None;
-        let mut scheduled_tick_end=SteadyTime::now()+Duration::nanoseconds((TICK_TIME*1e9) as i64);
+        let mut tick_start_time=SteadyTime::now();
         loop {
             let pos = player.lock().unwrap().position();
             let block_pos = BlockPos([
@@ -125,10 +125,14 @@ fn main() {
             }
             world.flush_chunk();
             player.lock().unwrap().tick(&world.read());
-            if let Ok(sleep_duration)=(scheduled_tick_end-SteadyTime::now()).to_std(){
-                thread::sleep(sleep_duration);
-                scheduled_tick_end=SteadyTime::now()+Duration::nanoseconds((TICK_TIME*1e9) as i64);
-                println!("tick time: {:?}",sleep_duration)
+            let tick_end_time=SteadyTime::now();
+            let real_tick_duration=tick_end_time-tick_start_time;
+            let planned_tick_duration=Duration::nanoseconds((TICK_TIME*1e9) as i64);
+            if real_tick_duration<planned_tick_duration{
+                thread::sleep((planned_tick_duration-real_tick_duration).to_std().unwrap());
+                tick_start_time=tick_start_time+planned_tick_duration;
+            }else{
+                tick_start_time=tick_end_time;
             }
         }
     }).expect("cannot create main logic thread");
