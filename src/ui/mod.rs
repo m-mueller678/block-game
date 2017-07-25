@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use graphics::*;
 use world::{BlockPos, World};
 use geometry::*;
-use vecmath::{vec3_add, vec3_scale, col_mat4_mul};
+use vecmath::{vec3_add, vec3_scale, col_mat4_mul,mat4_cast};
 use window_util;
 use player::Player;
 
@@ -111,7 +111,7 @@ impl Ui {
             let player = self.player.lock().unwrap();
             (player.position(), player.look_direction())
         };
-        let center = vec3_add(to_f32(position), vec3_scale(player_forward, 10.));
+        let center = to_f32(vec3_add(position, vec3_scale(player_forward, 10.)));
         self.cursor_line_vertices.write(&[
             //cursor
             LineVertex { pos: center, color: [1., 0., 0.] },
@@ -148,7 +148,7 @@ impl Ui {
             WindowEvent::MouseMoved { position: (x, y), .. } => {
                 //TODO use raw input
                 if let Ok((x, y)) = window_util::read_mouse_delta(&self.display, (x, y)) {
-                    self.player.lock().unwrap().change_look(x as f32 / 300., y as f32 / 300.);
+                    self.player.lock().unwrap().change_look(x / 300., y  / 300.);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -187,6 +187,11 @@ impl Ui {
                 self.current_overlay = (self.current_overlay + 1) % (self.overlays.len() + 1);
                 println!("set overlay to: {:?}", self.overlays.get(self.current_overlay).map(|o| &o.1));
             }
+            Some(VirtualKeyCode::G)=>{
+                let mut player=self.player.lock().unwrap();
+                let set_to=!player.ignores_physics();
+                player.set_ignores_physics(set_to);
+            }
             _ => {}
         }
     }
@@ -203,9 +208,9 @@ impl Ui {
         self.player.lock().unwrap().set_movement(movement);
     }
 
-    fn update_block_target(&mut self, position: [f64; 3], forward: [f32; 3]) {
+    fn update_block_target(&mut self, position: [f64; 3], forward: [f64; 3]) {
         //TODO make rays work with f64
-        let new_block_target = self.world.read().block_ray_trace(to_f32(position), forward, 100.);
+        let new_block_target = self.world.read().block_ray_trace(to_f32(position), to_f32(forward), 100.);
         if new_block_target != self.block_target {
             self.block_target = new_block_target.clone();
             self.event_sender.send(Message::BlockTargetChanged { target: new_block_target }).unwrap();
@@ -228,7 +233,7 @@ impl Ui {
                     [0.0, 0.0, -(2.0 * zfar * znear) / (zfar - znear), 0.0],
                 ]
             };
-            let matrix = col_mat4_mul(perspective, self.player.lock().unwrap().camera().orthogonal());
+            let matrix = col_mat4_mul(perspective, mat4_cast(self.player.lock().unwrap().camera().orthogonal()));
             let sampler = self.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
             self.world_render.draw(&mut target, matrix, sampler, &self.shader.quad).unwrap();
             if let Some(overlay) = self.overlays.get_mut(self.current_overlay) {

@@ -26,9 +26,17 @@ impl Object {
         self.v
     }
 
-    pub fn tick(&mut self, world:&WorldReadGuard) {
-        for i in 0..3{
-            self.move_axis(i,world);
+    pub fn tick(&mut self, collision_world:Option<&WorldReadGuard>,gravity:bool) {
+        use vecmath::*;
+        if let Some(world)=collision_world{
+            for i in 0..3{
+                self.move_axis(i,world);
+            }
+        }else{
+            self.p=vec3_add(vec3_scale(self.v,TICK_TIME),self.p);
+        }
+        if gravity{
+            self.v[1]-=TICK_TIME*10.;
         }
     }
 
