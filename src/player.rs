@@ -48,8 +48,7 @@ impl Player {
         if self.ignores_physics {
             self.physics.tick(None, false);
         } else {
-            //TODO fix collision detection
-            self.physics.tick(None, false);
+            self.physics.tick(Some(world), true);
         }
         self.camera.position = self.physics.position();
     }
