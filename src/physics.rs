@@ -7,6 +7,7 @@ pub struct Object {
     p: V3,
     v: V3,
     size: V3,
+    on_ground:bool
 }
 
 impl Object {
@@ -15,16 +16,24 @@ impl Object {
         Object {
             p: [0.; 3],
             v: [0.; 3],
-            size: size
+            size: size,
+            on_ground:false,
         }
     }
 
     pub fn set_v(&mut self, v: [f64; 3]) {
         self.v = v;
+        if v[1]>0.{
+            self.on_ground=false;
+        }
     }
 
     pub fn v(&self) -> [f64; 3] {
         self.v
+    }
+
+    pub fn on_ground(&self)->bool{
+        self.on_ground
     }
 
     pub fn tick(&mut self, collision_world: Option<&WorldReadGuard>, gravity: bool) {
@@ -35,6 +44,7 @@ impl Object {
             }
         } else {
             self.p = vec3_add(vec3_scale(self.v, TICK_TIME), self.p);
+            self.on_ground=false;
         }
         if gravity {
             self.v[1] -= TICK_TIME * 10.;
@@ -103,8 +113,17 @@ impl Object {
         if collide_time < TICK_TIME {
             self.p[axis] += self.v[axis] * collide_time;
             self.v[axis] = 0.;
+            if axis==1 &&!move_positive{
+                self.on_ground=true;
+            }
         } else {
             self.p[axis] += self.v[axis] * TICK_TIME;
+            if axis==1{
+                self.on_ground=false;
+            }
+        }
+        if axis==1 && move_positive{
+            self.on_ground=false;
         }
     }
 }

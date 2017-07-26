@@ -91,12 +91,24 @@ impl Player {
         }
     }
 
+    pub fn jump(&mut self){
+        if self.on_ground(){
+            let mut v=self.physics.v();
+            v[1]=4.8;
+            self.physics.set_v(v);
+        }
+    }
+
     pub fn set_v(&mut self, v: [f64; 3]) {
         self.physics.set_v(v);
     }
 
     pub fn look_direction(&self) -> [f64; 3] {
         self.camera.forward
+    }
+
+    pub fn on_ground(&self)->bool{
+        self.physics.on_ground()
     }
 
     pub fn camera(&self) -> &Camera<f64> {

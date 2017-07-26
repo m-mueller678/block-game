@@ -189,6 +189,9 @@ impl Ui {
                 player.set_ignores_physics(set_to);
                 println!("ignore physics set to: {}",set_to);
             }
+            Some(VirtualKeyCode::Space)=>{
+                self.player.lock().unwrap().jump();
+            }
             _ => {}
         }
     }
