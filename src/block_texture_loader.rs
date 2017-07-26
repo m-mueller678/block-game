@@ -12,7 +12,7 @@ fn load_image(name: &str) -> glium::texture::RawImage2d<u8> {
     let file = std::io::BufReader::new(std::fs::File::open(path).unwrap());
     let image = image::load(file, image::PNG).unwrap().to_rgba();
     let image_dimensions = image.dimensions();
-    glium::texture::RawImage2d::from_raw_rgba_reversed(image.into_raw(), image_dimensions)
+    glium::texture::RawImage2d::from_raw_rgba_reversed(&image.into_raw(), image_dimensions)
 }
 
 pub struct TextureLoader {

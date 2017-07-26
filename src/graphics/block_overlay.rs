@@ -2,11 +2,12 @@ use std::error::Error;
 use std::sync::Arc;
 use std::sync::mpsc::{sync_channel, SyncSender, Receiver, TryRecvError};
 use std::thread;
+use std::borrow::Cow;
 use time::{SteadyTime, Duration};
 use vecmath::*;
 use glium;
 use glium::backend::Facade;
-use glium::{VertexBuffer, IndexBuffer, ProgramCreationError, Program, Surface, DrawParameters};
+use glium::{VertexBuffer,vertex, IndexBuffer, ProgramCreationError, Program, Surface, DrawParameters};
 use glium::index::PrimitiveType;
 use geometry::{Direction, CORNER_OFFSET, CUBE_FACES};
 use world::{BlockPos, World};
@@ -79,8 +80,6 @@ pub struct BlockOverlay {
     i_buf: IndexBuffer<u32>,
     receiver: Receiver<Vec<Vertex>>,
 }
-
-implement_vertex!(Vertex,position,color);
 
 #[derive(Debug)]
 pub enum OverlayDrawError {
@@ -169,10 +168,23 @@ fn update_overlay(mut overlay: Box<OverlayDataSupplier>, sender: SyncSender<Vec<
     }
 }
 
+#[repr(C)]
 #[derive(Clone, Copy, Debug)]
 struct Vertex {
     position: [f32; 3],
     color: [f32; 3],
+}
+
+//workaround for bug in implement_vertex macro
+//glium issue #1607
+impl vertex::Vertex for Vertex{
+    fn build_bindings()->vertex::VertexFormat{
+        static VERTEX_FORMAT:[(Cow<'static,str>,usize,vertex::AttributeType,bool);2]=[
+            (Cow::Borrowed("position"),0,vertex::AttributeType::F32F32F32,false),
+            (Cow::Borrowed("color"),4*3,vertex::AttributeType::F32F32F32,false),
+        ];
+        Cow::Borrowed(&VERTEX_FORMAT)
+    }
 }
 
 const VERTEX_SRC: &'static str = r#"
