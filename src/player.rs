@@ -11,11 +11,19 @@ pub struct Player {
     ignores_physics: bool,
 }
 
+pub const PLAYER_SIZE: [f64; 3] = [0.6, 1.8, 0.6];
+const PLAYER_VIEW_Y: f64 = 1.6;
+const PLAYER_CAMERA_OFFSET: [f64; 3] = [
+    PLAYER_SIZE[0] / 2.,
+    PLAYER_VIEW_Y,
+    PLAYER_SIZE[2] / 2.,
+];
+
 impl Player {
     pub fn new() -> Self {
         Player {
-            physics: PhysObject::new([0.6, 1.8, 0.6]),
-            camera: Camera::new([0.; 3]),
+            physics: PhysObject::new(PLAYER_SIZE),
+            camera: Camera::new(PLAYER_CAMERA_OFFSET),
             yaw: 0.,
             pitch: 0.,
             ignores_physics: false,
@@ -45,12 +53,13 @@ impl Player {
     }
 
     pub fn tick(&mut self, world: &WorldReadGuard) {
+        use vecmath::vec3_add;
         if self.ignores_physics {
             self.physics.tick(None, false);
         } else {
             self.physics.tick(Some(world), true);
         }
-        self.camera.position = self.physics.position();
+        self.camera.position = vec3_add(self.physics.position(), PLAYER_CAMERA_OFFSET);
     }
 
     pub fn set_movement(&mut self, m: [f64; 3]) {

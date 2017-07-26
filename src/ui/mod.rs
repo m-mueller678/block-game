@@ -84,33 +84,29 @@ impl Ui {
             if !self.running {
                 break;
             }
-            let (position, forward) = {
+            let (camera_position, forward) = {
                 let player = self.player.lock().unwrap();
-                (player.position(), player.look_direction())
+                (player.camera().position, player.look_direction())
             };
-            self.update_block_target(position, forward);
-            self.write_cursor();
+            self.update_block_target(camera_position, forward);
+            self.write_cursor(camera_position,forward);
             let pos = BlockPos([
-                position[0].floor() as i32,
-                position[1].floor() as i32,
-                position[2].floor() as i32
+                camera_position[0].floor() as i32,
+                camera_position[1].floor() as i32,
+                camera_position[2].floor() as i32
             ]);
             self.world_render.update(&pos, &self.world.read(), &self.display);
             self.render();
         }
     }
 
-    fn write_cursor(&mut self) {
+    fn write_cursor(&mut self,position:[f64;3],player_forward:[f64;3]) {
         let look_at = self.block_target.clone().unwrap_or(ray::BlockIntersection {
             block: BlockPos([1_000_000, 1_000_000, 1_000_000]),
             face: Direction::PosX,
         });
         let look_at_base = [look_at.block[0] as f32, look_at.block[1] as f32, look_at.block[2] as f32];
         let look_at_corners = CUBE_FACES[look_at.face as usize];
-        let (position, player_forward) = {
-            let player = self.player.lock().unwrap();
-            (player.position(), player.look_direction())
-        };
         let center = to_f32(vec3_add(position, vec3_scale(player_forward, 10.)));
         self.cursor_line_vertices.write(&[
             //cursor
