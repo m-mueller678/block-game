@@ -109,7 +109,7 @@ impl Object {
                 }
             }
         }
-        let collide_time = (min_collide_pos - move_front) / self.v[axis];
+        let collide_time = ((min_collide_pos - move_front) / self.v[axis]).max(0.);
         if collide_time < TICK_TIME {
             self.p[axis] += self.v[axis] * collide_time;
             self.v[axis] = 0.;
