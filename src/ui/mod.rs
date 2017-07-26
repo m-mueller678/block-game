@@ -209,7 +209,6 @@ impl Ui {
     }
 
     fn update_block_target(&mut self, position: [f64; 3], forward: [f64; 3]) {
-        //TODO make rays work with f64
         let new_block_target = self.world.read().block_ray_trace(to_f32(position), to_f32(forward), 100.);
         if new_block_target != self.block_target {
             self.block_target = new_block_target.clone();
