@@ -4,24 +4,28 @@ mod chunk_loading;
 pub mod random;
 pub mod biome;
 pub mod generator;
+pub mod timekeeper;
 
 pub use self::random::{WorldRngSeeder,WorldGenRng};
 pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use block::AtomicBlockId;
 use block::BlockRegistry;
-use std::sync::{Arc, RwLock, RwLockReadGuard};
+use std::sync::{Arc, RwLock, RwLockReadGuard,Mutex,MutexGuard};
 use self::chunk_loading::LoadMap;
 use self::generator::Generator;
 use self::biome::BiomeRegistry;
+use timekeeper::Timekeeper;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
+pub type TimeGuard<'a>=MutexGuard<'a,Timekeeper>;
 
 pub struct World {
     chunks: RwLock<ChunkMap>,
     inserter: Inserter,
     loaded: LoadMap,
     biomes: Arc<BiomeRegistry>,
+    time: Mutex<Timekeeper>,
 }
 
 impl World {
@@ -31,7 +35,12 @@ impl World {
             inserter: Inserter::new(gen),
             loaded: LoadMap::new(),
             biomes:biomes,
+            time:Mutex::new(Timekeeper::new()),
         }
+    }
+
+    pub fn time(&self)->TimeGuard{
+        self.time.lock().unwrap()
     }
 
     pub fn generator(&self)->&Generator{

@@ -11,7 +11,6 @@ use geometry::*;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
 use window_util;
 use player::Player;
-use timekeeper::Timekeeper;
 use cam::Camera;
 
 mod keyboard_state;
@@ -45,7 +44,6 @@ pub struct Ui {
     player: Arc<Mutex<Player>>,
     key_state: KeyboardState,
     running: bool,
-    time: Arc<Mutex<Timekeeper>>,
     camera: Camera<f64>,
 }
 
@@ -57,7 +55,6 @@ impl Ui {
         textures: CompressedSrgbTexture2dArray,
         world: Arc<World>,
         player: Arc<Mutex<Player>>,
-        time:Arc<Mutex<Timekeeper>>,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new
             (&display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
@@ -79,7 +76,6 @@ impl Ui {
             player: player,
             key_state: KeyboardState::new(),
             running: true,
-            time: time,
             camera: camera,
         };
         ret.load_overlays();
@@ -98,7 +94,7 @@ impl Ui {
                 self.camera.position[2].floor() as i32
             ]);
             self.world_render.update(&pos, &self.world.read(), &self.display);
-            let time = self.time.lock().unwrap().sub_tick_time();
+            let time = self.world.time().sub_tick_time();
             self.camera = self.player.lock().unwrap().sub_tick_camera(time);
             self.update_block_target();
             self.write_cursor();
