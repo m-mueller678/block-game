@@ -7,12 +7,12 @@ authors = ["m-mueller678"]
 glium = "0.17.0"
 piston3d-cam = "0.3.0"
 vecmath="0.3.0"
-image = "0.12.3"
-num = "0.1.37"
-time = "0.1.36"
-rand = "0.3.15"
-noise = "0.4.0"
-threadpool = "1.3.2"
+image = "0.15.0"
+num = "0.1.40"
+time = "0.1.38"
+rand = "0.3.16"
+noise = "0.4.1"
+threadpool = "1.5.0"
 chashmap = "2.2.0"
 
 [profile.dev]

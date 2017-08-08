@@ -30,7 +30,7 @@ impl Inserter {
                 chunks: VecDeque::new(),
                 pending: Vec::new(),
             }))),
-            threads: Mutex::new(ThreadPool::new_with_name("chunk generator".into(), 3)),
+            threads: Mutex::new(ThreadPool::with_name("chunk generator".into(), 3)),
         }
     }
 
