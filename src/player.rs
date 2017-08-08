@@ -91,10 +91,10 @@ impl Player {
         }
     }
 
-    pub fn jump(&mut self){
-        if self.on_ground(){
-            let mut v=self.physics.v();
-            v[1]=4.8;
+    pub fn jump(&mut self) {
+        if self.on_ground() {
+            let mut v = self.physics.v();
+            v[1] = 4.8;
             self.physics.set_v(v);
         }
     }
@@ -107,11 +107,19 @@ impl Player {
         self.camera.forward
     }
 
-    pub fn on_ground(&self)->bool{
+    pub fn on_ground(&self) -> bool {
         self.physics.on_ground()
     }
 
-    pub fn camera(&self) -> &Camera<f64> {
-        &self.camera
+    pub fn sub_tick_camera(&self, sub_tick_time: f32) -> Camera<f64> {
+        use vecmath::*;
+        let dif=vec3_sub(self.physics.position(),self.physics.previous_tick_position());
+        let scaled=vec3_scale(dif,sub_tick_time as f64);
+        let pos=vec3_add(self.physics.previous_tick_position(),PLAYER_CAMERA_OFFSET);
+        let mut cam=Camera::new(vec3_add(pos,scaled));
+        cam.forward=self.camera.forward;
+        cam.up=self.camera.up;
+        cam.right=self.camera.right;
+        cam
     }
 }

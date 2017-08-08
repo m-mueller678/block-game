@@ -6,6 +6,7 @@ type V3 = [f64; 3];
 pub struct Object {
     p: V3,
     v: V3,
+    previous_position:V3,
     size: V3,
     on_ground:bool
 }
@@ -16,6 +17,7 @@ impl Object {
         Object {
             p: [0.; 3],
             v: [0.; 3],
+            previous_position:[0.;3],
             size: size,
             on_ground:false,
         }
@@ -37,6 +39,7 @@ impl Object {
     }
 
     pub fn tick(&mut self, collision_world: Option<&WorldReadGuard>, gravity: bool) {
+        self.previous_position=self.p;
         use vecmath::*;
         if let Some(world) = collision_world {
             for i in 0..3 {
@@ -53,6 +56,10 @@ impl Object {
 
     pub fn position(&self) -> [f64; 3] {
         self.p
+    }
+
+    pub fn previous_tick_position(&self)->[f64;3]{
+        self.previous_position
     }
 
     fn move_axis(&mut self, axis: usize, world: &WorldReadGuard) {
@@ -128,6 +135,7 @@ impl Object {
     }
 }
 
+#[allow(unused_variables)]
 fn get_block_collision(block_bounds: [[f64; 2]; 3],
                        move_axis: usize,
                        move_positive: bool,

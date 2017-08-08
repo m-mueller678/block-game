@@ -37,6 +37,7 @@ mod ui;
 mod module;
 mod physics;
 mod player;
+mod timekeeper;
 
 mod base_module;
 
@@ -54,7 +55,10 @@ fn main() {
     let w2 = world.clone();
     let player = Arc::new(Mutex::new(player::Player::new()));
     let p2 = player.clone();
+    let time=Arc::new(Mutex::new(timekeeper::Timekeeper::new()));
+    let t2=time.clone();
     thread::Builder::new().name("logic".into()).spawn(move || {
+        #[allow(unused_variables)]
         let mut chunk_load_guard;
         let mut chunk_pos = ChunkPos([2_000_000_000; 3]);
         let mut mouse_pressed_since = [None; 2];
@@ -134,9 +138,10 @@ fn main() {
             }else{
                 tick_start_time=tick_end_time;
             }
+            time.lock().unwrap().next_tick();
         }
     }).expect("cannot create main logic thread");
     let texture = start.textures.load(&display);
-    let mut ui = ui::Ui::new(display, shader, send, texture, w2, p2);
+    let mut ui = ui::Ui::new(display, shader, send, texture, w2, p2,t2);
     ui.run(&mut events_loop);
 }
