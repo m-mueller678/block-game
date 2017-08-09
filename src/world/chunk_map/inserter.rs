@@ -14,7 +14,7 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    shared: Arc<(Box<Generator>, Mutex<InsertBuffer>)>,
+    shared: Arc<(Arc<Generator>, Mutex<InsertBuffer>)>,
     threads: Mutex<ThreadPool>,
 }
 
@@ -24,7 +24,7 @@ struct InsertBuffer {
 }
 
 impl Inserter {
-    pub fn new(gen: Box<Generator>) -> Self {
+    pub fn new(gen: Arc<Generator>) -> Self {
         Inserter {
             shared: Arc::new((gen, Mutex::new(InsertBuffer {
                 chunks: VecDeque::new(),
@@ -69,7 +69,7 @@ impl Inserter {
     }
 
     fn generate_chunk(
-        shared: Arc<(Box<Generator>, Mutex<InsertBuffer>)>,
+        shared: Arc<(Arc<Generator>, Mutex<InsertBuffer>)>,
         pos: ChunkPos,
         blocks: Arc<BlockRegistry>)
     {

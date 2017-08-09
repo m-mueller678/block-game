@@ -29,7 +29,7 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(blocks: Arc<BlockRegistry>, gen: Box<Generator>,biomes:Arc<BiomeRegistry>) -> Self {
+    pub fn new(blocks: Arc<BlockRegistry>, gen: Arc<Generator>,biomes:Arc<BiomeRegistry>) -> Self {
         World {
             chunks: RwLock::new(ChunkMap::new(blocks)),
             inserter: Inserter::new(gen),

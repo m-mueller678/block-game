@@ -5,13 +5,14 @@ use world::generator::noise::NoiseParameters;
 use world::generator::overworld::{GroundGen, OverworldGenerator};
 use world::generator::structure::StructureFinder;
 use world::{WorldRngSeeder, World};
+use world::generator::Generator;
 use world::biome::*;
 
 pub struct StartComplete {
     pub biomes: Arc<BiomeRegistry>,
     pub block: Arc<BlockRegistry>,
-    pub world: Arc<World>,
     pub textures: TextureLoader,
+    generator: Arc<Generator>,
 }
 
 pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
@@ -43,12 +44,17 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
     };
     let block_registry = Arc::new(block_registry);
     let biome_registry = Arc::new(biome_registry);
-    let world = Arc::new(World::new(block_registry.clone(), Box::new(generator),biome_registry.clone()));
     StartComplete {
         block: block_registry,
         biomes: biome_registry,
-        world: world,
+        generator: Arc::new(generator),
         textures: texture_loader,
+    }
+}
+
+impl StartComplete{
+    pub fn create_world(&self)->Arc<World>{
+        Arc::new(World::new(Arc::clone(&self.block),Arc::clone(&self.generator),Arc::clone(&self.biomes)))
     }
 }
 

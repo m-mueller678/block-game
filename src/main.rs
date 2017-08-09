@@ -49,8 +49,7 @@ fn main() {
     let (send, rec) = channel();
     let (display, mut events_loop) = window_util::create_window();
     display.gl_window().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
-    let shader = graphics::Shader::new(&display).unwrap();
-    let world = start.world;
+    let world = start.create_world();
     let w2 = world.clone();
     let player = Arc::new(Mutex::new(player::Player::new()));
     let p2 = player.clone();
@@ -138,7 +137,6 @@ fn main() {
             world.time().next_tick();
         }
     }).expect("cannot create main logic thread");
-    let texture = start.textures.load(&display);
-    let mut ui = ui::Ui::new(display, shader, send, texture, w2, p2);
+    let mut ui = ui::Ui::new(display,start,send,w2,p2);
     ui.run(&mut events_loop);
 }
