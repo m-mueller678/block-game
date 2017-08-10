@@ -33,7 +33,8 @@ impl Init1 for InitT1 {
         ));
         p1.blocks.add(Block::new(
             {
-                let mut texture = [p1.textures.get("grass"); 6];
+                let mut texture = [p1.textures.get("grass_side"); 6];
+                texture[Direction::PosY as usize] = p1.textures.get("grass");
                 texture[Direction::NegY as usize] = p1.textures.get("dirt");
                 DrawType::FullOpaqueBlock(texture)
             },

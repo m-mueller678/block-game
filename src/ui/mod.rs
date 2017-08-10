@@ -55,26 +55,30 @@ impl Ui {
     }
 
     pub fn run(&mut self, events: &mut EventsLoop) {
+        use glium::Surface;
         loop {
             events.poll_events(|e| self.process_event(e));
             let draw_game=match self.state{
-                UiState::Closing=>{break;}
+                UiState::Closing=>{ break;}
                 UiState::InGame=>{true}
                 UiState::Menu(ref m)=>{
                     m.transparent()
                 }
                 UiState::Swapped=>unreachable!()
             };
+            let mut target=self.core.display.draw();
+            target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
             if draw_game{
-                self.in_game.update_and_render(&self.core,&self.state);
+                self.in_game.update_and_render(&self.core,&self.state,&mut target);
             }
             match self.state{
                 UiState::Closing|UiState::Swapped=>{unreachable!()}
                 UiState::InGame=>{}
                 UiState::Menu(ref mut menu)=>{
-                    menu.render(&mut self.core);
+                    menu.render(&self.core,&mut target);
                 }
             }
+            target.finish().unwrap();
         }
     }
 

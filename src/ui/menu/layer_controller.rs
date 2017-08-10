@@ -44,10 +44,10 @@ impl Menu for MenuLayerController {
         }
     }
 
-    fn render(&mut self, ui_core: &mut UiCore) {
+    fn render(&mut self, ui_core: & UiCore,target:&mut Frame) {
         let render_start=self.render_start();
         for mut m in &mut self.layers[render_start..]{
-            m.render(ui_core);
+            m.render(ui_core,target);
         }
     }
 }

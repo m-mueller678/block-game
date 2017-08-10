@@ -3,6 +3,13 @@ pub mod ray;
 
 pub use self::direction::*;
 
+pub struct Rectangle<T>{
+    pub top:T,
+    pub bottom:T,
+    pub left:T,
+    pub right:T,
+}
+
 pub const CORNER_OFFSET: [[f32; 3]; 8] = [
     [1., 0., 0.], [0., 0., 0.], [0., 1., 0.], [1., 1., 0.],
     [1., 0., 1.], [0., 0., 1.], [0., 1., 1.], [1., 1., 1.],

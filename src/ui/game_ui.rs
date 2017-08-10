@@ -10,6 +10,7 @@ use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
 use window_util;
 use player::Player;
 use cam::Camera;
+use module::GameData;
 use super::{KeyboardState, Message};
 pub use super::UiState;
 use super::ui_core::UiCore;
@@ -29,6 +30,7 @@ pub struct GameUi {
     current_overlay: usize,
     player: Arc<Mutex<Player>>,
     camera: Camera<f64>,
+    game_data:GameData,
 }
 
 impl GameUi {
@@ -45,6 +47,7 @@ impl GameUi {
         let camera = player.lock().unwrap().sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
+            game_data:world.game_data().clone(),
             world: world,
             world_render: WorldRender::new(),
             cursor_line_vertices: vertex_buffer,
@@ -59,7 +62,7 @@ impl GameUi {
         ret
     }
 
-    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState) {
+    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState,target:&mut Frame) {
         let pos = BlockPos([
             self.camera.position[0].floor() as i32,
             self.camera.position[1].floor() as i32,
@@ -77,7 +80,7 @@ impl GameUi {
         }
         self.update_block_target();
         self.write_cursor();
-        self.render(ui_core);
+        self.render(ui_core,target);
     }
 
     fn read_movement(kb: &KeyboardState) -> [f64; 3] {
@@ -174,7 +177,7 @@ impl GameUi {
             Some(VirtualKeyCode::I) => {
                 use super::menu::{TestMenu,MenuLayerController};
                 self.player.lock().unwrap().set_movement([0.; 3]);
-                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new())])));
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new(self.game_data.clone()))])));
             }
             _ => {}
         }
@@ -189,9 +192,7 @@ impl GameUi {
         }
     }
 
-    fn render(&mut self, ui_core: &UiCore) {
-        let mut target = ui_core.display.draw();
-        target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
+    fn render(&mut self, ui_core: &UiCore,target:&mut Frame) {
         {
             let perspective = {
                 let f = (0.5 as f32).tan();
@@ -207,13 +208,13 @@ impl GameUi {
             };
             let matrix = col_mat4_mul(perspective, mat4_cast(self.camera.orthogonal()));
             let sampler = ui_core.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
-            self.world_render.draw(&mut target, matrix, sampler, &ui_core.shader.quad).unwrap();
+            self.world_render.draw(target, matrix, sampler, &ui_core.shader.quad).unwrap();
             if let Some(overlay) = self.overlays.get_mut(self.current_overlay) {
-                overlay.0.draw(&mut target, &ui_core.shader.overlay, matrix).unwrap();
+                overlay.0.draw(target, &ui_core.shader.overlay, matrix).unwrap();
             }
             target.draw(&self.cursor_line_vertices, &self.cursor_line_indices, &ui_core.shader.line, &uniform! {transform:matrix}, &Default::default()).unwrap();
         }
-        target.finish().unwrap();
+
     }
 
     fn load_overlays(&mut self) {

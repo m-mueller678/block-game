@@ -9,7 +9,7 @@ use geometry::*;
 use super::DrawType;
 use super::quad;
 
-use super::{BlockTextureId, QuadVertex};
+use super::{TextureId, QuadVertex};
 
 pub struct RenderChunk {
     v_buf: VertexBuffer<QuadVertex>,
@@ -84,7 +84,7 @@ impl RenderChunk {
         let l7 = world.lock_chunk(&pos.facing(Direction::PosX));
         (l4, [l7, l1, l6, l2, l5, l3])
     }
-    fn push_face(buffer: &mut Vec<QuadVertex>, pos: [f32; 3], direction: Direction, texture: BlockTextureId, light: u8) {
+    fn push_face(buffer: &mut Vec<QuadVertex>, pos: [f32; 3], direction: Direction, texture: TextureId, light: u8) {
         use vecmath::vec3_add;
         let vertices = CUBE_FACES[direction as usize];
         let tex_coords = [[0., 0.], [1., 0.], [1., 1.], [0., 1.]];

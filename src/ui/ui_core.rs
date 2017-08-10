@@ -14,8 +14,16 @@ pub struct UiCore {
 
 impl UiCore{
     pub fn new(display:Display, textures: TextureLoader) ->Self{
+        let shader=match Shader::new(&display){
+            Ok(s)=>s,
+            Err(e)=>{
+                use std::process::exit;
+                eprintln!("shader compilation failed:\n{}",e);
+                exit(1);
+            }
+        };
         UiCore{
-            shader:Shader::new(&display).unwrap(),
+            shader:shader,
             textures: textures.load(&display),
             display,
             key_state:KeyboardState::new(),

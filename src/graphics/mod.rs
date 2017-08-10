@@ -6,14 +6,28 @@ mod line;
 mod chunk;
 mod block;
 mod world;
+mod render_buffer;
 #[allow(dead_code)]
 mod block_overlay;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TextureId(u32);
+
+impl TextureId {
+    pub fn new(i: u32) -> Self {
+        TextureId(i)
+    }
+    pub fn to_u32(&self)->u32{
+        self.0
+    }
+}
+
 pub use self::chunk::{RenderChunk, ChunkUniforms};
-pub use self::block::{BlockTextureId, DrawType};
+pub use self::block::DrawType;
 pub use self::world::WorldRender;
 pub use self::line::Vertex as LineVertex;
 pub use self::block_overlay::{BlockOverlay,OverlayDataSupplier,Overlay2d};
+pub use self::render_buffer::RenderBuffer2d;
 
 use self::quad::Vertex as QuadVertex;
 
@@ -21,6 +35,7 @@ pub struct Shader {
     pub quad:Program,
     pub overlay:Program,
     pub line:Program,
+    pub tri_2d:Program,
 }
 
 impl Shader {
@@ -29,6 +44,7 @@ impl Shader {
             quad: quad::load_quad_shader(facade)?,
             overlay: block_overlay::load_overlay_shader(facade)?,
             line: line::load_line_shader(facade)?,
+            tri_2d: render_buffer::load_2d_shader(facade)?,
         })
     }
 }

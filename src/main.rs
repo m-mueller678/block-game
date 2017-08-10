@@ -37,6 +37,7 @@ mod ui;
 mod module;
 mod physics;
 mod player;
+mod item;
 
 mod base_module;
 
