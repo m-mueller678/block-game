@@ -43,13 +43,13 @@ mod base_module;
 const TICK_TIME: f64 = 1. / 16.;
 
 fn main() {
-    let start = module::start([base_module::module()].iter().map(|m| m.init()));
-    let block_light = start.block.by_name("debug_light").unwrap();
+    let (game_data,textures) = module::start([base_module::module()].iter().map(|m| m.init()));
+    let block_light = game_data.blocks().by_name("debug_light").unwrap();
 
     let (send, rec) = channel();
     let (display, mut events_loop) = window_util::create_window();
     display.gl_window().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
-    let world = start.create_world();
+    let world = Arc::new(World::new(game_data));
     let w2 = world.clone();
     let player = Arc::new(Mutex::new(player::Player::new()));
     let p2 = player.clone();
@@ -137,6 +137,6 @@ fn main() {
             world.time().next_tick();
         }
     }).expect("cannot create main logic thread");
-    let mut ui = ui::Ui::new(display,start,send,w2,p2);
+    let mut ui = ui::Ui::new(display,textures,send,w2,p2);
     ui.run(&mut events_loop);
 }

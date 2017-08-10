@@ -153,7 +153,7 @@ impl GameUi {
                              world_r.natural_light(&facing_block).unwrap(),
                              world_r.artificial_light(&facing_block).unwrap()
                     );
-                    println!("gen-biome: {}", self.world.biomes()[self.world.generator().biome_at(target[0], target[2])].name());
+                    println!("gen-biome: {}", self.world.game_data().biomes()[self.world.game_data().generator().biome_at(target[0], target[2])].name());
                 } else {
                     println!()
                 }

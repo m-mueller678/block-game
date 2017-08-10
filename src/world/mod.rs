@@ -10,12 +10,10 @@ pub use self::random::{WorldRngSeeder,WorldGenRng};
 pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use block::AtomicBlockId;
-use block::BlockRegistry;
 use std::sync::{Arc, RwLock, RwLockReadGuard,Mutex,MutexGuard};
 use self::chunk_loading::LoadMap;
-use self::generator::Generator;
-use self::biome::BiomeRegistry;
 use timekeeper::Timekeeper;
+use module::GameData;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
 pub type TimeGuard<'a>=MutexGuard<'a,Timekeeper>;
@@ -24,17 +22,17 @@ pub struct World {
     chunks: RwLock<ChunkMap>,
     inserter: Inserter,
     loaded: LoadMap,
-    biomes: Arc<BiomeRegistry>,
+    game_data: GameData,
     time: Mutex<Timekeeper>,
 }
 
 impl World {
-    pub fn new(blocks: Arc<BlockRegistry>, gen: Arc<Generator>,biomes:Arc<BiomeRegistry>) -> Self {
+    pub fn new(game_data:GameData) -> Self {
         World {
-            chunks: RwLock::new(ChunkMap::new(blocks)),
-            inserter: Inserter::new(gen),
+            chunks: RwLock::new(ChunkMap::new(Arc::clone(&game_data))),
+            inserter: Inserter::new(Arc::clone(&game_data)),
             loaded: LoadMap::new(),
-            biomes:biomes,
+            game_data,
             time:Mutex::new(Timekeeper::new()),
         }
     }
@@ -43,12 +41,8 @@ impl World {
         self.time.lock().unwrap()
     }
 
-    pub fn generator(&self)->&Generator{
-        self.inserter.generator()
-    }
-
-    pub fn biomes(&self)->&BiomeRegistry{
-        &self.biomes
+    pub fn game_data(&self)->&GameData{
+        &self.game_data
     }
 
     pub fn read(&self) -> WorldReadGuard {

@@ -1,7 +1,7 @@
 use glium::texture::CompressedSrgbTexture2dArray;
+use block_texture_loader::TextureLoader;
 use glium::backend::glutin::Display;
 use graphics::*;
-use module::StartComplete;
 use super::KeyboardState;
 
 
@@ -13,10 +13,10 @@ pub struct UiCore {
 }
 
 impl UiCore{
-    pub fn new(display:Display,start:StartComplete)->Self{
+    pub fn new(display:Display, textures: TextureLoader) ->Self{
         UiCore{
             shader:Shader::new(&display).unwrap(),
-            textures: start.textures.load(&display),
+            textures: textures.load(&display),
             display,
             key_state:KeyboardState::new(),
         }

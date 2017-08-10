@@ -4,18 +4,19 @@ use block::{BlockRegistry, BlockId};
 use world::generator::noise::NoiseParameters;
 use world::generator::overworld::{GroundGen, OverworldGenerator};
 use world::generator::structure::StructureFinder;
-use world::{WorldRngSeeder, World};
+use world::WorldRngSeeder;
 use world::generator::Generator;
 use world::biome::*;
 
-pub struct StartComplete {
-    pub biomes: Arc<BiomeRegistry>,
-    pub block: Arc<BlockRegistry>,
-    pub textures: TextureLoader,
-    generator: Arc<Generator>,
+pub type GameData=Arc<GameDataInner>;
+
+pub struct GameDataInner {
+    biomes: BiomeRegistry,
+    block: BlockRegistry,
+    generator: Box<Generator>,
 }
 
-pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
+pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader) {
     let mut block_registry = BlockRegistry::new();
     let mut texture_loader = TextureLoader::new();
     let mut biome_registry = BiomeRegistry::new();
@@ -42,19 +43,22 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> StartComplete {
         }).collect();
         p2.build(block_registry.by_name("stone").unwrap(), &WorldRngSeeder::new(42))
     };
-    let block_registry = Arc::new(block_registry);
-    let biome_registry = Arc::new(biome_registry);
-    StartComplete {
+    (Arc::new(GameDataInner {
         block: block_registry,
         biomes: biome_registry,
-        generator: Arc::new(generator),
-        textures: texture_loader,
-    }
+        generator: Box::new(generator),
+    }), texture_loader)
 }
 
-impl StartComplete{
-    pub fn create_world(&self)->Arc<World>{
-        Arc::new(World::new(Arc::clone(&self.block),Arc::clone(&self.generator),Arc::clone(&self.biomes)))
+impl GameDataInner {
+    pub fn generator(&self)->&Generator{
+        &*self.generator
+    }
+    pub fn blocks(&self)->&BlockRegistry{
+        &self.block
+    }
+    pub fn biomes(&self)->&BiomeRegistry{
+        &self.biomes
     }
 }
 

@@ -1,10 +1,10 @@
 use std::collections::hash_map::*;
-use std::sync::Arc;
 use std::sync::atomic::{Ordering};
 use num::Integer;
-use block::{BlockId, BlockRegistry, LightType};
+use block::{BlockId, LightType};
 use geometry::{Direction};
 use geometry::ray::{Ray, BlockIntersection};
+use module::GameData;
 
 mod inserter;
 mod position;
@@ -20,14 +20,14 @@ use self::lighting::*;
 
 pub struct ChunkMap {
     chunks: HashMap<[i32; 3], Box<Chunk>>,
-    blocks: Arc<BlockRegistry>,
+    game_data: GameData,
 }
 
 impl ChunkMap {
-    pub fn new(blocks: Arc<BlockRegistry>) -> Self {
+    pub fn new(game_data: GameData) -> Self {
         ChunkMap {
             chunks: HashMap::new(),
-            blocks: blocks,
+            game_data: game_data,
         }
     }
     pub fn remove_chunk(&mut self, pos: &ChunkPos) -> Option<Box<Chunk>> {
@@ -41,7 +41,7 @@ impl ChunkMap {
                 before = chunk.data[*pos].load();
                 chunk.data[*pos].store(block);
             }
-            match (*self.blocks.light_type(before), *self.blocks.light_type(block)) {
+            match (*self.game_data.blocks().light_type(before), *self.game_data.blocks().light_type(block)) {
                 (LightType::Transparent, LightType::Transparent)
                 | (LightType::Opaque, LightType::Opaque) => {}
                 (LightType::Source(s1), LightType::Source(s2)) => {
@@ -71,7 +71,7 @@ impl ChunkMap {
                 }
             }
             chunk.update_render.store(true, Ordering::Release);
-            if self.blocks.is_opaque_draw(before) ^ self.blocks.is_opaque_draw(block) {
+            if self.game_data.blocks().is_opaque_draw(before) ^ self.game_data.blocks().is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
             }
             Ok(())
@@ -93,6 +93,10 @@ impl ChunkMap {
             pos[2].div_floor(&(CHUNK_SIZE as i32)),
         ])
     }
+    pub fn game_data(&self) -> &GameData {
+        &self.game_data
+    }
+
     pub fn lock_chunk(&self, pos: &ChunkPos) -> Option<ChunkReader> {
         self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
     }
@@ -106,7 +110,7 @@ impl ChunkMap {
                 return None;
             }
             if let Some(id) = self.get_block(&intersect.block) {
-                if self.blocks.is_opaque_draw(id) {
+                if self.game_data.blocks().is_opaque_draw(id) {
                     return Some(intersect)
                 }
             }
@@ -131,9 +135,6 @@ impl ChunkMap {
         } else {
             None
         }
-    }
-    pub fn blocks(&self) -> &BlockRegistry {
-        &*self.blocks
     }
     fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
         ArtificialLightMap::new(&self, ChunkCache::new(p, &self).unwrap())
@@ -205,7 +206,7 @@ impl ChunkMap {
         }
     }
     fn borrow_chunk(&self, p: &ChunkPos) -> Option<&Chunk> {
-        self.chunks.get(&[p[0], p[1], p[2]]).map(|b|b.as_ref())
+        self.chunks.get(&[p[0], p[1], p[2]]).map(|b| b.as_ref())
     }
 }
 

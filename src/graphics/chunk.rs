@@ -24,7 +24,7 @@ pub struct ChunkUniforms<'a> {
 
 impl RenderChunk {
     pub fn new<F: Facade>(facade: &F, world: &WorldReadGuard, pos: &ChunkPos) -> Self {
-        let vertex = Self::get_vertices(world, world.blocks(), pos);
+        let vertex = Self::get_vertices(world, world.game_data().blocks(), pos);
         let index = quad::get_triangle_indices(vertex.len() / 4);
         RenderChunk {
             v_buf: VertexBuffer::new(facade, &vertex).unwrap(),
@@ -32,7 +32,7 @@ impl RenderChunk {
         }
     }
     pub fn update(&mut self, world: &WorldReadGuard, pos: &ChunkPos) {
-        let vertex = Self::get_vertices(world, world.blocks(), pos);
+        let vertex = Self::get_vertices(world, world.game_data().blocks(), pos);
         let index = quad::get_triangle_indices(vertex.len() / 4);
         let facade = self.v_buf.get_context().clone();
         self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();

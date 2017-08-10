@@ -5,11 +5,11 @@ use std::sync::{Arc, Mutex};
 use world::World;
 use geometry::*;
 use player::Player;
-use module::StartComplete;
+use block_texture_loader::TextureLoader;
 use self::game_ui::GameUi;
 use self::keyboard_state::KeyboardState;
 use self::menu::{Menu,MenuLayerController,EventResult};
-use self::ui_core::UiCore;
+pub use self::ui_core::UiCore;
 
 
 mod keyboard_state;
@@ -41,12 +41,12 @@ pub struct Ui {
 impl Ui {
     pub fn new(
         display:Display,
-        game_data:StartComplete,
+        textures:TextureLoader,
         event_sender: Sender<Message>,
         world: Arc<World>,
         player: Arc<Mutex<Player>>,
     ) -> Self {
-        let core=UiCore::new(display,game_data);
+        let core=UiCore::new(display,textures);
         Ui {
             in_game: GameUi::new(event_sender, world, player, &core),
             core: core,
