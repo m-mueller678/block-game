@@ -11,7 +11,8 @@ use window_util;
 use player::Player;
 use cam::Camera;
 use super::{KeyboardState, Message};
-pub use super::ui_core::UiCore;
+pub use super::UiState;
+use super::ui_core::UiCore;
 
 fn to_f32(v: [f64; 3]) -> [f32; 3] {
     [v[0] as f32, v[1] as f32, v[2] as f32]
@@ -58,7 +59,7 @@ impl GameUi {
         ret
     }
 
-    pub fn work(&mut self, ui_core: &UiCore) {
+    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState) {
         let pos = BlockPos([
             self.camera.position[0].floor() as i32,
             self.camera.position[1].floor() as i32,
@@ -66,10 +67,12 @@ impl GameUi {
         ]);
         self.world_render.update(&pos, &self.world.read(), &ui_core.display);
         {
-            let movement = Self::read_movement(&ui_core.key_state);
             let mut player = self.player.lock().unwrap();
             let time = self.world.time().sub_tick_time();
-            player.set_movement(movement);
+            if let UiState::InGame = *state {
+                let movement = Self::read_movement(&ui_core.key_state);
+                player.set_movement(movement);
+            }
             self.camera = player.sub_tick_camera(time);
         }
         self.update_block_target();
@@ -112,10 +115,10 @@ impl GameUi {
         ]);
     }
 
-    pub fn process_window_event(&mut self, evt: &WindowEvent, ui_core: &UiCore) {
+    pub fn process_window_event(&mut self, evt: &WindowEvent, ui_core: &mut UiCore, state: &mut UiState) {
         match *evt {
             WindowEvent::KeyboardInput { input, .. } => {
-                self.process_keyboard_event(&input)
+                self.process_keyboard_event(&input,state)
             }
             WindowEvent::MouseMoved { position: (x, y), .. } => {
                 //TODO use raw input
@@ -133,7 +136,7 @@ impl GameUi {
         }
     }
 
-    fn process_keyboard_event(&mut self, key: &KeyboardInput) {
+    fn process_keyboard_event(&mut self, key: &KeyboardInput, state: &mut UiState) {
         if key.state != ElementState::Pressed {
             return;
         }
@@ -167,6 +170,11 @@ impl GameUi {
             }
             Some(VirtualKeyCode::Space) => {
                 self.player.lock().unwrap().jump();
+            }
+            Some(VirtualKeyCode::I) => {
+                use super::menu::{TestMenu,MenuLayerController};
+                self.player.lock().unwrap().set_movement([0.; 3]);
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new())])));
             }
             _ => {}
         }

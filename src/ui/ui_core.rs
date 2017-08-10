@@ -4,17 +4,12 @@ use graphics::*;
 use module::StartComplete;
 use super::KeyboardState;
 
-pub enum UiState {
-    Closing,
-    InGame,
-}
 
 pub struct UiCore {
     pub display: Display,
     pub shader: Shader,
     pub textures: CompressedSrgbTexture2dArray,
     pub key_state: KeyboardState,
-    pub state: UiState,
 }
 
 impl UiCore{
@@ -24,7 +19,6 @@ impl UiCore{
             textures: start.textures.load(&display),
             display,
             key_state:KeyboardState::new(),
-            state: UiState::InGame,
         }
     }
 }
