@@ -57,7 +57,7 @@ impl ItemStack for BlockItem {
             }
         }
     }
-    fn stack_from(&mut self, _: &GameData, _: Box<Self>) -> Option<Box<Self>> {
+    fn stack_from(&mut self, _: &GameData, _: Box<ItemStack>) -> Option<Box<ItemStack>> {
         unimplemented!()
     }
 }
