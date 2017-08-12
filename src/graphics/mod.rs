@@ -6,7 +6,7 @@ mod line;
 mod chunk;
 mod block;
 mod world;
-mod render_buffer;
+mod virtual_display;
 #[allow(dead_code)]
 mod block_overlay;
 
@@ -27,7 +27,7 @@ pub use self::block::DrawType;
 pub use self::world::WorldRender;
 pub use self::line::Vertex as LineVertex;
 pub use self::block_overlay::{BlockOverlay,OverlayDataSupplier,Overlay2d};
-pub use self::render_buffer::RenderBuffer2d;
+pub use self::virtual_display::{RenderBuffer2d,VirtualDisplay,TransformedDisplay};
 
 use self::quad::Vertex as QuadVertex;
 
@@ -44,7 +44,7 @@ impl Shader {
             quad: quad::load_quad_shader(facade)?,
             overlay: block_overlay::load_overlay_shader(facade)?,
             line: line::load_line_shader(facade)?,
-            tri_2d: render_buffer::load_2d_shader(facade)?,
+            tri_2d: virtual_display::load_2d_shader(facade)?,
         })
     }
 }
