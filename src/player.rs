@@ -2,6 +2,7 @@ use std::f64::consts::PI;
 use cam::Camera;
 use world::WorldReadGuard;
 use physics::Object as PhysObject;
+use item::SlotStorage;
 
 pub struct Player {
     physics: PhysObject,
@@ -9,6 +10,7 @@ pub struct Player {
     yaw: f64,
     pitch: f64,
     ignores_physics: bool,
+    inventory:SlotStorage
 }
 
 pub const PLAYER_SIZE: [f64; 3] = [0.6, 1.8, 0.6];
@@ -27,6 +29,7 @@ impl Player {
             yaw: 0.,
             pitch: 0.,
             ignores_physics: false,
+            inventory: SlotStorage::new(40),
         }
     }
 
@@ -121,5 +124,13 @@ impl Player {
         cam.up=self.camera.up;
         cam.right=self.camera.right;
         cam
+    }
+
+    pub fn inventory(&self)->&SlotStorage{
+        &self.inventory
+    }
+
+    pub fn inventory_mut(&mut self)->&mut SlotStorage{
+        &mut self.inventory
     }
 }

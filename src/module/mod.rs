@@ -7,6 +7,9 @@ use world::generator::structure::StructureFinder;
 use world::WorldRngSeeder;
 use world::generator::Generator;
 use world::biome::*;
+pub use self::core_textures::CoreTextureMap;
+
+mod core_textures;
 
 pub type GameData=Arc<GameDataInner>;
 
@@ -14,6 +17,7 @@ pub struct GameDataInner {
     biomes: BiomeRegistry,
     block: BlockRegistry,
     generator: Box<Generator>,
+    core_textures:CoreTextureMap,
 }
 
 pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader) {
@@ -47,6 +51,7 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader
         block: block_registry,
         biomes: biome_registry,
         generator: Box::new(generator),
+        core_textures:CoreTextureMap::new(&mut texture_loader)
     }), texture_loader)
 }
 
@@ -59,6 +64,9 @@ impl GameDataInner {
     }
     pub fn biomes(&self)->&BiomeRegistry{
         &self.biomes
+    }
+    pub fn core_textures(&self)->&CoreTextureMap{
+        &self.core_textures
     }
 }
 

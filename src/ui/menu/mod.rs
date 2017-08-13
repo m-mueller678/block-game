@@ -2,8 +2,11 @@ use glium::glutin::WindowEvent;
 use glium::Frame;
 use super::ui_core::UiCore;
 pub use self::layer_controller::MenuLayerController;
+pub use self::accessor::{Accessor, BoundedAccessor};
 
 mod layer_controller;
+mod items;
+pub mod accessor;
 
 #[must_use]
 pub enum EventResult {
@@ -18,46 +21,75 @@ pub trait Menu {
     fn render(&mut self, &UiCore, &mut Frame);
 }
 
-
 use module::GameData;
+use player::Player;
+use std::sync::{Arc, Mutex};
+use geometry::Rectangle;
+use item::Slot;
+use self::accessor::PlayerInventoryAccessor;
+use self::items::InventoryUi;
 
 pub struct TestMenu {
-    game_data: GameData
+    inventory: InventoryUi<PlayerInventoryAccessor>,
 }
 
 impl TestMenu {
-    pub fn new(game_data: GameData) -> Self {
+    const INVENTORY_AREA: Rectangle<f32> = Rectangle {
+        min_y: 0.3,
+        max_y: 0.6,
+        min_x: 0.3,
+        max_x: 0.7,
+    };
+    pub fn new(game_data: GameData, player: Arc<Mutex<Player>>) -> Self {
         println!("create test menu");
-        TestMenu { game_data }
+        TestMenu {
+            inventory: InventoryUi::new(10, game_data, PlayerInventoryAccessor::new(player))
+        }
     }
 }
 
 impl Menu for TestMenu {
     fn transparent(&self) -> bool { true }
-    fn process_event(&mut self, e: &WindowEvent, _: &mut UiCore) -> EventResult {
+
+    fn process_event(&mut self, e: &WindowEvent, ui_core: &mut UiCore) -> EventResult {
         use glium::glutin::*;
-        if let WindowEvent::KeyboardInput { input: KeyboardInput { state: ElementState::Pressed, virtual_keycode, .. }, .. } = *e {
-            match virtual_keycode {
-                Some(VirtualKeyCode::Escape) => {
-                    EventResult::MenuClosed
-                }
-                Some(VirtualKeyCode::I) => {
-                    EventResult::NewMenu(Box::new(TestMenu::new(self.game_data.clone())))
-                }
-                _ => EventResult::Processed,
+        match *e {
+            WindowEvent::KeyboardInput {
+                input: KeyboardInput {
+                    state: ElementState::Pressed,
+                    virtual_keycode: Some(VirtualKeyCode::Escape),
+                    ..
+                },
+                ..
+            } => {
+                EventResult::MenuClosed
             }
-        } else {
-            EventResult::Processed
+            WindowEvent::MouseInput {
+                button: MouseButton::Left,
+                state: ElementState::Pressed,
+                ..
+            } => {
+                let pos = Self::INVENTORY_AREA.pos_to_local(ui_core.mouse_position);
+                if pos.iter().all(|&x| x >= 0. && x <= 1.) {
+                    let mut held_item = Slot::new();
+                    self.inventory.click(pos[0], pos[1], &mut held_item);
+                }
+                EventResult::Processed
+            }
+            _ => EventResult::Processed
         }
     }
+
     fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         use item::{BlockItem, ItemStack};
         use geometry::Rectangle;
         use graphics::{RenderBuffer2d, VirtualDisplay};
         use glium::uniforms::SamplerWrapFunction;
-        let item = BlockItem::new(self.game_data.blocks().by_name("grass").unwrap(), 1);
         let mut render_buffer = RenderBuffer2d::new(&ui_core.display);
-        item.render(&self.game_data, ui_core, &mut render_buffer.sub_display(Rectangle { top: 0.3, bottom: 0.7, left: 0.3, right: 0.7 }));
+        {
+            let mut inventory_display = render_buffer.sub_display(Self::INVENTORY_AREA);
+            self.inventory.render(&mut inventory_display, ui_core);
+        }
         let sampler = ui_core.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
         render_buffer.render(target, &ui_core.shader.tri_2d, sampler);
     }

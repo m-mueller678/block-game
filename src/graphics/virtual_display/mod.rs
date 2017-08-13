@@ -11,6 +11,15 @@ pub trait VirtualDisplay {
     fn textured_triangle(&mut self, position: [[f32; 2]; 3], tex_coords: [[f32; 2]; 3], texture_id: TextureId, brightness: f32);
     ///position in Virtual display coordinates
     fn textured_quad(&mut self, position: [[f32; 2]; 4], tex_coords: [[f32; 2]; 4], texture_id: TextureId, brightness: f32);
+    fn fill_with_texture(&mut self, id: TextureId, brightness: f32) {
+        self.textured_quad(
+            [[0., 0.], [0., 1.], [1., 1.], [1., 0.]],
+            [[0., 1.], [0., 0.], [1., 0.], [1., 1.]],
+            id,
+            brightness
+        )
+    }
+
     fn x_y_ratio(&self) -> f32;
     ///size in ui-units; one ui-unit is the size of an item slot
     fn ui_size_x(&self) -> f32;
@@ -18,10 +27,10 @@ pub trait VirtualDisplay {
     fn ui_size_y(&self) -> f32;
     fn sub_display(&mut self, area: Rectangle<f32>) -> TransformedDisplay<Self> where Self: Sized {
         TransformedDisplay {
-            mul_x: area.right - area.left,
-            add_x: area.left,
-            mul_y: area.bottom - area.top,
-            add_y: area.top,
+            mul_x: area.max_x - area.min_x,
+            add_x: area.min_x,
+            mul_y: area.max_y - area.min_y,
+            add_y: area.min_y,
             display: self
         }
     }

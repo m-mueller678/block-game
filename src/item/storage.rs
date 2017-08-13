@@ -4,6 +4,9 @@ use std::ops::{Index, IndexMut, Deref, DerefMut};
 pub struct Slot(Option<Box<ItemStack>>);
 
 impl Slot {
+    pub fn new()->Self{
+        Slot(None)
+    }
     pub fn move_from(&mut self, game_data: &GameData, from_stack: &mut Option<Box<ItemStack>>) {
         if let Some(from) = from_stack.take() {
             if let Some(ref mut to) = self.0 {
@@ -12,6 +15,9 @@ impl Slot {
                 self.0 = Some(from);
             }
         }
+    }
+    pub fn stack(&self)->&Option<Box<ItemStack>>{
+        &self.0
     }
 }
 

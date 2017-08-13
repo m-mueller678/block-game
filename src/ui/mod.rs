@@ -8,7 +8,7 @@ use player::Player;
 use block_texture_loader::TextureLoader;
 use self::game_ui::GameUi;
 use self::keyboard_state::KeyboardState;
-use self::menu::{Menu,MenuLayerController,EventResult};
+use self::menu::{Menu, MenuLayerController, EventResult};
 pub use self::ui_core::UiCore;
 
 
@@ -33,20 +33,20 @@ pub enum Message {
 }
 
 pub struct Ui {
-    state:UiState,
+    state: UiState,
     core: UiCore,
     in_game: GameUi,
 }
 
 impl Ui {
     pub fn new(
-        display:Display,
-        textures:TextureLoader,
+        display: Display,
+        textures: TextureLoader,
         event_sender: Sender<Message>,
         world: Arc<World>,
         player: Arc<Mutex<Player>>,
     ) -> Self {
-        let core=UiCore::new(display,textures);
+        let core = UiCore::new(display, textures);
         Ui {
             in_game: GameUi::new(event_sender, world, player, &core),
             core: core,
@@ -58,24 +58,24 @@ impl Ui {
         use glium::Surface;
         loop {
             events.poll_events(|e| self.process_event(e));
-            let draw_game=match self.state{
-                UiState::Closing=>{ break;}
-                UiState::InGame=>{true}
-                UiState::Menu(ref m)=>{
+            let draw_game = match self.state {
+                UiState::Closing => { break; }
+                UiState::InGame => { true }
+                UiState::Menu(ref m) => {
                     m.transparent()
                 }
-                UiState::Swapped=>unreachable!()
+                UiState::Swapped => unreachable!()
             };
-            let mut target=self.core.display.draw();
+            let mut target = self.core.display.draw();
             target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
-            if draw_game{
-                self.in_game.update_and_render(&self.core,&self.state,&mut target);
+            if draw_game {
+                self.in_game.update_and_render(&self.core, &self.state, &mut target);
             }
-            match self.state{
-                UiState::Closing|UiState::Swapped=>{unreachable!()}
-                UiState::InGame=>{}
-                UiState::Menu(ref mut menu)=>{
-                    menu.render(&self.core,&mut target);
+            match self.state {
+                UiState::Closing | UiState::Swapped => { unreachable!() }
+                UiState::InGame => {}
+                UiState::Menu(ref mut menu) => {
+                    menu.render(&self.core, &mut target);
                 }
             }
             target.finish().unwrap();
@@ -83,7 +83,7 @@ impl Ui {
     }
 
     fn process_event(&mut self, e: Event) {
-        if let UiState::Closing=self.state{
+        if let UiState::Closing = self.state {
             return;
         }
         let id = self.core.display.gl_window().id();
@@ -93,6 +93,9 @@ impl Ui {
                     WindowEvent::KeyboardInput { input, .. } => {
                         self.core.key_state.update(&input);
                     }
+                    WindowEvent::MouseMoved { position: (x, y), .. } => {
+                        self.core.mouse_position = [x as f32, y as f32];
+                    }
                     WindowEvent::Closed => {
                         self.state = UiState::Closing;
                         return;
@@ -100,23 +103,23 @@ impl Ui {
                     _ => {}
                 }
                 use std::mem::replace;
-                self.state=match replace(&mut self.state,UiState::Swapped){
-                    UiState::Menu(mut m)=>{
-                        match m.process_event(event,&mut self.core){
-                            EventResult::Processed=>{ UiState::Menu(m) },
-                            EventResult::MenuClosed=>{ UiState::InGame },
-                            EventResult::NewMenu(pushed)=>{
+                self.state = match replace(&mut self.state, UiState::Swapped) {
+                    UiState::Menu(mut m) => {
+                        match m.process_event(event, &mut self.core) {
+                            EventResult::Processed => { UiState::Menu(m) }
+                            EventResult::MenuClosed => { UiState::InGame }
+                            EventResult::NewMenu(pushed) => {
                                 eprintln!("ui received EventResult::NewMenu");
-                                UiState::Menu(Box::new(MenuLayerController::new(vec![m,pushed])))
+                                UiState::Menu(Box::new(MenuLayerController::new(vec![m, pushed])))
                             }
                         }
-                    },
-                    UiState::InGame=>{
-                        let mut new_state=UiState::InGame;
-                        self.in_game.process_window_event(event, &mut self.core,&mut new_state);
+                    }
+                    UiState::InGame => {
+                        let mut new_state = UiState::InGame;
+                        self.in_game.process_window_event(event, &mut self.core, &mut new_state);
                         new_state
-                    },
-                    UiState::Closing|UiState::Swapped=>unreachable!()
+                    }
+                    UiState::Closing | UiState::Swapped => unreachable!()
                 };
             }
             _ => {}

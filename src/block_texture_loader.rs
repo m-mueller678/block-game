@@ -7,7 +7,9 @@ use graphics::TextureId;
 
 fn load_image(name: &str) -> glium::texture::RawImage2d<u8> {
     let mut path=PathBuf::from("textures");
-    path.push(name);
+    for element in name.split('/'){
+        path.push(element);
+    }
     path.set_extension("png");
     let file = std::io::BufReader::new(std::fs::File::open(path).unwrap());
     let image = image::load(file, image::PNG).unwrap().to_rgba();

@@ -30,7 +30,7 @@ pub struct GameUi {
     current_overlay: usize,
     player: Arc<Mutex<Player>>,
     camera: Camera<f64>,
-    game_data:GameData,
+    game_data: GameData,
 }
 
 impl GameUi {
@@ -47,7 +47,7 @@ impl GameUi {
         let camera = player.lock().unwrap().sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
-            game_data:world.game_data().clone(),
+            game_data: world.game_data().clone(),
             world: world,
             world_render: WorldRender::new(),
             cursor_line_vertices: vertex_buffer,
@@ -62,7 +62,7 @@ impl GameUi {
         ret
     }
 
-    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState,target:&mut Frame) {
+    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState, target: &mut Frame) {
         let pos = BlockPos([
             self.camera.position[0].floor() as i32,
             self.camera.position[1].floor() as i32,
@@ -80,7 +80,7 @@ impl GameUi {
         }
         self.update_block_target();
         self.write_cursor();
-        self.render(ui_core,target);
+        self.render(ui_core, target);
     }
 
     fn read_movement(kb: &KeyboardState) -> [f64; 3] {
@@ -121,7 +121,7 @@ impl GameUi {
     pub fn process_window_event(&mut self, evt: &WindowEvent, ui_core: &mut UiCore, state: &mut UiState) {
         match *evt {
             WindowEvent::KeyboardInput { input, .. } => {
-                self.process_keyboard_event(&input,state)
+                self.process_keyboard_event(&input, state)
             }
             WindowEvent::MouseMoved { position: (x, y), .. } => {
                 //TODO use raw input
@@ -175,9 +175,9 @@ impl GameUi {
                 self.player.lock().unwrap().jump();
             }
             Some(VirtualKeyCode::I) => {
-                use super::menu::{TestMenu,MenuLayerController};
+                use super::menu::{TestMenu, MenuLayerController};
                 self.player.lock().unwrap().set_movement([0.; 3]);
-                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new(self.game_data.clone()))])));
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new(self.game_data.clone(), self.player.clone()))])));
             }
             _ => {}
         }
@@ -192,7 +192,7 @@ impl GameUi {
         }
     }
 
-    fn render(&mut self, ui_core: &UiCore,target:&mut Frame) {
+    fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         {
             let perspective = {
                 let f = (0.5 as f32).tan();
@@ -214,7 +214,6 @@ impl GameUi {
             }
             target.draw(&self.cursor_line_vertices, &self.cursor_line_indices, &ui_core.shader.line, &uniform! {transform:matrix}, &Default::default()).unwrap();
         }
-
     }
 
     fn load_overlays(&mut self) {

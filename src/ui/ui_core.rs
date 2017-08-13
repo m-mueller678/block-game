@@ -10,6 +10,7 @@ pub struct UiCore {
     pub shader: Shader,
     pub textures: CompressedSrgbTexture2dArray,
     pub key_state: KeyboardState,
+    pub mouse_position:[f32;2],
 }
 
 impl UiCore{
@@ -27,6 +28,7 @@ impl UiCore{
             textures: textures.load(&display),
             display,
             key_state:KeyboardState::new(),
+            mouse_position:[0.5;2],
         }
     }
 }
