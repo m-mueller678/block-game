@@ -81,8 +81,6 @@ impl Menu for TestMenu {
     }
 
     fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
-        use item::{BlockItem, ItemStack};
-        use geometry::Rectangle;
         use graphics::{RenderBuffer2d, VirtualDisplay};
         use glium::uniforms::SamplerWrapFunction;
         let mut render_buffer = RenderBuffer2d::new(&ui_core.display);

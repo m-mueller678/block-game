@@ -25,7 +25,7 @@ impl PlayerInventoryAccessor {
     }
 }
 
-struct PlayerInventoryGuard<'a>(MutexGuard<'a, Player>);
+pub struct PlayerInventoryGuard<'a>(MutexGuard<'a, Player>);
 
 impl<'a> Deref for PlayerInventoryGuard<'a> {
     type Target = SlotStorage;

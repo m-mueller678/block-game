@@ -1,5 +1,4 @@
-use glium::glutin::MouseButton;
-use graphics::{VirtualDisplay, TextureId};
+use graphics::VirtualDisplay;
 use ui::UiCore;
 use item::{SlotStorage, Slot};
 use geometry::Rectangle;
