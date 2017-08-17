@@ -49,7 +49,6 @@ fn main() {
 
     let (send, rec) = channel();
     let (display, mut events_loop) = window_util::create_window();
-    display.gl_window().set_cursor_state(glium::glutin::CursorState::Hide).unwrap();
     let world = Arc::new(World::new(game_data));
     let w2 = world.clone();
     let player = Arc::new(Mutex::new(player::Player::new()));

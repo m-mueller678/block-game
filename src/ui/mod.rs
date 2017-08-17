@@ -46,6 +46,7 @@ impl Ui {
         world: Arc<World>,
         player: Arc<Mutex<Player>>,
     ) -> Self {
+        display.gl_window().set_cursor_state(CursorState::Hide).unwrap();
         let core = UiCore::new(display, textures);
         Ui {
             in_game: GameUi::new(event_sender, world, player, &core),
@@ -97,7 +98,7 @@ impl Ui {
                         self.core.mouse_position = [x as f32, y as f32];
                     }
                     WindowEvent::Closed => {
-                        self.state = UiState::Closing;
+                        self.state=UiState::Closing;
                         return;
                     }
                     _ => {}
@@ -106,8 +107,13 @@ impl Ui {
                 self.state = match replace(&mut self.state, UiState::Swapped) {
                     UiState::Menu(mut m) => {
                         match m.process_event(event, &mut self.core) {
-                            EventResult::Processed => { UiState::Menu(m) }
-                            EventResult::MenuClosed => { UiState::InGame }
+                            EventResult::Processed => {
+                                UiState::Menu(m)
+                            }
+                            EventResult::MenuClosed => {
+                                self.core.display.gl_window().set_cursor_state(CursorState::Hide).unwrap();
+                                UiState::InGame
+                            }
                             EventResult::NewMenu(pushed) => {
                                 eprintln!("ui received EventResult::NewMenu");
                                 UiState::Menu(Box::new(MenuLayerController::new(vec![m, pushed])))
@@ -117,6 +123,9 @@ impl Ui {
                     UiState::InGame => {
                         let mut new_state = UiState::InGame;
                         self.in_game.process_window_event(event, &mut self.core, &mut new_state);
+                        if let UiState::Menu(_)=new_state{
+                            self.core.display.gl_window().set_cursor_state(CursorState::Normal).unwrap();
+                        }
                         new_state
                     }
                     UiState::Closing | UiState::Swapped => unreachable!()
