@@ -175,9 +175,9 @@ impl GameUi {
                 self.player.lock().unwrap().jump();
             }
             Some(VirtualKeyCode::I) => {
-                use super::menu::{TestMenu, MenuLayerController};
+                use super::menu::{PlayerInventory, MenuLayerController};
                 self.player.lock().unwrap().set_movement([0.; 3]);
-                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(TestMenu::new(self.game_data.clone(), self.player.clone()))])));
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(PlayerInventory::new(self.game_data.clone(), self.player.clone()))])));
             }
             _ => {}
         }

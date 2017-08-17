@@ -1,5 +1,6 @@
 use super::*;
 use std::ops::{Index, IndexMut, Deref, DerefMut};
+use std::convert::From;
 
 pub struct Slot(Option<Box<ItemStack>>);
 
@@ -18,6 +19,12 @@ impl Slot {
     }
     pub fn stack(&self)->&Option<Box<ItemStack>>{
         &self.0
+    }
+}
+
+impl From<Box<ItemStack>> for Slot{
+    fn from(stack: Box<ItemStack>) -> Self {
+        Slot(Some(stack))
     }
 }
 
@@ -42,7 +49,7 @@ pub struct SlotStorage {
 impl SlotStorage {
     pub fn new(size:usize)->Self{
         SlotStorage{
-            slots:(0..size).map(|_|Slot(None)).collect()
+            slots:(0..size).map(|_|Slot::new()).collect()
         }
     }
     pub fn len(&self) -> usize {

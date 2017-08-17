@@ -6,7 +6,7 @@ pub mod ray;
 
 pub use self::direction::*;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct Rectangle<T> {
     pub min_y: T,
     pub max_y: T,
@@ -15,7 +15,7 @@ pub struct Rectangle<T> {
 }
 
 impl<T: Float> Rectangle<T> {
-    pub fn pos_to_local(&self, pos: [T;2]) -> [T;2] {
+    pub fn pos_to_local(&self, pos: [T; 2]) -> [T; 2] {
         [
             (pos[0] - self.min_x) / (self.max_x - self.min_x),
             (pos[1] - self.min_y) / (self.max_y - self.min_y),

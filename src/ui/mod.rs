@@ -95,10 +95,11 @@ impl Ui {
                         self.core.key_state.update(&input);
                     }
                     WindowEvent::MouseMoved { position: (x, y), .. } => {
-                        self.core.mouse_position = [x as f32, y as f32];
+                        let size = self.core.display.gl_window().get_inner_size().unwrap_or((1, 1));
+                        self.core.mouse_position = [x as f32 / size.0 as f32, y as f32 / size.1 as f32];
                     }
                     WindowEvent::Closed => {
-                        self.state=UiState::Closing;
+                        self.state = UiState::Closing;
                         return;
                     }
                     _ => {}
@@ -123,7 +124,7 @@ impl Ui {
                     UiState::InGame => {
                         let mut new_state = UiState::InGame;
                         self.in_game.process_window_event(event, &mut self.core, &mut new_state);
-                        if let UiState::Menu(_)=new_state{
+                        if let UiState::Menu(_) = new_state {
                             self.core.display.gl_window().set_cursor_state(CursorState::Normal).unwrap();
                         }
                         new_state
