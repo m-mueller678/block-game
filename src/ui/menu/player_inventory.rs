@@ -18,7 +18,7 @@ pub struct PlayerInventory {
 
 impl PlayerInventory {
     pub fn new(game_data: GameData, player: Arc<Mutex<Player>>) -> Self {
-        let stack = Box::new(BlockItem::new(game_data.blocks().by_name("grass").unwrap(), 256));
+        let stack = Box::new(BlockItem::new(game_data.blocks().by_name("grass").unwrap(), 50));
         PlayerInventory {
             inventory: InventoryUi::new(10, game_data, PlayerInventoryAccessor::new(player)),
             move_slot: (stack as Box<ItemStack>).into(),
@@ -81,6 +81,6 @@ impl Menu for PlayerInventory {
             self.inventory.render(&mut inventory_display, ui_core);
         }
         let sampler = ui_core.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
-        render_buffer.render(target, &ui_core.shader.tri_2d, sampler);
+        render_buffer.render(target, &ui_core.shader.tri_2d, sampler, &ui_core.text_system);
     }
 }

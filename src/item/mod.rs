@@ -9,7 +9,9 @@ pub use self::storage::{SlotStorage, Slot};
 mod block_item;
 mod storage;
 
-pub trait ItemStack where Self: Any +Send{
+pub trait ItemStack where Self: Any + Send {
     fn render(&self, &GameData, &UiCore, &mut VirtualDisplay);
     fn stack_from(&mut self, &GameData, Box<ItemStack>) -> Option<Box<ItemStack>>;
+    fn stack_size(&self) -> usize;
+    fn display_stack_size(&self) -> bool { true }
 }

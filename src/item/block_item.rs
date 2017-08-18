@@ -3,15 +3,20 @@ use module::GameData;
 use ui::UiCore;
 use super::*;
 
+const MAX_STACK_SIZE: usize = 99;
+
 pub struct BlockItem {
     block_id: BlockId,
+    count: usize
 }
 
 impl BlockItem {
-    pub fn new(block: BlockId, count: u32) -> Self {
-        let _ =count;
+    pub fn new(block: BlockId, count: usize) -> Self {
+        assert!(count <= MAX_STACK_SIZE);
+        assert!(count > 0);
         BlockItem {
             block_id: block,
+            count,
         }
     }
 }
@@ -27,27 +32,30 @@ impl ItemStack for BlockItem {
             DrawType::None => {}
             DrawType::FullOpaqueBlock(textures) => {
                 render_buffer.textured_quad(
-                    [[0.5, 2. * H], [0.5+W, H], [0.5, 0.], [0.5-W, H]],
+                    [[0.5, 2. * H], [0.5 + W, H], [0.5, 0.], [0.5 - W, H]],
                     [[0., 1.], [0., 0.], [1., 0.], [1., 1.]],
                     textures[Direction::PosY as usize],
                     0.4
                 );
                 render_buffer.textured_quad(
-                    [[0.5, 2. * H], [0.5-W, H], [0.5-W, H + D], [0.5, 2. * H + D]],
+                    [[0.5, 2. * H], [0.5 - W, H], [0.5 - W, H + D], [0.5, 2. * H + D]],
                     [[1., 1.], [0., 1.], [0., 0.], [1., 0.]],
                     textures[Direction::PosX as usize],
-                    0.4*0.5
+                    0.4 * 0.5
                 );
                 render_buffer.textured_quad(
-                    [[0.5+W, H], [0.5, 2. * H], [0.5, 2. * H + D], [0.5+W, H + D]],
+                    [[0.5 + W, H], [0.5, 2. * H], [0.5, 2. * H + D], [0.5 + W, H + D]],
                     [[1., 1.], [0., 1.], [0., 0.], [1., 0.]],
                     textures[Direction::PosX as usize],
-                    0.4*0.25
+                    0.4 * 0.25
                 );
             }
         }
     }
     fn stack_from(&mut self, _: &GameData, _: Box<ItemStack>) -> Option<Box<ItemStack>> {
         unimplemented!()
+    }
+    fn stack_size(&self) -> usize {
+        self.count
     }
 }

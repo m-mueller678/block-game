@@ -14,6 +14,8 @@ rand = "0.3.16"
 noise = "0.4.1"
 threadpool = "1.5.0"
 chashmap = "2.2.0"
+glium_text_rusttype="0.2.0"
+font-loader = "0.3.2"
 
 [profile.dev]
 opt-level=1

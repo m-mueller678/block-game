@@ -6,6 +6,9 @@ use glium::texture::CompressedSrgbTexture2dArray;
 use glium::backend::Facade;
 use graphics::TextureId;
 use glium::backend::Context;
+use glium_text_rusttype::{TextDisplay, draw, TextSystem};
+use geometry::Rectangle;
+use graphics::FontTextureHandle;
 use super::VirtualDisplay;
 
 pub struct RenderBuffer2d {
@@ -15,6 +18,7 @@ pub struct RenderBuffer2d {
     width: f32,
     height: f32,
     context: Rc<Context>,
+    text_displays: Vec<(Rc<TextDisplay<FontTextureHandle>>, Rectangle<f32>)>
 }
 
 pub fn load_2d_shader<F: Facade>(facade: &F) -> Result<Program, ProgramCreationError> {
@@ -50,6 +54,9 @@ impl VirtualDisplay for RenderBuffer2d {
         self.indices.push(first_index + 3);
         self.indices.push(first_index + 0);
     }
+    fn text(&mut self, text: Rc<TextDisplay<FontTextureHandle>>, pos: Rectangle<f32>) {
+        self.text_displays.push((text, pos));
+    }
     fn x_y_ratio(&self) -> f32 {
         self.x_y_ratio
     }
@@ -68,16 +75,34 @@ impl RenderBuffer2d {
             vertices: Vec::new(),
             indices: Vec::new(),
             x_y_ratio: size.map(|(x, y)| x as f32 / y as f32).unwrap_or(1.),
-            width: size.map(|(x, _)| x as f32/50.).unwrap_or(20.),
-            height: size.map(|(_, y)| y as f32/50.).unwrap_or(20.),
+            width: size.map(|(x, _)| x as f32 / 50.).unwrap_or(20.),
+            height: size.map(|(_, y)| y as f32 / 50.).unwrap_or(20.),
             context: display.get_context().clone(),
-
+            text_displays: Vec::new(),
         }
     }
-    pub fn render<S: Surface>(&self, surface: &mut S, tri_shader: &Program, sampler: uniforms::Sampler<CompressedSrgbTexture2dArray>) {
+    pub fn render<S: Surface>(
+        &self,
+        surface: &mut S,
+        tri_shader: &Program,
+        sampler: uniforms::Sampler<CompressedSrgbTexture2dArray>,
+        text_system: &TextSystem
+    ) {
         let v_buf = VertexBuffer::new(&self.context, &self.vertices).unwrap();
         let i_buf = IndexBuffer::new(&self.context, index::PrimitiveType::TrianglesList, &self.indices).unwrap();
         surface.draw(&v_buf, &i_buf, tri_shader, &uniform! {sampler:sampler}, &Default::default()).unwrap();
+        for text in &self.text_displays {
+            let scale_x = 2. / text.0.get_width() * (text.1.max_x - text.1.min_x);
+            let scale_y = 2. / text.0.get_height() * (text.1.max_y - text.1.min_y);
+            let pos = Self::map_to_gl([text.1.min_x, text.1.max_y]);
+            let matrix = [
+                [scale_x, 0., 0., 0.],
+                [0., scale_y, 0., 0.],
+                [0., 0., 1., 0.],
+                [pos[0], pos[1], 0., 1.],
+            ];
+            draw(&text.0, text_system, surface, matrix, (1., 1., 1., 1.)).unwrap();
+        }
     }
     fn map_to_gl(p: [f32; 2]) -> [f32; 2] {
         [p[0].mul_add(2., -1.), p[1].mul_add(-2., 1.)]

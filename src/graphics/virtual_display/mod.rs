@@ -1,5 +1,7 @@
+use std::rc::Rc;
+use glium_text_rusttype::TextDisplay;
 pub use self::render_buffer::{RenderBuffer2d, load_2d_shader};
-use graphics::TextureId;
+use graphics::{TextureId, FontTextureHandle};
 use geometry::Rectangle;
 
 mod render_buffer;
@@ -19,6 +21,8 @@ pub trait VirtualDisplay {
             brightness
         )
     }
+
+    fn text(&mut self, Rc<TextDisplay<FontTextureHandle>>, pos: Rectangle<f32>);
 
     fn x_y_ratio(&self) -> f32;
     ///size in ui-units; one ui-unit is the size of an item slot
@@ -47,9 +51,15 @@ pub struct TransformedDisplay<'a, D: 'a + VirtualDisplay> {
 impl<'a, D: 'a + VirtualDisplay> TransformedDisplay<'a, D> {
     fn map(&self, pos: [f32; 2]) -> [f32; 2] {
         [
-            pos[0].mul_add(self.mul_x, self.add_x),
-            pos[1].mul_add(self.mul_y, self.add_y),
+            self.map_x(pos[0]),
+            self.map_y(pos[1]),
         ]
+    }
+    fn map_x(&self, x: f32) -> f32 {
+        x.mul_add(self.mul_x, self.add_x)
+    }
+    fn map_y(&self, y: f32) -> f32 {
+        y.mul_add(self.mul_y, self.add_y)
     }
 }
 
@@ -66,6 +76,15 @@ impl<'a, D: 'a + VirtualDisplay> VirtualDisplay for TransformedDisplay<'a, D> {
             self.map(position[3]),
         ];
         self.display.textured_quad(position, tex_coords, texture_id, brightness);
+    }
+    fn text(&mut self, text: Rc<TextDisplay<FontTextureHandle>>, pos: Rectangle<f32>) {
+        let rect = Rectangle {
+            max_x: self.map_x(pos.max_x),
+            min_x: self.map_x(pos.min_x),
+            max_y: self.map_y(pos.max_y),
+            min_y: self.map_y(pos.min_y),
+        };
+        self.display.text(text, rect)
     }
     fn x_y_ratio(&self) -> f32 {
         self.display.x_y_ratio() * self.mul_x / self.mul_y

@@ -15,6 +15,9 @@ extern crate rand;
 extern crate noise;
 extern crate threadpool;
 extern crate chashmap;
+extern crate glium_text_rusttype;
+extern crate font_loader;
+
 
 use glium::glutin::{MouseButton, ElementState};
 use num::Integer;
