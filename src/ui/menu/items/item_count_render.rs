@@ -4,6 +4,7 @@ use graphics::{VirtualDisplay, FontTextureHandle};
 use ui::UiCore;
 use geometry::Rectangle;
 
+#[derive(Clone)]
 pub struct ItemCountRender {
     count: usize,
     text: Rc<TextDisplay<FontTextureHandle>>,
@@ -24,17 +25,17 @@ impl ItemCountRender {
         }
     }
 
-    pub fn render<V:VirtualDisplay>(&self, display:&mut V) {
-        display.text(self.text.clone(),self.area)
+    pub fn render<V: VirtualDisplay>(&self, display: &mut V) {
+        display.text(self.text.clone(), self.area)
     }
 
     pub fn update(&mut self, count: usize) {
-        if count==self.count{
+        if count == self.count {
             return;
         }
         self.count = count;
         Rc::get_mut(&mut self.text)
-            .expect("TextDisplay owned by ItemCountRender was not returned before update")
+            .expect("TextDisplay owned by ItemCountRender was not returned before  update")
             .set_text(&format!("{}", count));
         let ratio = self.text.get_width() / self.text.get_height();
         self.area = if ratio > 5. {

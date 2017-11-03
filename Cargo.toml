@@ -18,4 +18,3 @@ glium_text_rusttype="0.2.0"
 font-loader = "0.3.2"
 
 [profile.dev]
-opt-level=1
