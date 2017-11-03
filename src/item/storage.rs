@@ -20,6 +20,9 @@ impl<'a> SlotLock<'a> {
 }
 
 impl Slot {
+    pub fn from_itemstack(stack: Box<ItemStack>) -> Self {
+        Slot(Mutex::new(Some(stack)))
+    }
     pub fn new() -> Self {
         Slot(Mutex::new(None))
     }

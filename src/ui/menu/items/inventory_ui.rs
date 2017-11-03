@@ -55,7 +55,7 @@ impl<T: Deref<Target=SlotStorage>> InventoryUi<T> {
         (self.width as f32, Self::height(&*self.storage, self.width) as f32)
     }
 
-    pub fn click(&mut self, x: f32, y: f32, holding: &mut Slot) {
+    pub fn click(&mut self, x: f32, y: f32, holding: & Slot) {
         let slot = Self::slot_at(x, y, &*self.storage, self.width);
         if slot < self.storage.len() {
             if holding.is_empty() {
