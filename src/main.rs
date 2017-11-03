@@ -17,6 +17,7 @@ extern crate threadpool;
 extern crate chashmap;
 extern crate glium_text_rusttype;
 extern crate font_loader;
+extern crate owning_ref;
 
 
 use glium::glutin::{MouseButton, ElementState};
@@ -25,7 +26,7 @@ use world::*;
 use block::BlockId;
 use time::{SteadyTime,Duration};
 use std::sync::mpsc::{channel, TryRecvError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use ui::Message;
 
@@ -54,7 +55,7 @@ fn main() {
     let (display, mut events_loop) = window_util::create_window();
     let world = Arc::new(World::new(game_data));
     let w2 = world.clone();
-    let player = Arc::new(Mutex::new(player::Player::new()));
+    let player = Arc::new(player::Player::new());
     let p2 = player.clone();
     thread::Builder::new().name("logic".into()).spawn(move || {
         #[allow(unused_variables)]
@@ -64,7 +65,7 @@ fn main() {
         let mut block_target = None;
         let mut tick_start_time=SteadyTime::now();
         loop {
-            let pos = player.lock().unwrap().position();
+            let pos = player.position();
             let block_pos = BlockPos([
                 (pos[0].floor() as i32),
                 (pos[1].floor() as i32),
@@ -127,7 +128,7 @@ fn main() {
                 }
             }
             world.flush_chunk();
-            player.lock().unwrap().tick(&world.read());
+            player.tick(&world.read());
             let tick_end_time=SteadyTime::now();
             let real_tick_duration=tick_end_time-tick_start_time;
             let planned_tick_duration=Duration::nanoseconds((TICK_TIME*1e9) as i64);

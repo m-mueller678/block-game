@@ -1,7 +1,7 @@
 use glium::glutin::*;
 use glium::backend::glutin::Display;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use world::World;
 use geometry::*;
 use player::Player;
@@ -44,7 +44,7 @@ impl Ui {
         textures: TextureLoader,
         event_sender: Sender<Message>,
         world: Arc<World>,
-        player: Arc<Mutex<Player>>,
+        player: Arc<Player>,
     ) -> Self {
         display.gl_window().set_cursor_state(CursorState::Hide).unwrap();
         let core = UiCore::new(display, textures);

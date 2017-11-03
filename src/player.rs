@@ -2,15 +2,36 @@ use std::f64::consts::PI;
 use cam::Camera;
 use world::WorldReadGuard;
 use physics::Object as PhysObject;
-use item::SlotStorage;
+use item::{SlotStorage, Slot};
+use std::sync::Mutex;
 
-pub struct Player {
-    physics: PhysObject,
+struct PlayerCamera {
     camera: Camera<f64>,
     yaw: f64,
     pitch: f64,
+}
+
+impl Clone for PlayerCamera {
+    fn clone(&self) -> Self {
+        PlayerCamera {
+            camera: Camera {
+                ..self.camera
+            },
+            ..*self
+        }
+    }
+}
+
+struct PlayerPhysics {
+    object: PhysObject,
     ignores_physics: bool,
-    inventory:SlotStorage
+}
+
+pub struct Player {
+    physics: Mutex<PlayerPhysics>,
+    camera: Mutex<PlayerCamera>,
+    inventory: SlotStorage,
+    held_item: Slot,
 }
 
 pub const PLAYER_SIZE: [f64; 3] = [0.6, 1.8, 0.6];
@@ -24,113 +45,116 @@ const PLAYER_CAMERA_OFFSET: [f64; 3] = [
 impl Player {
     pub fn new() -> Self {
         Player {
-            physics: PhysObject::new(PLAYER_SIZE),
-            camera: Camera::new(PLAYER_CAMERA_OFFSET),
-            yaw: 0.,
-            pitch: 0.,
-            ignores_physics: false,
+            physics: Mutex::new(PlayerPhysics {
+                object: PhysObject::new(PLAYER_SIZE),
+                ignores_physics: false,
+            }),
+            camera: Mutex::new(PlayerCamera {
+                camera: Camera::new(PLAYER_CAMERA_OFFSET),
+                yaw: 0.,
+                pitch: 0.,
+            }),
             inventory: SlotStorage::new(40),
+            held_item: Slot::new(),
         }
     }
 
-    pub fn set_ignores_physics(&mut self, b: bool) {
-        self.ignores_physics = b;
+    pub fn set_ignores_physics(&self, b: bool) {
+        self.physics.lock().unwrap().ignores_physics = b;
     }
 
     pub fn ignores_physics(&self) -> bool {
-        self.ignores_physics
+        self.physics.lock().unwrap().ignores_physics
     }
 
-    pub fn change_look(&mut self, d_yaw: f64, d_pitch: f64) {
-        self.yaw += d_yaw;
-        let yaw1 = self.yaw / 2. / PI;
-        let yaw1 = yaw1 - yaw1.floor();
-        self.yaw = yaw1 * 2. * PI;
-        self.yaw = (self.yaw / 2. / PI).fract() * 2. * PI;
-        self.pitch = (self.pitch - d_pitch).min(0.5 * PI).max(-0.5 * PI);
-        self.camera.set_yaw_pitch(self.yaw, self.pitch);
+    pub fn change_look(&self, d_yaw: f64, d_pitch: f64) {
+        let PlayerCamera { ref mut camera, ref mut yaw, ref mut pitch } = *self.camera.lock().unwrap();
+        *yaw = ((*yaw + d_yaw) / 2. / PI).fract() * 2. * PI;
+        *pitch = (*pitch - d_pitch).min(0.5 * PI).max(-0.5 * PI);
+        camera.set_yaw_pitch(*yaw, *pitch);
     }
 
     pub fn position(&self) -> [f64; 3] {
-        self.physics.position()
+        self.physics.lock().unwrap().object.position()
     }
 
-    pub fn tick(&mut self, world: &WorldReadGuard) {
+    pub fn tick(&self, world: &WorldReadGuard) {
         use vecmath::vec3_add;
-        if self.ignores_physics {
-            self.physics.tick(None, false);
-        } else {
-            self.physics.tick(Some(world), true);
-        }
-        self.camera.position = vec3_add(self.physics.position(), PLAYER_CAMERA_OFFSET);
+        let position = {
+            let mut physics = self.physics.lock().unwrap();
+            if physics.ignores_physics {
+                physics.object.tick(None, false);
+            } else {
+                physics.object.tick(Some(world), true);
+            }
+            physics.object.position()
+        };
+        self.camera.lock().unwrap().camera.position = vec3_add(position, PLAYER_CAMERA_OFFSET);
     }
 
-    pub fn set_movement(&mut self, m: [f64; 3]) {
+    pub fn set_movement(&self, m: [f64; 3]) {
         use vecmath::*;
-        if self.ignores_physics {
+        let camera: PlayerCamera = self.camera.lock().unwrap().clone();
+        let mut physics = self.physics.lock().unwrap();
+        if physics.ignores_physics {
             let v = [0.; 3];
-            let v = vec3_add(v, vec3_scale(self.camera.forward, m[0] * 10.));
-            let v = vec3_add(v, vec3_scale(self.camera.up, m[1] * 10.));
-            let v = vec3_add(v, vec3_scale(self.camera.right, m[2] * 10.));
-            self.set_v(v);
+            let v = vec3_add(v, vec3_scale(camera.camera.forward, m[0] * 10.));
+            let v = vec3_add(v, vec3_scale(camera.camera.up, m[1] * 10.));
+            let v = vec3_add(v, vec3_scale(camera.camera.right, m[2] * 10.));
+            physics.object.set_v(v);
         } else {
             let len = (m[0].powi(2) + m[2].powi(2)).sqrt();
             let rot_movement = if len < 1e-6 {
                 [
                     0.,
-                    self.physics.v()[1],
+                    physics.object.v()[1],
                     0.,
                 ]
             } else {
-                let (sin, cos) = self.yaw.sin_cos();
+                let (sin, cos) = camera.yaw.sin_cos();
                 let (sin, cos) = (sin as f64, cos as f64);
                 [
                     (sin * m[0] + cos * m[2]) * 4. / len,
-                    self.physics.v()[1],
+                    physics.object.v()[1],
                     (cos * m[0] - sin * m[2]) * 4. / len,
                 ]
             };
-            self.set_v(rot_movement);
+            physics.object.set_v(rot_movement);
         }
     }
 
-    pub fn jump(&mut self) {
-        if self.on_ground() {
-            let mut v = self.physics.v();
+    pub fn jump(&self) {
+        let mut physics = self.physics.lock().unwrap();
+        if physics.object.on_ground() {
+            let mut v = physics.object.v();
             v[1] = 4.8;
-            self.physics.set_v(v);
+            physics.object.set_v(v);
         }
-    }
-
-    pub fn set_v(&mut self, v: [f64; 3]) {
-        self.physics.set_v(v);
     }
 
     pub fn look_direction(&self) -> [f64; 3] {
-        self.camera.forward
-    }
-
-    pub fn on_ground(&self) -> bool {
-        self.physics.on_ground()
+        self.camera.lock().unwrap().camera.forward
     }
 
     pub fn sub_tick_camera(&self, sub_tick_time: f32) -> Camera<f64> {
         use vecmath::*;
-        let dif=vec3_sub(self.physics.position(),self.physics.previous_tick_position());
-        let scaled=vec3_scale(dif,sub_tick_time as f64);
-        let pos=vec3_add(self.physics.previous_tick_position(),PLAYER_CAMERA_OFFSET);
-        let mut cam=Camera::new(vec3_add(pos,scaled));
-        cam.forward=self.camera.forward;
-        cam.up=self.camera.up;
-        cam.right=self.camera.right;
-        cam
+        let pos = {
+            let PlayerPhysics{ref mut object,..} = *self.physics.lock().unwrap();
+            let dif = vec3_sub(object.position(), object.previous_tick_position());
+            let scaled = vec3_scale(dif, sub_tick_time as f64);
+            vec3_add(vec3_add(object.previous_tick_position(), PLAYER_CAMERA_OFFSET),scaled)
+        };
+        Camera {
+            position: pos,
+            ..self.camera.lock().unwrap().camera
+        }
     }
 
-    pub fn inventory(&self)->&SlotStorage{
+    pub fn inventory(&self) -> &SlotStorage {
         &self.inventory
     }
 
-    pub fn inventory_mut(&mut self)->&mut SlotStorage{
-        &mut self.inventory
+    pub fn held_item(&self) -> &Slot {
+        &self.held_item
     }
 }

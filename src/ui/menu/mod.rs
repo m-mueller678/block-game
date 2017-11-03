@@ -2,13 +2,11 @@ use glium::glutin::WindowEvent;
 use glium::Frame;
 use super::ui_core::UiCore;
 pub use self::layer_controller::MenuLayerController;
-pub use self::accessor::{Accessor, BoundedAccessor};
 pub use self::player_inventory::PlayerInventory;
 
 mod layer_controller;
 mod items;
 mod player_inventory;
-pub mod accessor;
 
 #[must_use]
 pub enum EventResult {

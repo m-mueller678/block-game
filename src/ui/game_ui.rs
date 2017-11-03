@@ -2,7 +2,7 @@ use glium::glutin::*;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use graphics::*;
 use world::{BlockPos, World};
 use geometry::*;
@@ -28,7 +28,7 @@ pub struct GameUi {
     block_target: Option<ray::BlockIntersection>,
     overlays: Vec<(BlockOverlay, String)>,
     current_overlay: usize,
-    player: Arc<Mutex<Player>>,
+    player: Arc<Player>,
     camera: Camera<f64>,
     game_data: GameData,
 }
@@ -37,14 +37,14 @@ impl GameUi {
     pub fn new(
         event_sender: Sender<Message>,
         world: Arc<World>,
-        player: Arc<Mutex<Player>>,
+        player: Arc<Player>,
         core: &UiCore,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new
             (&core.display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
         let vertex_buffer = VertexBuffer::new(&core.display, &
             [LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] }; 10]).unwrap();
-        let camera = player.lock().unwrap().sub_tick_camera(0.);
+        let camera = player.sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
             game_data: world.game_data().clone(),
@@ -70,13 +70,12 @@ impl GameUi {
         ]);
         self.world_render.update(&pos, &self.world.read(), &ui_core.display);
         {
-            let mut player = self.player.lock().unwrap();
             let time = self.world.time().sub_tick_time();
             if let UiState::InGame = *state {
                 let movement = Self::read_movement(&ui_core.key_state);
-                player.set_movement(movement);
+                self.player.set_movement(movement);
             }
-            self.camera = player.sub_tick_camera(time);
+            self.camera = self.player.sub_tick_camera(time);
         }
         self.update_block_target();
         self.write_cursor();
@@ -126,7 +125,7 @@ impl GameUi {
             WindowEvent::MouseMoved { position: (x, y), .. } => {
                 //TODO use raw input
                 if let Ok((x, y)) = window_util::read_mouse_delta(&ui_core.display, (x, y)) {
-                    self.player.lock().unwrap().change_look(x / 300., y / 300.);
+                    self.player.change_look(x / 300., y / 300.);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -145,8 +144,7 @@ impl GameUi {
         }
         match key.virtual_keycode {
             Some(VirtualKeyCode::Z) => {
-                let player = self.player.lock().unwrap();
-                print!("pos: {:?}, dir: {:?}, look_at: {:?}", player.position(), player.look_direction(), self.block_target);
+                print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.player.position(), self.player.look_direction(), self.block_target);
                 if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
                     let facing_block = target.facing(direction);
                     let world_r = self.world.read();
@@ -166,17 +164,16 @@ impl GameUi {
                 println!("set overlay to: {:?}", self.overlays.get(self.current_overlay).map(|o| &o.1));
             }
             Some(VirtualKeyCode::G) => {
-                let mut player = self.player.lock().unwrap();
-                let set_to = !player.ignores_physics();
-                player.set_ignores_physics(set_to);
+                let set_to = !self.player.ignores_physics();
+                self.player.set_ignores_physics(set_to);
                 println!("ignore physics set to: {}", set_to);
             }
             Some(VirtualKeyCode::Space) => {
-                self.player.lock().unwrap().jump();
+                self.player.jump();
             }
             Some(VirtualKeyCode::I) => {
                 use super::menu::{PlayerInventory, MenuLayerController};
-                self.player.lock().unwrap().set_movement([0.; 3]);
+                self.player.set_movement([0.; 3]);
                 *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(PlayerInventory::new(self.game_data.clone(), self.player.clone()))])));
             }
             _ => {}

@@ -16,5 +16,6 @@ threadpool = "1.5.0"
 chashmap = "2.2.0"
 glium_text_rusttype="0.2.0"
 font-loader = "0.3.2"
+owning_ref = "0.3.3"
 
 [profile.dev]

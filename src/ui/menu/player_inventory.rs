@@ -1,26 +1,26 @@
+use owning_ref::ArcRef;
 use glium::glutin::WindowEvent;
 use glium::Frame;
 use ui::ui_core::UiCore;
 use module::GameData;
 use player::Player;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use geometry::Rectangle;
 use item::*;
-use super::accessor::PlayerInventoryAccessor;
 use super::items::InventoryUi;
 use super::{Menu, EventResult};
 
 pub struct PlayerInventory {
-    inventory: InventoryUi<PlayerInventoryAccessor>,
+    inventory: InventoryUi<ArcRef<Player,SlotStorage>>,
     move_slot: Slot,
     area: Rectangle<f32>,
 }
 
 impl PlayerInventory {
-    pub fn new(game_data: GameData, player: Arc<Mutex<Player>>) -> Self {
+    pub fn new(game_data: GameData, player: Arc<Player>) -> Self {
         let stack = Box::new(BlockItem::new(game_data.blocks().by_name("grass").unwrap(), 50));
         PlayerInventory {
-            inventory: InventoryUi::new(10, game_data, PlayerInventoryAccessor::new(player)),
+            inventory: InventoryUi::new(10, game_data, ArcRef::new(player).map(|p|p.inventory())),
             move_slot: (stack as Box<ItemStack>).into(),
             area: Rectangle {
                 min_y: 0.,
