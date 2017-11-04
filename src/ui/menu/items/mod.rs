@@ -33,7 +33,7 @@ impl ItemSlotRender {
             item.render(gd, ui_core, display);
             if item.display_stack_size() {
                 let count = self.count.get_or_insert_with(|| ItemCountRender::new(ui_core));
-                count.update(item.stack_size());
+                count.update(item.count());
                 count.render(display);
             } else {
                 self.count = None

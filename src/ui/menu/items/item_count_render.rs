@@ -6,7 +6,7 @@ use geometry::Rectangle;
 
 #[derive(Clone)]
 pub struct ItemCountRender {
-    count: usize,
+    count: u32,
     text: Rc<TextDisplay<FontTextureHandle>>,
     area: Rectangle<f32>,
 }
@@ -29,7 +29,7 @@ impl ItemCountRender {
         display.text(self.text.clone(), self.area)
     }
 
-    pub fn update(&mut self, count: usize) {
+    pub fn update(&mut self, count: u32) {
         if count == self.count {
             return;
         }

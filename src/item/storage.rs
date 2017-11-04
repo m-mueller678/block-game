@@ -45,7 +45,7 @@ impl Slot {
         if let Some(from) = from_lock.take() {
             match &mut *to_lock {
                 &mut Some(ref mut to) => {
-                    *from_lock = to.stack_from(game_data, from);
+                    *from_lock = to.stack_from(game_data, from,1);
                 }
                 to => {
                     *to = Some(from)
