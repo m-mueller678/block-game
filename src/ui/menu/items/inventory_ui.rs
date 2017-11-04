@@ -1,4 +1,5 @@
 use std::ops::Deref;
+use glium::glutin::MouseButton;
 use graphics::VirtualDisplay;
 use ui::UiCore;
 use item::{SlotStorage, Slot};
@@ -55,13 +56,34 @@ impl<T: Deref<Target=SlotStorage>> InventoryUi<T> {
         (self.width as f32, Self::height(&*self.storage, self.width) as f32)
     }
 
-    pub fn click(&mut self, x: f32, y: f32, holding: & Slot) {
+    pub fn click(&mut self, x: f32, y: f32, holding: &Slot, button: MouseButton) {
         let slot = Self::slot_at(x, y, &*self.storage, self.width);
         if slot < self.storage.len() {
             if holding.is_empty() {
-                holding.move_from(&self.game_data, &self.storage[slot]);
+                match button {
+                    MouseButton::Left => {
+                        holding.move_all_from(&self.game_data, &self.storage[slot])
+                    }
+                    MouseButton::Right => {
+                        let count = self.storage[slot].count();
+                        match count {
+                            0 => {}
+                            1 => { holding.move_some_from(&self.game_data, &self.storage[slot], 1) }
+                            n => { holding.move_some_from(&self.game_data, &self.storage[slot], n / 2) }
+                        }
+                    }
+                    _ => {}
+                }
             } else {
-                self.storage[slot].move_from(&self.game_data, holding);
+                match button {
+                    MouseButton::Left => {
+                        self.storage[slot].move_all_from(&self.game_data, holding);
+                    }
+                    MouseButton::Right => {
+                        self.storage[slot].move_some_from(&self.game_data, holding, 1);
+                    }
+                    _ => {}
+                }
             }
         }
     }

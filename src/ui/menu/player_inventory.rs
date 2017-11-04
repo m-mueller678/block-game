@@ -21,7 +21,7 @@ pub struct PlayerInventory {
 impl PlayerInventory {
     pub fn new(game_data: GameData, player: Arc<Player>) -> Self {
         let stack = Box::new(BlockItem::new(game_data.blocks().by_name("grass").unwrap(), 50));
-        player.held_item().move_from(&game_data, &Slot::from_itemstack(stack));
+        player.held_item().move_all_from(&game_data, &Slot::from_itemstack(stack));
         PlayerInventory {
             held_item_render: ItemSlotRender::new(),
             player: player.clone(),
@@ -54,13 +54,13 @@ impl Menu for PlayerInventory {
                 EventResult::MenuClosed
             }
             WindowEvent::MouseInput {
-                button: MouseButton::Left,
+                button,
                 state: ElementState::Pressed,
                 ..
             } => {
                 let pos = self.area.pos_to_local(ui_core.mouse_position);
                 if pos.iter().all(|&x| x >= 0. && x <= 1.) {
-                    self.inventory.click(pos[0], pos[1], &self.player.held_item());
+                    self.inventory.click(pos[0], pos[1], &self.player.held_item(),button);
                 }
                 EventResult::Processed
             }

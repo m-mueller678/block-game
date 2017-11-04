@@ -19,6 +19,22 @@ impl<'a> SlotLock<'a> {
     }
 }
 
+fn double_lock<'a, 'b>(s1: &'a Slot, s2: &'b Slot) -> (SlotLock<'a>, SlotLock<'b>) {
+    assert_ne!(s1 as *const Slot, s2 as *const Slot);
+    loop {
+        match s1.0.try_lock() {
+            Ok(l1) => match s2.0.try_lock() {
+                Ok(l2) => return (SlotLock(l1), SlotLock(l2)),
+                Err(TryLockError::WouldBlock) => {}
+                Err(e) => Err(e).unwrap(),
+            },
+            Err(TryLockError::WouldBlock) => {}
+            Err(e) => Err(e).unwrap(),
+        }
+        thread::yield_now();
+    };
+}
+
 impl Slot {
     pub fn from_itemstack(stack: Box<ItemStack>) -> Self {
         Slot(Mutex::new(Some(stack)))
@@ -26,30 +42,35 @@ impl Slot {
     pub fn new() -> Self {
         Slot(Mutex::new(None))
     }
-    pub fn move_from(&self, game_data: &GameData, from_slot: &Slot) {
-        let (mut to_lock, mut from_lock) = loop {
-            if let Some((l1, l2)) = match self.0.try_lock() {
-                Ok(l1) => match from_slot.0.try_lock() {
-                    Ok(l2) => Some((l1, l2)),
-                    Err(TryLockError::WouldBlock) => None,
-                    Err(e) => Err(e).unwrap(),
-                },
-                Err(TryLockError::WouldBlock) => None,
-                Err(e) => Err(e).unwrap(),
-            } {
-                break (l1, l2);
-            } else {
-                thread::yield_now();
-            }
-        };
+    pub fn move_all_from(&self, game_data: &GameData, from_slot: &Slot) {
+        let (SlotLock(mut to_lock), SlotLock(mut from_lock)) = double_lock(self, from_slot);
         if let Some(from) = from_lock.take() {
             match &mut *to_lock {
                 &mut Some(ref mut to) => {
-                    *from_lock = to.stack_from(game_data, from,1);
+                    *from_lock = to.stack_from(game_data, from, 1);
                 }
                 to => {
                     *to = Some(from)
                 }
+            }
+        }
+    }
+    pub fn move_some_from(&self, game_data: &GameData, from_slot: &Slot, max: u32) {
+        if max == 0 { return; }
+        let (SlotLock(mut to_lock), SlotLock(mut from_lock)) = double_lock(self, from_slot);
+        if let &mut Some(ref mut to) = &mut *to_lock {
+            if let Some(mut from) = from_lock.take() {
+                *from_lock = to.stack_some_from(game_data, from, 1, max);
+            }
+            return;
+        }
+        if let Some(mut from) = from_lock.take() {
+            let count = from.count();
+            if max >= count {
+                *to_lock = Some(from);
+            } else {
+                *to_lock = Some(from.take(game_data, max));
+                *from_lock = Some(from);
             }
         }
     }
@@ -58,6 +79,9 @@ impl Slot {
     }
     pub fn is_empty(&self) -> bool {
         self.0.lock().unwrap().is_none()
+    }
+    pub fn count(&self) -> u32 {
+        self.0.lock().unwrap().as_ref().map_or(0, |x| x.count())
     }
 }
 
