@@ -9,10 +9,10 @@ pub fn load_quad_shader<F: Facade>(facade: &F) -> Result<Program, ProgramCreatio
 pub fn get_triangle_indices(quad_count: usize) -> Vec<u32> {
     let mut ind = Vec::with_capacity(quad_count * 6);
     for i in 0..(quad_count as u32) {
-        ind.push(i * 4 + 0);
+        ind.push(i * 4);
         ind.push(i * 4 + 1);
         ind.push(i * 4 + 2);
-        ind.push(i * 4 + 0);
+        ind.push(i * 4);
         ind.push(i * 4 + 2);
         ind.push(i * 4 + 3);
     }
@@ -31,20 +31,20 @@ pub struct Vertex {
 
 //workaround for bug in implement_vertex macro
 //glium issue #1607
-impl vertex::Vertex for Vertex{
-    fn build_bindings()->vertex::VertexFormat{
-        static VERTEX_FORMAT:[(Cow<'static,str>,usize,vertex::AttributeType,bool);5]=[
-            (Cow::Borrowed("position"),0,vertex::AttributeType::F32F32F32,false),
-            (Cow::Borrowed("normal"),3*4,vertex::AttributeType::F32F32F32,false),
-            (Cow::Borrowed("tex_coords"),6*4,vertex::AttributeType::F32F32,false),
-            (Cow::Borrowed("texture_id"),8*4,vertex::AttributeType::F32,false),
-            (Cow::Borrowed("light_level"),9*4,vertex::AttributeType::F32,false),
+impl vertex::Vertex for Vertex {
+    fn build_bindings() -> vertex::VertexFormat {
+        static VERTEX_FORMAT: [(Cow<'static, str>, usize, vertex::AttributeType, bool); 5] = [
+            (Cow::Borrowed("position"), 0, vertex::AttributeType::F32F32F32, false),
+            (Cow::Borrowed("normal"), 3 * 4, vertex::AttributeType::F32F32F32, false),
+            (Cow::Borrowed("tex_coords"), 6 * 4, vertex::AttributeType::F32F32, false),
+            (Cow::Borrowed("texture_id"), 8 * 4, vertex::AttributeType::F32, false),
+            (Cow::Borrowed("light_level"), 9 * 4, vertex::AttributeType::F32, false),
         ];
         Cow::Borrowed(&VERTEX_FORMAT)
     }
 }
 
-const VERTEX_SHADER_SRC: &'static str = r#"
+const VERTEX_SHADER_SRC: &str = r#"
     #version 140
 
     in vec3 normal;
@@ -68,7 +68,7 @@ const VERTEX_SHADER_SRC: &'static str = r#"
     }
 "#;
 
-const FRAGMENT_SHADER_SRC: &'static str = r#"
+const FRAGMENT_SHADER_SRC: &str = r#"
     #version 140
 
     in float brightness;

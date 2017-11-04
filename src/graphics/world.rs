@@ -53,7 +53,7 @@ impl WorldRender {
         }
         Ok(())
     }
-    pub fn update<F: glium::backend::Facade>(&mut self, player_pos: &BlockPos, world: &WorldReadGuard, facade: &F) {
+    pub fn update<F: glium::backend::Facade>(&mut self, player_pos: BlockPos, world: &WorldReadGuard, facade: &F) {
         let chunk_pos = chunk_at(player_pos);
         let render_dist = self.render_dist;
         self.render_chunks.retain(|&(ref pos, _)| {
@@ -66,18 +66,16 @@ impl WorldRender {
             for y in range.clone() {
                 for z in range.clone() {
                     let chunk_pos = ChunkPos([x + chunk_pos[0], y + chunk_pos[1], z + chunk_pos[2]]);
-                    if !self.render_chunks.iter().any(|&(ref pos, _)| *pos == chunk_pos) {
-                        if world.chunk_loaded(&chunk_pos) {
-                            let render_chunk = RenderChunk::new(facade, world, &chunk_pos);
-                            self.render_chunks.push((chunk_pos, render_chunk));
-                        }
+                    if !self.render_chunks.iter().any(|&(ref pos, _)| *pos == chunk_pos) && world.chunk_loaded(chunk_pos) {
+                        let render_chunk = RenderChunk::new(facade, world, chunk_pos);
+                        self.render_chunks.push((chunk_pos, render_chunk));
                     }
                 }
             }
         }
-        for chunk in self.render_chunks.iter_mut() {
-            if world.reset_chunk_updated(&chunk.0) {
-                chunk.1.update(&world, &chunk.0);
+        for chunk in &mut self.render_chunks {
+            if world.reset_chunk_updated(chunk.0) {
+                chunk.1.update(world, chunk.0);
             }
         }
     }

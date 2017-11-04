@@ -28,11 +28,11 @@ impl RelightData {
     }
     pub fn build_queue<LM: LightMap>(&self, lm: &mut LM) -> UpdateQueue {
         let mut queue = UpdateQueue::new();
-        for s in self.sources.iter() {
-            queue.push(s.1, s.0.clone(), None);
+        for s in &self.sources {
+            queue.push(s.1, s.0, None);
         }
-        for b in self.brighter.iter() {
-            let own_light = lm.get_light(&b.0);
+        for b in &self.brighter {
+            let own_light = lm.get_light(b.0);
             if own_light.0 > 1 {
                 let light_out = lm.compute_light_to(b.1, own_light.0);
                 queue.push(light_out, b.0.facing(b.1), Some(b.1));
@@ -65,48 +65,48 @@ impl UpdateQueue {
 }
 
 pub trait LightMap {
-    fn is_opaque(&mut self, pos: &BlockPos) -> bool;
-    fn get_light(&mut self, pos: &BlockPos) -> Light;
-    fn set_light(&mut self, pos: &BlockPos, Light);
+    fn is_opaque(&mut self, pos: BlockPos) -> bool;
+    fn get_light(&mut self, pos: BlockPos) -> Light;
+    fn set_light(&mut self, pos: BlockPos, Light);
     // level > 1
     fn compute_light_to(&mut self, direction: Direction, level: u8) -> u8;
-    fn internal_light(&mut self, block: &BlockPos) -> u8;
+    fn internal_light(&mut self, block: BlockPos) -> u8;
 }
 
 pub fn remove_light_rec<LM: LightMap>(lm: &mut LM,
                                       pos: BlockPos,
                                       light_direction: Direction,
                                       relight_data: &mut RelightData) {
-    let light = lm.get_light(&pos);
+    let light = lm.get_light(pos);
     if light.1 == Some(light_direction) {
-        let internal_light = lm.internal_light(&pos);
+        let internal_light = lm.internal_light(pos);
         if internal_light < light.0 {
             if internal_light > 1 {
-                lm.set_light(&pos, (0, None));
-                relight_data.sources.push((pos.clone(), internal_light));
+                lm.set_light(pos, (0, None));
+                relight_data.sources.push((pos, internal_light));
             } else {
-                lm.set_light(&pos, (internal_light, None));
+                lm.set_light(pos, (internal_light, None));
             }
-            for d in ALL_DIRECTIONS.iter() {
+            for d in &ALL_DIRECTIONS {
                 remove_light_rec(lm, pos.facing(*d), *d, relight_data);
             }
         }
     } else if light.0 > 1 {
-        relight_data.brighter.push((pos.clone(), light_direction.invert()));
+        relight_data.brighter.push((pos, light_direction.invert()));
     }
 }
 
 
-pub fn relight<LM: LightMap>(lm: &mut LM, pos: &BlockPos) {
+pub fn relight<LM: LightMap>(lm: &mut LM, pos: BlockPos) {
     let mut updates = UpdateQueue::new();
     let internal_light = lm.internal_light(pos);
     if internal_light > 0 {
-        updates.push(internal_light, pos.clone(), None);
+        updates.push(internal_light, pos, None);
     }
-    for d in ALL_DIRECTIONS.iter() {
-        let adjacent_light = lm.get_light(&pos.facing(d.invert())).0;
+    for d in &ALL_DIRECTIONS {
+        let adjacent_light = lm.get_light(pos.facing(d.invert())).0;
         if adjacent_light > 1 {
-            updates.push(lm.compute_light_to(*d, adjacent_light), pos.clone(), Some(*d));
+            updates.push(lm.compute_light_to(*d, adjacent_light), pos, Some(*d));
         }
     }
     increase_light(lm, updates);
@@ -114,15 +114,15 @@ pub fn relight<LM: LightMap>(lm: &mut LM, pos: &BlockPos) {
 
 pub fn remove_and_relight<LM: LightMap>(lm: &mut LM, positions: &[BlockPos]) {
     let mut update_brightness = RelightData::new();
-    for pos in positions.iter() {
+    for &pos in positions {
         let internal_light = lm.internal_light(pos);
         if internal_light > 1 {
             lm.set_light(pos, (0, None));
-            update_brightness.sources.push((pos.clone(), internal_light));
+            update_brightness.sources.push((pos, internal_light));
         } else {
             lm.set_light(pos, (internal_light, None));
         }
-        for d in ALL_DIRECTIONS.iter() {
+        for d in &ALL_DIRECTIONS {
             remove_light_rec(lm, pos.facing(*d), *d, &mut update_brightness);
         }
     }
@@ -138,14 +138,14 @@ pub fn increase_light<LM: LightMap>(lm: &mut LM, mut to_update: UpdateQueue) {
             continue;
         }
         while let Some(current_pos) = to_update.levels[update_len - 1].pop() {
-            if lm.is_opaque(&current_pos.0) {
+            if lm.is_opaque(current_pos.0) {
                 continue;
             }
-            let light = lm.get_light(&current_pos.0);
+            let light = lm.get_light(current_pos.0);
             if level > light.0 {
-                lm.set_light(&current_pos.0, (level, current_pos.1));
+                lm.set_light(current_pos.0, (level, current_pos.1));
                 if level > 1 {
-                    for d in ALL_DIRECTIONS.iter() {
+                    for d in &ALL_DIRECTIONS {
                         let adjacent_level = lm.compute_light_to(*d, level);
                         assert!(adjacent_level <= level);
                         if adjacent_level > 0 {
@@ -171,36 +171,36 @@ impl<'a> ArtificialLightMap<'a>{
 }
 
 impl<'a> LightMap for ArtificialLightMap<'a> {
-    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
-        if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
+    fn is_opaque(&mut self, pos: BlockPos) -> bool {
+        if self.cache.load(ChunkMap::chunk_at(pos), self.world).is_err() {
             true
         } else {
-            self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()).is_opaque()
+            self.world.game_data.blocks().light_type(self.cache.chunk.data[pos].load()).is_opaque()
         }
     }
 
-    fn get_light(&mut self, pos: &BlockPos) -> Light {
-        if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
+    fn get_light(&mut self, pos: BlockPos) -> Light {
+        if self.cache.load(ChunkMap::chunk_at(pos), self.world).is_err() {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.artificial_light[*pos];
+            let atomic_light = &self.cache.chunk.artificial_light[pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
-    fn set_light(&mut self, pos: &BlockPos, light: Light) {
-        self.cache.chunk.artificial_light[*pos].set(light.0, light.1);
+    fn set_light(&mut self, pos: BlockPos, light: Light) {
+        self.cache.chunk.artificial_light[pos].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
         self.world.update_adjacent_chunks(pos);
     }
     fn compute_light_to(&mut self, _: Direction, level: u8) -> u8 {
         level - 1
     }
-    fn internal_light(&mut self, pos: &BlockPos) -> u8 {
-        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+    fn internal_light(&mut self, pos: BlockPos) -> u8 {
+        if self.cache.load(chunk_at(pos), self.world).is_err() {
             0
         } else {
-            match *self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()) {
+            match *self.world.game_data.blocks().light_type(self.cache.chunk.data[pos].load()) {
                 LightType::Source(s) => s,
                 LightType::Opaque | LightType::Transparent => 0
             }
@@ -220,25 +220,25 @@ impl<'a> NaturalLightMap<'a>{
 }
 
 impl<'a> LightMap for NaturalLightMap<'a> {
-    fn is_opaque(&mut self, pos: &BlockPos) -> bool {
-        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+    fn is_opaque(&mut self, pos: BlockPos) -> bool {
+        if self.cache.load(chunk_at(pos), self.world).is_err() {
             true
         } else {
-            self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()).is_opaque()
+            self.world.game_data.blocks().light_type(self.cache.chunk.data[pos].load()).is_opaque()
         }
     }
 
-    fn get_light(&mut self, pos: &BlockPos) -> Light {
-        if self.cache.load(chunk_at(pos), &self.world).is_err() {
+    fn get_light(&mut self, pos: BlockPos) -> Light {
+        if self.cache.load(chunk_at(pos), self.world).is_err() {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.natural_light[*pos];
+            let atomic_light = &self.cache.chunk.natural_light[pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
-    fn set_light(&mut self, pos: &BlockPos, light: Light) {
-        self.cache.chunk.natural_light[*pos].set(light.0, light.1);
+    fn set_light(&mut self, pos: BlockPos, light: Light) {
+        self.cache.chunk.natural_light[pos].set(light.0, light.1);
         self.cache.chunk.update_render.store(true, Ordering::Release);
         self.world.update_adjacent_chunks(pos);
     }
@@ -251,7 +251,7 @@ impl<'a> LightMap for NaturalLightMap<'a> {
         }
     }
 
-    fn internal_light(&mut self, _: &BlockPos) -> u8 {
+    fn internal_light(&mut self, _: BlockPos) -> u8 {
         0
     }
 }

@@ -1,3 +1,4 @@
+use std::rc::Rc;
 use glium::*;
 use glium::uniforms::Sampler;
 use glium::texture::CompressedSrgbTexture2dArray;
@@ -23,7 +24,7 @@ pub struct ChunkUniforms<'a> {
 }
 
 impl RenderChunk {
-    pub fn new<F: Facade>(facade: &F, world: &WorldReadGuard, pos: &ChunkPos) -> Self {
+    pub fn new<F: Facade>(facade: &F, world: &WorldReadGuard, pos: ChunkPos) -> Self {
         let vertex = Self::get_vertices(world, world.game_data().blocks(), pos);
         let index = quad::get_triangle_indices(vertex.len() / 4);
         RenderChunk {
@@ -31,17 +32,17 @@ impl RenderChunk {
             i_buf: IndexBuffer::new(facade, PrimitiveType::TrianglesList, &index).unwrap(),
         }
     }
-    pub fn update(&mut self, world: &WorldReadGuard, pos: &ChunkPos) {
+    pub fn update(&mut self, world: &WorldReadGuard, pos: ChunkPos) {
         let vertex = Self::get_vertices(world, world.game_data().blocks(), pos);
         let index = quad::get_triangle_indices(vertex.len() / 4);
-        let facade = self.v_buf.get_context().clone();
+        let facade = Rc::clone(self.v_buf.get_context());
         self.v_buf = VertexBuffer::new(&facade, &vertex).unwrap();
         self.i_buf = IndexBuffer::new(&facade, PrimitiveType::TrianglesList, &index).unwrap();
     }
     pub fn draw<S: Surface>(&self, surface: &mut S, uniforms: &ChunkUniforms, params: &DrawParameters, quad_shader: &Program) -> Result<(), DrawError> {
         surface.draw(&self.v_buf, &self.i_buf, quad_shader, &uniform! {matrix:uniforms.transform,light_direction:uniforms.light,sampler:uniforms.sampler}, params)
     }
-    fn get_vertices(world: &WorldReadGuard, blocks: &BlockRegistry, pos: &ChunkPos) -> Vec<QuadVertex> {
+    fn get_vertices(world: &WorldReadGuard, blocks: &BlockRegistry, pos: ChunkPos) -> Vec<QuadVertex> {
         let (chunk, adjacent) = Self::lock_chunks(world, pos);
         let mut buffer = Vec::new();
         for x in 0..CHUNK_SIZE {
@@ -50,7 +51,7 @@ impl RenderChunk {
                     let id = chunk.block([x,y,z]);
                     match blocks.draw_type(id) {
                         DrawType::FullOpaqueBlock(textures) => {
-                            for d in ALL_DIRECTIONS.iter() {
+                            for d in &ALL_DIRECTIONS {
                                 if let (Some(facing_chunk), facing_index) = Self::get_block_at(&chunk, &adjacent, [x, y, z], *d) {
                                     let visible = match blocks.draw_type(facing_chunk.block(facing_index)) {
                                         DrawType::FullOpaqueBlock(_) => false,
@@ -74,14 +75,14 @@ impl RenderChunk {
         }
         buffer
     }
-    fn lock_chunks<'a>(world: &'a WorldReadGuard, pos: &ChunkPos) -> (ChunkReader<'a>, [Option<ChunkReader<'a>>; 6]) {
-        let l1 = world.lock_chunk(&pos.facing(Direction::NegX));
-        let l2 = world.lock_chunk(&pos.facing(Direction::NegY));
-        let l3 = world.lock_chunk(&pos.facing(Direction::NegZ));
-        let l4 = world.lock_chunk(&pos).expect("RenderChunk: chunk does not exist");
-        let l5 = world.lock_chunk(&pos.facing(Direction::PosZ));
-        let l6 = world.lock_chunk(&pos.facing(Direction::PosY));
-        let l7 = world.lock_chunk(&pos.facing(Direction::PosX));
+    fn lock_chunks<'a>(world: &'a WorldReadGuard, pos: ChunkPos) -> (ChunkReader<'a>, [Option<ChunkReader<'a>>; 6]) {
+        let l1 = world.lock_chunk(pos.facing(Direction::NegX));
+        let l2 = world.lock_chunk(pos.facing(Direction::NegY));
+        let l3 = world.lock_chunk(pos.facing(Direction::NegZ));
+        let l4 = world.lock_chunk(pos).expect("RenderChunk: chunk does not exist");
+        let l5 = world.lock_chunk(pos.facing(Direction::PosZ));
+        let l6 = world.lock_chunk(pos.facing(Direction::PosY));
+        let l7 = world.lock_chunk(pos.facing(Direction::PosX));
         (l4, [l7, l1, l6, l2, l5, l3])
     }
     fn push_face(buffer: &mut Vec<QuadVertex>, pos: [f32; 3], direction: Direction, texture: TextureId, light: u8) {
@@ -95,7 +96,7 @@ impl RenderChunk {
                 normal: [normal[0] as f32, normal[1] as f32, normal[2] as f32],
                 tex_coords: tex_coords[i],
                 texture_id: texture.to_u32() as f32,
-                light_level: light as f32 / 15.,
+                light_level: f32::from(light) / 15.,
             });
         }
     }

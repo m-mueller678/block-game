@@ -3,6 +3,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{sync_channel, SyncSender, Receiver, TryRecvError};
 use std::thread;
 use std::borrow::Cow;
+use std::rc::Rc;
 use time::{SteadyTime, Duration};
 use vecmath::*;
 use glium;
@@ -46,7 +47,7 @@ impl<O, P> OverlayDataSupplier for Overlay2d<O, P>
             let world = self.world.read();
             for z in (pos[2] - self.range)..(pos[2] + self.range) {
                 for dy in 0..self.range {
-                    match world.get_block(&BlockPos([x, pos[1] - dy, z]))
+                    match world.get_block(BlockPos([x, pos[1] - dy, z]))
                         .map(|id| world.game_data().blocks().draw_type(id)) {
                         None | Some(DrawType::None)  => {}
                         Some(DrawType::FullOpaqueBlock(..))=> {
@@ -101,7 +102,7 @@ impl BlockOverlay {
             Err(TryRecvError::Disconnected) => { return Err(OverlayDrawError::OverlayPanic); }
             Err(TryRecvError::Empty) => {}
             Ok(vertices) => {
-                let context = self.v_buf.get_context().clone();
+                let context = Rc::clone(self.v_buf.get_context());
                 let v_buf = match VertexBuffer::new(&context, &vertices) {
                     Err(e) => { return Err(OverlayDrawError::BufferCreationError(Box::new(e))); }
                     Ok(buffer) => buffer
@@ -156,6 +157,7 @@ fn update_overlay(mut overlay: Box<OverlayDataSupplier>, sender: SyncSender<Vec<
             }
         }
         if sender.send(vertices).is_err() {
+            drop(sender);
             return;
         }
         let end_time = SteadyTime::now();
@@ -187,7 +189,7 @@ impl vertex::Vertex for Vertex{
     }
 }
 
-const VERTEX_SRC: &'static str = r#"
+const VERTEX_SRC: & str = r#"
 #version 140
 
 in vec3 position;
@@ -203,7 +205,7 @@ void main(){
 }
 "#;
 
-const FRAGMENT_SRC: &'static str = r#"
+const FRAGMENT_SRC: & str = r#"
 #version 140
 
 in vec3 overlay_color;

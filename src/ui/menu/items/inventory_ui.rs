@@ -48,10 +48,6 @@ impl<T: Deref<Target=SlotStorage>> InventoryUi<T> {
         }
     }
 
-    pub fn set_width(&mut self, w: usize) {
-        self.width = w;
-    }
-
     pub fn size(&mut self) -> (f32, f32) {
         (self.width as f32, Self::height(&*self.storage, self.width) as f32)
     }

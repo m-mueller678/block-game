@@ -14,7 +14,7 @@ impl Default for BlockId {
 pub struct AtomicBlockId(AtomicU32);
 
 impl AtomicBlockId {
-    pub fn new(id:BlockId)->Self{
+    pub fn new(id: BlockId) -> Self {
         AtomicBlockId(AtomicU32::new(id.0))
     }
     pub fn store(&self, id: BlockId) {
@@ -42,8 +42,7 @@ impl LightType {
     pub fn is_opaque(&self) -> bool {
         match *self {
             LightType::Opaque => true,
-            LightType::Transparent => false,
-            LightType::Source(_) => false,
+            LightType::Transparent | LightType::Source(_) => false,
         }
     }
 }
@@ -51,15 +50,15 @@ impl LightType {
 pub struct Block {
     draw: DrawType,
     light: LightType,
-    name:String,
+    name: String,
 }
 
 impl Block {
-    pub fn new(draw: DrawType, light: LightType,name:String) -> Self {
+    pub fn new(draw: DrawType, light: LightType, name: String) -> Self {
         Block {
             draw: draw,
             light: light,
-            name:name,
+            name: name,
         }
     }
 }
@@ -71,7 +70,7 @@ pub struct BlockRegistry {
 impl BlockRegistry {
     pub fn new() -> Self {
         BlockRegistry {
-            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent ,name:"empty".into()}]
+            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent, name: "empty".into() }]
         }
     }
     pub fn add(&mut self, block: Block) -> BlockId {
@@ -91,11 +90,11 @@ impl BlockRegistry {
             false
         }
     }
-    pub fn by_name(&self,name:&str)-> Option<BlockId>{
+    pub fn by_name(&self, name: &str) -> Option<BlockId> {
         self.blocks.iter()
             .enumerate()
-            .filter(|&(_,block)|block.name==name)
-            .map(|(i,_)|BlockId(i as u32))
+            .filter(|&(_, block)| block.name == name)
+            .map(|(i, _)| BlockId(i as u32))
             .next()
     }
 }

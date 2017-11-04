@@ -26,7 +26,7 @@ impl ItemCountRender {
     }
 
     pub fn render<V: VirtualDisplay>(&self, display: &mut V) {
-        display.text(self.text.clone(), self.area)
+        display.text(Rc::clone(&self.text), self.area)
     }
 
     pub fn update(&mut self, count: u32) {

@@ -49,7 +49,7 @@ impl World {
         self.chunks.read().unwrap()
     }
 
-    pub fn load_cube(&self, center: &ChunkPos, radius: i32) -> LoadGuard {
+    pub fn load_cube(&self, center: ChunkPos, radius: i32) -> LoadGuard {
         self.loaded.load_cube(center, radius)
     }
 

@@ -139,10 +139,10 @@ impl Player {
     pub fn sub_tick_camera(&self, sub_tick_time: f32) -> Camera<f64> {
         use vecmath::*;
         let pos = {
-            let PlayerPhysics{ref mut object,..} = *self.physics.lock().unwrap();
+            let PlayerPhysics { ref mut object, .. } = *self.physics.lock().unwrap();
             let dif = vec3_sub(object.position(), object.previous_tick_position());
-            let scaled = vec3_scale(dif, sub_tick_time as f64);
-            vec3_add(vec3_add(object.previous_tick_position(), PLAYER_CAMERA_OFFSET),scaled)
+            let scaled = vec3_scale(dif, f64::from(sub_tick_time));
+            vec3_add(vec3_add(object.previous_tick_position(), PLAYER_CAMERA_OFFSET), scaled)
         };
         Camera {
             position: pos,

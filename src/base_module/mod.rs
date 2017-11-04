@@ -87,7 +87,7 @@ struct CrossFinder {
 }
 
 impl StructureFinder for CrossFinder {
-    fn push_structures<'a, 'b, 'c, 'd>(&'a self, chunk: ChunkPos, rand: &'b WorldRngSeeder, t: &TerrainInformation, out: &'d mut StructureList) {
+    fn push_structures<'a, 'b, 'c>(&'a self, chunk: ChunkPos, rand: &'b WorldRngSeeder, t: &TerrainInformation, out: &'c mut StructureList) {
         let cs = CHUNK_SIZE as i32;
         let mut rand = rand.rng();
         if rand.gen_weighted_bool(10) {

@@ -58,7 +58,7 @@ impl Slot {
     pub fn move_some_from(&self, game_data: &GameData, from_slot: &Slot, max: u32) {
         if max == 0 { return; }
         let (SlotLock(mut to_lock), SlotLock(mut from_lock)) = double_lock(self, from_slot);
-        if let &mut Some(ref mut to) = &mut *to_lock {
+        if let Some(ref mut to) = *to_lock {
             if let Some(mut from) = from_lock.take() {
                 *from_lock = to.stack_some_from(game_data, from, 1, max);
             }

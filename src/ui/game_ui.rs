@@ -47,7 +47,7 @@ impl GameUi {
         let camera = player.sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
-            game_data: world.game_data().clone(),
+            game_data: Arc::clone(world.game_data()),
             world: world,
             world_render: WorldRender::new(),
             cursor_line_vertices: vertex_buffer,
@@ -68,7 +68,7 @@ impl GameUi {
             self.camera.position[1].floor() as i32,
             self.camera.position[2].floor() as i32
         ]);
-        self.world_render.update(&pos, &self.world.read(), &ui_core.display);
+        self.world_render.update(pos, &self.world.read(), &ui_core.display);
         {
             let time = self.world.time().sub_tick_time();
             if let UiState::InGame = *state {
@@ -149,10 +149,10 @@ impl GameUi {
                     let facing_block = target.facing(direction);
                     let world_r = self.world.read();
                     println!(" ({:?})", facing_block);
-                    println!("id: {:?}", world_r.get_block(&target).unwrap());
+                    println!("id: {:?}", world_r.get_block(target).unwrap());
                     println!("natural light: {:?}, artificial light: {:?}",
-                             world_r.natural_light(&facing_block).unwrap(),
-                             world_r.artificial_light(&facing_block).unwrap()
+                             world_r.natural_light(facing_block).unwrap(),
+                             world_r.artificial_light(facing_block).unwrap()
                     );
                     println!("gen-biome: {}", self.world.game_data().biomes()[self.world.game_data().generator().biome_at(target[0], target[2])].name());
                 } else {
@@ -174,7 +174,9 @@ impl GameUi {
             Some(VirtualKeyCode::I) => {
                 use super::menu::{PlayerInventory, MenuLayerController};
                 self.player.set_movement([0.; 3]);
-                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(PlayerInventory::new(self.game_data.clone(), self.player.clone()))])));
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(
+                    PlayerInventory::new(Arc::clone(&self.game_data), Arc::clone(&self.player)))
+                ])));
             }
             _ => {}
         }

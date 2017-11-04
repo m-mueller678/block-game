@@ -45,7 +45,7 @@ impl BiomeRegistry {
     }
 
     pub fn by_name(&self,name:&str)->Option<BiomeId>{
-        self.by_name.get(name).map(|i|*i)
+        self.by_name.get(name).cloned()
     }
 }
 

@@ -50,6 +50,6 @@ impl TextureLoader {
             names[i.to_u32() as usize] = n;
         }
         glium::texture::CompressedSrgbTexture2dArray::new
-            (facade, names.iter().map(|name| load_image(&name)).collect()).unwrap()
+            (facade, names.iter().map(|name| load_image(name)).collect()).unwrap()
     }
 }

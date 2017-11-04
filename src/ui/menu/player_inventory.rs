@@ -24,8 +24,8 @@ impl PlayerInventory {
         player.held_item().move_all_from(&game_data, &Slot::from_itemstack(stack));
         PlayerInventory {
             held_item_render: ItemSlotRender::new(),
-            player: player.clone(),
-            game_data: game_data.clone(),
+            player: Arc::clone(&player),
+            game_data: Arc::clone(&game_data),
             inventory: InventoryUi::new(10, game_data, ArcRef::new(player).map(|p| p.inventory())),
             area: Rectangle {
                 min_y: 0.,
@@ -60,7 +60,7 @@ impl Menu for PlayerInventory {
             } => {
                 let pos = self.area.pos_to_local(ui_core.mouse_position);
                 if pos.iter().all(|&x| x >= 0. && x <= 1.) {
-                    self.inventory.click(pos[0], pos[1], &self.player.held_item(),button);
+                    self.inventory.click(pos[0], pos[1], self.player.held_item(),button);
                 }
                 EventResult::Processed
             }

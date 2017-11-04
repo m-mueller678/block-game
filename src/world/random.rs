@@ -15,21 +15,21 @@ impl WorldRngSeeder {
             seed: [
                 seed as u32,
                 (seed >> 32) as u32,
-                0x12345678,
-                0xfedcba98,
+                0x1234_5678,
+                0xfedc_ba98,
             ],
             pos: 0,
         }
     }
     pub fn push_num(&self, n: u32) -> Self {
-        let mut ret = self.clone();
+        let mut ret = *self;
         ret.pos %= 4;
         ret.seed[self.pos] ^= n;
         ret.pos += 1;
         ret
     }
     pub fn pushi(&self,source:&[i32])->Self{
-        let mut ret=self.clone();
+        let mut ret=*self;
         for s in source{
             ret=ret.push_num(*s as u32);
         }
@@ -37,7 +37,7 @@ impl WorldRngSeeder {
     }
     #[allow(dead_code)]
     pub fn pushu(&self,source:&[u32])->Self{
-        let mut ret=self.clone();
+        let mut ret=*self;
         for s in source{
             ret=ret.push_num(*s);
         }

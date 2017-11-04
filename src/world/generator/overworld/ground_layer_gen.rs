@@ -28,10 +28,7 @@ impl GroundGen {
     }
     pub fn gen_column<F: FnMut(usize, BlockId)>(&self, gen_depth: i32, set_block: &mut F, x: i32, z: i32) -> usize {
         let mut layer_iter = self.layers.iter().skip_while(|&&(_, _, _, max)| max-0.01 <= gen_depth as f32);
-        let mut i=0;
-        if gen_depth<0{
-            i=(-gen_depth) as usize;
-        }
+        let mut i=(-gen_depth).max(0) as usize;
         if i>=CHUNK_SIZE{
             return CHUNK_SIZE;
         }

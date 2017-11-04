@@ -9,6 +9,7 @@ mod items;
 mod player_inventory;
 
 #[must_use]
+#[allow(dead_code)]
 pub enum EventResult {
     Processed,
     MenuClosed,

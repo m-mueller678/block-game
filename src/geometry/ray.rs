@@ -23,7 +23,7 @@ impl Ray {
         let mut fstart = self.start;
         for i in 0..3 {
             if self.direction[i] < 0. {
-                fstart[i] = fstart[i] - fstart[i].floor();
+                fstart[i] -= fstart[i].floor();
             } else {
                 fstart[i] = 1. - (fstart[i] - fstart[i].floor());
             }
@@ -64,7 +64,7 @@ impl Iterator for BlockIntersectIterator {
         if self.fstart[2] < self.fstart[move_axis] { move_axis = 2 }
         self.base[move_axis] += self.idirection[move_axis];
         let dist = self.fstart[move_axis];
-        for pos in self.fstart.iter_mut() {
+        for pos in &mut self.fstart {
             *pos -= dist;
         }
         self.fstart[move_axis] = self.inverse_direction[move_axis];

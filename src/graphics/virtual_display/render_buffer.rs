@@ -47,12 +47,12 @@ impl VirtualDisplay for RenderBuffer2d {
                 brightness
             });
         }
-        self.indices.push(first_index + 0);
+        self.indices.push(first_index);
         self.indices.push(first_index + 1);
         self.indices.push(first_index + 2);
         self.indices.push(first_index + 2);
         self.indices.push(first_index + 3);
-        self.indices.push(first_index + 0);
+        self.indices.push(first_index);
     }
     fn text(&mut self, text: Rc<TextDisplay<FontTextureHandle>>, pos: Rectangle<f32>) {
         self.text_displays.push((text, pos));
@@ -77,7 +77,7 @@ impl RenderBuffer2d {
             x_y_ratio: size.map(|(x, y)| x as f32 / y as f32).unwrap_or(1.),
             width: size.map(|(x, _)| x as f32 / 50.).unwrap_or(20.),
             height: size.map(|(_, y)| y as f32 / 50.).unwrap_or(20.),
-            context: display.get_context().clone(),
+            context: Rc::clone(display.get_context()),
             text_displays: Vec::new(),
         }
     }
@@ -132,7 +132,7 @@ impl vertex::Vertex for Vertex {
     }
 }
 
-const VERTEX_SHADER_SRC: &'static str = r#"
+const VERTEX_SHADER_SRC: &str = r#"
     #version 140
 
     in vec2 position;
@@ -152,7 +152,7 @@ const VERTEX_SHADER_SRC: &'static str = r#"
     }
 "#;
 
-const FRAGMENT_SHADER_SRC: &'static str = r#"
+const FRAGMENT_SHADER_SRC: &str = r#"
     #version 140
 
     in vec2 v_tex_coords;

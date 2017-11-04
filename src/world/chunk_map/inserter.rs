@@ -33,30 +33,30 @@ impl Inserter {
         }
     }
 
-    pub fn insert(&self, pos: &ChunkPos, world: &ChunkMap) {
+    pub fn insert(&self, pos: ChunkPos, world: &ChunkMap) {
         if world.chunk_loaded(pos) {
             return;
         }
         {
             let mut lock = self.shared.1.lock().unwrap();
-            if lock.chunks.iter().any(|chunk| chunk.pos == *pos) || lock.pending.iter().any(|p| p == pos) {
+            if lock.chunks.iter().any(|chunk| chunk.pos == pos) || lock.pending.iter().any(|p| *p == pos) {
                 return;
             }
-            lock.pending.push(pos.clone());
+            lock.pending.push(pos);
         }
         {
-            let shared = self.shared.clone();
-            let pos = pos.clone();
+            let shared = Arc::clone(&self.shared);
+            let pos = pos;
             self.threads.lock().unwrap().execute(move || Self::generate_chunk(shared, pos));
         }
     }
 
-    pub fn cancel_insertion(&self, pos: &ChunkPos) -> Result<(), ()> {
+    pub fn cancel_insertion(&self, pos: ChunkPos) -> Result<(), ()> {
         let mut lock = self.shared.1.lock().unwrap();
-        if let Some(pending_index) = lock.pending.iter().position(|p| *p == *pos) {
+        if let Some(pending_index) = lock.pending.iter().position(|p| *p == pos) {
             lock.pending.swap_remove(pending_index);
             Ok(())
-        } else if let Some(generated_index) = lock.chunks.iter().position(|qc| qc.pos == *pos) {
+        } else if let Some(generated_index) = lock.chunks.iter().position(|qc| qc.pos == pos) {
             lock.chunks.swap_remove_back(generated_index);
             Ok(())
         } else { Err(()) }
@@ -66,7 +66,7 @@ impl Inserter {
         shared: Arc<(GameData, Mutex<InsertBuffer>)>,
         pos: ChunkPos)
     {
-        let data = shared.0.generator().gen_chunk(&pos);
+        let data = shared.0.generator().gen_chunk(pos);
         let mut sources = Vec::new();
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
@@ -84,7 +84,7 @@ impl Inserter {
         }
         let insert = QueuedChunk {
             light_sources: sources,
-            pos: pos.clone(),
+            pos: pos,
             data: data,
         };
         {
@@ -105,17 +105,17 @@ impl Inserter {
                 artificial_light: Default::default(),
                 update_render: AtomicBool::new(false),
             }));
-            for source in chunk.light_sources.iter() {
-                sources_to_trigger.push(source.1, source.0.clone(), None);
+            for source in &chunk.light_sources {
+                sources_to_trigger.push(source.1, source.0, None);
             }
-            chunk.pos.clone()
+            chunk.pos
         } else {
             return;
         };
 
         let cs = CHUNK_SIZE as i32;
         let mut sky_light = UpdateQueue::new();
-        if !chunks.chunk_loaded(&insert_pos.facing(Direction::PosY)) {
+        if !chunks.chunk_loaded(insert_pos.facing(Direction::PosY)) {
             for x in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
                     let abs_pos = BlockPos([
@@ -127,21 +127,21 @@ impl Inserter {
                 }
             }
         }
-        for face in ALL_DIRECTIONS.iter() {
+        for face in &ALL_DIRECTIONS {
             let facing = insert_pos.facing(*face);
-            if let Some(chunk) = chunks.borrow_chunk(&facing) {
-                chunks.trigger_chunk_face_brightness(&facing, face.invert(), &mut sources_to_trigger, &mut sky_light);
+            if let Some(chunk) = chunks.borrow_chunk(facing) {
+                chunks.trigger_chunk_face_brightness(facing, face.invert(), &mut sources_to_trigger, &mut sky_light);
                 chunk.update_render.store(true, Ordering::Release);
             }
         }
-        increase_light(&mut chunks.artificial_lightmap(insert_pos.clone()), sources_to_trigger);
-        increase_light(&mut chunks.natural_lightmap(insert_pos.clone()), sky_light);
+        increase_light(&mut chunks.artificial_lightmap(insert_pos), sources_to_trigger);
+        increase_light(&mut chunks.natural_lightmap(insert_pos), sky_light);
 
         //block natural light in chunk below
-        if chunks.chunk_loaded(&insert_pos.facing(Direction::NegY)) {
+        if chunks.chunk_loaded(insert_pos.facing(Direction::NegY)) {
             let mut relight = RelightData::new();
-            let mut lm = chunks.natural_lightmap(insert_pos.clone());
-            let inserted_cache = ChunkCache::new(insert_pos.clone(), &chunks).unwrap();
+            let mut lm = chunks.natural_lightmap(insert_pos);
+            let inserted_cache = ChunkCache::new(insert_pos, chunks).unwrap();
             for x in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
                     let abs_pos = BlockPos([

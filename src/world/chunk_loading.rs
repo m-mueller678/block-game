@@ -10,27 +10,28 @@ struct InnerMap {
 }
 
 impl InnerMap {
-    fn inc(&mut self, pos: &ChunkPos) {
-        match self.map.entry(pos.clone()) {
+    fn inc(&mut self, pos: ChunkPos) {
+        match self.map.entry(pos) {
             Entry::Occupied(mut o) => (*o.get_mut()) += 1,
             Entry::Vacant(v) => {
                 v.insert(1);
-                if !self.new_unloaded.remove(pos) {
-                    self.new_loaded.insert(pos.clone());
+                if !self.new_unloaded.remove(&pos) {
+                    self.new_loaded.insert(pos);
                 }
             }
         }
     }
-    fn dec(&mut self, pos: &ChunkPos) {
-        if let Entry::Occupied(mut o) = self.map.entry(pos.clone()) {
-            if {
+    fn dec(&mut self, pos: ChunkPos) {
+        if let Entry::Occupied(mut o) = self.map.entry(pos) {
+            let new_count={
                 let count: &mut _ = o.get_mut();
                 (*count) -= 1;
-                *count == 0
-            } {
+                *count
+            };
+            if new_count==0 {
                 o.remove();
-                if !self.new_loaded.remove(pos) {
-                    self.new_unloaded.insert(pos.clone());
+                if !self.new_loaded.remove(&pos) {
+                    self.new_unloaded.insert(pos);
                 }
             }
         } else {
@@ -39,13 +40,13 @@ impl InnerMap {
     }
     fn apply_to_world(&mut self, map: &mut ChunkMap, inserter: &Inserter) {
         for pos in self.new_unloaded.drain() {
-            if map.remove_chunk(&pos).is_none() {
-                inserter.cancel_insertion(&pos).unwrap();
+            if map.remove_chunk(pos).is_none() {
+                inserter.cancel_insertion(pos).unwrap();
             }
         }
         inserter.push_to_world(map);
         for pos in self.new_loaded.drain() {
-            inserter.insert(&pos, map);
+            inserter.insert(pos, map);
         }
     }
 }
@@ -64,19 +65,19 @@ impl LoadMap {
             })),
         }
     }
-    pub fn load_cube(&self, center: &ChunkPos, radius: i32) -> LoadGuard {
+    pub fn load_cube(&self, center: ChunkPos, radius: i32) -> LoadGuard {
         assert!(radius >= 0);
         let mut lock = self.loaded.lock().unwrap();
         for x in center[0] - radius..center[0] + radius + 1 {
             for y in center[1] - radius..center[1] + radius + 1 {
                 for z in center[2] - radius..center[2] + radius + 1 {
-                    lock.inc(&ChunkPos([x, y, z]));
+                    lock.inc(ChunkPos([x, y, z]));
                 }
             }
         }
         LoadGuard {
-            map: self.loaded.clone(),
-            center: center.clone(),
+            map: Arc::clone(&self.loaded),
+            center: center,
             size: radius,
         }
     }
@@ -97,7 +98,7 @@ impl Drop for LoadGuard {
         for x in self.center[0] - self.size..self.center[0] + self.size + 1 {
             for y in self.center[1] - self.size..self.center[1] + self.size + 1 {
                 for z in self.center[2] - self.size..self.center[2] + self.size + 1 {
-                    lock.dec(&ChunkPos([x, y, z]));
+                    lock.dec(ChunkPos([x, y, z]));
                 }
             }
         }
