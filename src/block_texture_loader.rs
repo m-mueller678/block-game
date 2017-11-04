@@ -3,11 +3,13 @@ use std::collections::btree_map::*;
 use std::path::PathBuf;
 use glium;
 use image;
-use graphics::BlockTextureId;
+use graphics::TextureId;
 
 fn load_image(name: &str) -> glium::texture::RawImage2d<u8> {
     let mut path=PathBuf::from("textures");
-    path.push(name);
+    for element in name.split('/'){
+        path.push(element);
+    }
     path.set_extension("png");
     let file = std::io::BufReader::new(std::fs::File::open(path).unwrap());
     let image = image::load(file, image::PNG).unwrap().to_rgba();
@@ -16,7 +18,7 @@ fn load_image(name: &str) -> glium::texture::RawImage2d<u8> {
 }
 
 pub struct TextureLoader {
-    names: BTreeMap<String, BlockTextureId>,
+    names: BTreeMap<String, TextureId>,
     count: u32,
 }
 
@@ -28,13 +30,13 @@ impl TextureLoader {
         }
     }
 
-    pub fn get(&mut self, name: &str) -> BlockTextureId {
+    pub fn get(&mut self, name: &str) -> TextureId {
         match self.names.entry(name.into()) {
             Entry::Occupied(e) => {
                 *e.get()
             }
             Entry::Vacant(e) => {
-                let id = *e.insert(BlockTextureId::new(self.count));
+                let id = *e.insert(TextureId::new(self.count));
                 self.count += 1;
                 id
             }

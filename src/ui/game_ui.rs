@@ -2,7 +2,7 @@ use glium::glutin::*;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use graphics::*;
 use world::{BlockPos, World};
 use geometry::*;
@@ -10,8 +10,10 @@ use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
 use window_util;
 use player::Player;
 use cam::Camera;
+use module::GameData;
 use super::{KeyboardState, Message};
-pub use super::ui_core::UiCore;
+pub use super::UiState;
+use super::ui_core::UiCore;
 
 fn to_f32(v: [f64; 3]) -> [f32; 3] {
     [v[0] as f32, v[1] as f32, v[2] as f32]
@@ -26,24 +28,26 @@ pub struct GameUi {
     block_target: Option<ray::BlockIntersection>,
     overlays: Vec<(BlockOverlay, String)>,
     current_overlay: usize,
-    player: Arc<Mutex<Player>>,
+    player: Arc<Player>,
     camera: Camera<f64>,
+    game_data: GameData,
 }
 
 impl GameUi {
     pub fn new(
         event_sender: Sender<Message>,
         world: Arc<World>,
-        player: Arc<Mutex<Player>>,
+        player: Arc<Player>,
         core: &UiCore,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new
             (&core.display, index::PrimitiveType::LinesList, &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
         let vertex_buffer = VertexBuffer::new(&core.display, &
             [LineVertex { pos: [0., 0., 0.], color: [1., 1., 0.] }; 10]).unwrap();
-        let camera = player.lock().unwrap().sub_tick_camera(0.);
+        let camera = player.sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
+            game_data: world.game_data().clone(),
             world: world,
             world_render: WorldRender::new(),
             cursor_line_vertices: vertex_buffer,
@@ -58,7 +62,7 @@ impl GameUi {
         ret
     }
 
-    pub fn work(&mut self, ui_core: &UiCore) {
+    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState, target: &mut Frame) {
         let pos = BlockPos([
             self.camera.position[0].floor() as i32,
             self.camera.position[1].floor() as i32,
@@ -66,15 +70,16 @@ impl GameUi {
         ]);
         self.world_render.update(&pos, &self.world.read(), &ui_core.display);
         {
-            let movement = Self::read_movement(&ui_core.key_state);
-            let mut player = self.player.lock().unwrap();
             let time = self.world.time().sub_tick_time();
-            player.set_movement(movement);
-            self.camera = player.sub_tick_camera(time);
+            if let UiState::InGame = *state {
+                let movement = Self::read_movement(&ui_core.key_state);
+                self.player.set_movement(movement);
+            }
+            self.camera = self.player.sub_tick_camera(time);
         }
         self.update_block_target();
         self.write_cursor();
-        self.render(ui_core);
+        self.render(ui_core, target);
     }
 
     fn read_movement(kb: &KeyboardState) -> [f64; 3] {
@@ -112,15 +117,15 @@ impl GameUi {
         ]);
     }
 
-    pub fn process_window_event(&mut self, evt: &WindowEvent, ui_core: &UiCore) {
+    pub fn process_window_event(&mut self, evt: &WindowEvent, ui_core: &mut UiCore, state: &mut UiState) {
         match *evt {
             WindowEvent::KeyboardInput { input, .. } => {
-                self.process_keyboard_event(&input)
+                self.process_keyboard_event(&input, state)
             }
             WindowEvent::MouseMoved { position: (x, y), .. } => {
                 //TODO use raw input
                 if let Ok((x, y)) = window_util::read_mouse_delta(&ui_core.display, (x, y)) {
-                    self.player.lock().unwrap().change_look(x / 300., y / 300.);
+                    self.player.change_look(x / 300., y / 300.);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -133,14 +138,13 @@ impl GameUi {
         }
     }
 
-    fn process_keyboard_event(&mut self, key: &KeyboardInput) {
+    fn process_keyboard_event(&mut self, key: &KeyboardInput, state: &mut UiState) {
         if key.state != ElementState::Pressed {
             return;
         }
         match key.virtual_keycode {
             Some(VirtualKeyCode::Z) => {
-                let player = self.player.lock().unwrap();
-                print!("pos: {:?}, dir: {:?}, look_at: {:?}", player.position(), player.look_direction(), self.block_target);
+                print!("pos: {:?}, dir: {:?}, look_at: {:?}", self.player.position(), self.player.look_direction(), self.block_target);
                 if let Some((target, direction)) = self.block_target.clone().map(|t| (t.block, t.face)) {
                     let facing_block = target.facing(direction);
                     let world_r = self.world.read();
@@ -150,7 +154,7 @@ impl GameUi {
                              world_r.natural_light(&facing_block).unwrap(),
                              world_r.artificial_light(&facing_block).unwrap()
                     );
-                    println!("gen-biome: {}", self.world.biomes()[self.world.generator().biome_at(target[0], target[2])].name());
+                    println!("gen-biome: {}", self.world.game_data().biomes()[self.world.game_data().generator().biome_at(target[0], target[2])].name());
                 } else {
                     println!()
                 }
@@ -160,13 +164,17 @@ impl GameUi {
                 println!("set overlay to: {:?}", self.overlays.get(self.current_overlay).map(|o| &o.1));
             }
             Some(VirtualKeyCode::G) => {
-                let mut player = self.player.lock().unwrap();
-                let set_to = !player.ignores_physics();
-                player.set_ignores_physics(set_to);
+                let set_to = !self.player.ignores_physics();
+                self.player.set_ignores_physics(set_to);
                 println!("ignore physics set to: {}", set_to);
             }
             Some(VirtualKeyCode::Space) => {
-                self.player.lock().unwrap().jump();
+                self.player.jump();
+            }
+            Some(VirtualKeyCode::I) => {
+                use super::menu::{PlayerInventory, MenuLayerController};
+                self.player.set_movement([0.; 3]);
+                *state = UiState::Menu(Box::new(MenuLayerController::new(vec![Box::new(PlayerInventory::new(self.game_data.clone(), self.player.clone()))])));
             }
             _ => {}
         }
@@ -181,9 +189,7 @@ impl GameUi {
         }
     }
 
-    fn render(&mut self, ui_core: &UiCore) {
-        let mut target = ui_core.display.draw();
-        target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
+    fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         {
             let perspective = {
                 let f = (0.5 as f32).tan();
@@ -199,13 +205,12 @@ impl GameUi {
             };
             let matrix = col_mat4_mul(perspective, mat4_cast(self.camera.orthogonal()));
             let sampler = ui_core.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
-            self.world_render.draw(&mut target, matrix, sampler, &ui_core.shader.quad).unwrap();
+            self.world_render.draw(target, matrix, sampler, &ui_core.shader.quad).unwrap();
             if let Some(overlay) = self.overlays.get_mut(self.current_overlay) {
-                overlay.0.draw(&mut target, &ui_core.shader.overlay, matrix).unwrap();
+                overlay.0.draw(target, &ui_core.shader.overlay, matrix).unwrap();
             }
             target.draw(&self.cursor_line_vertices, &self.cursor_line_indices, &ui_core.shader.line, &uniform! {transform:matrix}, &Default::default()).unwrap();
         }
-        target.finish().unwrap();
     }
 
     fn load_overlays(&mut self) {

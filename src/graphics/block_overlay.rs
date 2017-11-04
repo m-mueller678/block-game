@@ -47,7 +47,7 @@ impl<O, P> OverlayDataSupplier for Overlay2d<O, P>
             for z in (pos[2] - self.range)..(pos[2] + self.range) {
                 for dy in 0..self.range {
                     match world.get_block(&BlockPos([x, pos[1] - dy, z]))
-                        .map(|id| world.blocks().draw_type(id)) {
+                        .map(|id| world.game_data().blocks().draw_type(id)) {
                         None | Some(DrawType::None)  => {}
                         Some(DrawType::FullOpaqueBlock(..))=> {
                             faces.push((BlockPos([x, pos[1] - dy, z]), Direction::PosY, (self.data)(x, z)));

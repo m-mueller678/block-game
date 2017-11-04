@@ -175,7 +175,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(ChunkMap::chunk_at(pos), &self.world).is_err() {
             true
         } else {
-            self.world.blocks.light_type(self.cache.chunk.data[*pos].load()).is_opaque()
+            self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()).is_opaque()
         }
     }
 
@@ -200,7 +200,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         if self.cache.load(chunk_at(pos), &self.world).is_err() {
             0
         } else {
-            match *self.world.blocks.light_type(self.cache.chunk.data[*pos].load()) {
+            match *self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()) {
                 LightType::Source(s) => s,
                 LightType::Opaque | LightType::Transparent => 0
             }
@@ -224,7 +224,7 @@ impl<'a> LightMap for NaturalLightMap<'a> {
         if self.cache.load(chunk_at(pos), &self.world).is_err() {
             true
         } else {
-            self.world.blocks.light_type(self.cache.chunk.data[*pos].load()).is_opaque()
+            self.world.game_data.blocks().light_type(self.cache.chunk.data[*pos].load()).is_opaque()
         }
     }
 

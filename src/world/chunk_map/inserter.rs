@@ -4,7 +4,6 @@ use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
-use world::generator::Generator;
 use super::*;
 
 struct QueuedChunk {
@@ -14,7 +13,7 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    shared: Arc<(Arc<Generator>, Mutex<InsertBuffer>)>,
+    shared: Arc<(GameData, Mutex<InsertBuffer>)>,
     threads: Mutex<ThreadPool>,
 }
 
@@ -24,7 +23,7 @@ struct InsertBuffer {
 }
 
 impl Inserter {
-    pub fn new(gen: Arc<Generator>) -> Self {
+    pub fn new(gen: GameData) -> Self {
         Inserter {
             shared: Arc::new((gen, Mutex::new(InsertBuffer {
                 chunks: VecDeque::new(),
@@ -48,8 +47,7 @@ impl Inserter {
         {
             let shared = self.shared.clone();
             let pos = pos.clone();
-            let blocks = world.blocks.clone();
-            self.threads.lock().unwrap().execute(move || Self::generate_chunk(shared, pos, blocks));
+            self.threads.lock().unwrap().execute(move || Self::generate_chunk(shared, pos));
         }
     }
 
@@ -64,21 +62,16 @@ impl Inserter {
         } else { Err(()) }
     }
 
-    pub fn generator(&self)->&Generator{
-        self.shared.0.as_ref()
-    }
-
     fn generate_chunk(
-        shared: Arc<(Arc<Generator>, Mutex<InsertBuffer>)>,
-        pos: ChunkPos,
-        blocks: Arc<BlockRegistry>)
+        shared: Arc<(GameData, Mutex<InsertBuffer>)>,
+        pos: ChunkPos)
     {
-        let data = shared.0.gen_chunk(&pos);
+        let data = shared.0.generator().gen_chunk(&pos);
         let mut sources = Vec::new();
         for x in 0..CHUNK_SIZE {
             for y in 0..CHUNK_SIZE {
                 for z in 0..CHUNK_SIZE {
-                    match *blocks.light_type(data[[x, y, z]].load()) {
+                    match *shared.0.blocks().light_type(data[[x, y, z]].load()) {
                         LightType::Source(l) => sources.push((BlockPos([
                             pos[0] * CHUNK_SIZE as i32 + x as i32,
                             pos[1] * CHUNK_SIZE as i32 + y as i32,
