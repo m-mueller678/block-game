@@ -15,7 +15,11 @@ impl ItemCountRender {
     pub fn new(core: &UiCore) -> Self {
         ItemCountRender {
             count: 0,
-            text: Rc::new(TextDisplay::new(&core.text_system, core.font_texture.clone(), "")),
+            text: Rc::new(TextDisplay::new(
+                &core.text_system,
+                core.font_texture.clone(),
+                "",
+            )),
             area: Rectangle {
                 min_y: 0.,
                 max_y: 1.,
@@ -35,7 +39,9 @@ impl ItemCountRender {
         }
         self.count = count;
         Rc::get_mut(&mut self.text)
-            .expect("TextDisplay owned by ItemCountRender was not returned before  update")
+            .expect(
+                "TextDisplay owned by ItemCountRender was not returned before  update",
+            )
             .set_text(&format!("{}", count));
         let ratio = self.text.get_width() / self.text.get_height();
         self.area = if ratio > 5. {
@@ -43,14 +49,14 @@ impl ItemCountRender {
                 min_y: 0.75,
                 max_y: 0.9 / ratio,
                 min_x: 0.05,
-                max_x: 0.95
+                max_x: 0.95,
             }
         } else {
             Rectangle {
                 min_y: 0.75,
                 max_y: 0.95,
                 min_x: 0.95 - 0.2 * ratio,
-                max_x: 0.95
+                max_x: 0.95,
             }
         }
     }

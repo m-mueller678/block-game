@@ -34,11 +34,36 @@ pub struct Vertex {
 impl vertex::Vertex for Vertex {
     fn build_bindings() -> vertex::VertexFormat {
         static VERTEX_FORMAT: [(Cow<'static, str>, usize, vertex::AttributeType, bool); 5] = [
-            (Cow::Borrowed("position"), 0, vertex::AttributeType::F32F32F32, false),
-            (Cow::Borrowed("normal"), 3 * 4, vertex::AttributeType::F32F32F32, false),
-            (Cow::Borrowed("tex_coords"), 6 * 4, vertex::AttributeType::F32F32, false),
-            (Cow::Borrowed("texture_id"), 8 * 4, vertex::AttributeType::F32, false),
-            (Cow::Borrowed("light_level"), 9 * 4, vertex::AttributeType::F32, false),
+            (
+                Cow::Borrowed("position"),
+                0,
+                vertex::AttributeType::F32F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("normal"),
+                3 * 4,
+                vertex::AttributeType::F32F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("tex_coords"),
+                6 * 4,
+                vertex::AttributeType::F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("texture_id"),
+                8 * 4,
+                vertex::AttributeType::F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("light_level"),
+                9 * 4,
+                vertex::AttributeType::F32,
+                false,
+            ),
         ];
         Cow::Borrowed(&VERTEX_FORMAT)
     }

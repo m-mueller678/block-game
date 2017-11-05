@@ -6,8 +6,8 @@ use image;
 use graphics::TextureId;
 
 fn load_image(name: &str) -> glium::texture::RawImage2d<u8> {
-    let mut path=PathBuf::from("textures");
-    for element in name.split('/'){
+    let mut path = PathBuf::from("textures");
+    for element in name.split('/') {
         path.push(element);
     }
     path.set_extension("png");
@@ -32,9 +32,7 @@ impl TextureLoader {
 
     pub fn get(&mut self, name: &str) -> TextureId {
         match self.names.entry(name.into()) {
-            Entry::Occupied(e) => {
-                *e.get()
-            }
+            Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
                 let id = *e.insert(TextureId::new(self.count));
                 self.count += 1;
@@ -44,12 +42,16 @@ impl TextureLoader {
     }
 
     pub fn load<F>(self, facade: &F) -> glium::texture::CompressedSrgbTexture2dArray
-        where F: glium::backend::Facade {
-        let mut names= vec!["".into(); self.count as usize];
+    where
+        F: glium::backend::Facade,
+    {
+        let mut names = vec!["".into(); self.count as usize];
         for (n, i) in self.names {
             names[i.to_u32() as usize] = n;
         }
-        glium::texture::CompressedSrgbTexture2dArray::new
-            (facade, names.iter().map(|name| load_image(name)).collect()).unwrap()
+        glium::texture::CompressedSrgbTexture2dArray::new(
+            facade,
+            names.iter().map(|name| load_image(name)).collect(),
+        ).unwrap()
     }
 }

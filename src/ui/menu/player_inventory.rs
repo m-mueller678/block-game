@@ -20,8 +20,14 @@ pub struct PlayerInventory {
 
 impl PlayerInventory {
     pub fn new(game_data: GameData, player: Arc<Player>) -> Self {
-        let stack = Box::new(BlockItem::new(game_data.blocks().by_name("grass").unwrap(), 50));
-        player.held_item().move_all_from(&game_data, &Slot::from_itemstack(stack));
+        let stack = Box::new(BlockItem::new(
+            game_data.blocks().by_name("grass").unwrap(),
+            50,
+        ));
+        player.held_item().move_all_from(
+            &game_data,
+            &Slot::from_itemstack(stack),
+        );
         PlayerInventory {
             held_item_render: ItemSlotRender::new(),
             player: Arc::clone(&player),
@@ -32,13 +38,15 @@ impl PlayerInventory {
                 max_y: 0.01,
                 min_x: 0.,
                 max_x: 0.01,
-            }
+            },
         }
     }
 }
 
 impl Menu for PlayerInventory {
-    fn transparent(&self) -> bool { true }
+    fn transparent(&self) -> bool {
+        true
+    }
 
     fn process_event(&mut self, e: &WindowEvent, ui_core: &mut UiCore) -> EventResult {
         use glium::glutin::*;
@@ -60,23 +68,30 @@ impl Menu for PlayerInventory {
             } => {
                 let pos = self.area.pos_to_local(ui_core.mouse_position);
                 if pos.iter().all(|&x| x >= 0. && x <= 1.) {
-                    self.inventory.click(pos[0], pos[1], self.player.held_item(),button);
+                    self.inventory.click(
+                        pos[0],
+                        pos[1],
+                        self.player.held_item(),
+                        button,
+                    );
                 }
                 EventResult::Processed
             }
-            _ => EventResult::Processed
+            _ => EventResult::Processed,
         }
     }
 
     fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         use graphics::{RenderBuffer2d, VirtualDisplay};
         use glium::uniforms::SamplerWrapFunction;
-        let sampler = ui_core.textures.sampled().wrap_function(SamplerWrapFunction::Repeat);
+        let sampler = ui_core.textures.sampled().wrap_function(
+            SamplerWrapFunction::Repeat,
+        );
         {
             let mut render_buffer = RenderBuffer2d::new(&ui_core.display);
             let inv_size = self.inventory.size();
-            let hw = (inv_size.0 / render_buffer.ui_size_x() / 2. ).min(0.5);
-            let hh = (inv_size.1 / render_buffer.ui_size_y() / 2. ).min(0.5);
+            let hw = (inv_size.0 / render_buffer.ui_size_x() / 2.).min(0.5);
+            let hh = (inv_size.1 / render_buffer.ui_size_y() / 2.).min(0.5);
             self.area = Rectangle {
                 min_y: 0.5 - hh,
                 max_y: 0.5 + hh,
@@ -87,7 +102,12 @@ impl Menu for PlayerInventory {
                 let mut inventory_display = render_buffer.sub_display(self.area);
                 self.inventory.render(&mut inventory_display, ui_core);
             }
-            render_buffer.render(target, &ui_core.shader.tri_2d, sampler, &ui_core.text_system);
+            render_buffer.render(
+                target,
+                &ui_core.shader.tri_2d,
+                sampler,
+                &ui_core.text_system,
+            );
         }
         {
             let mut render_buffer = RenderBuffer2d::new(&ui_core.display);
@@ -97,7 +117,12 @@ impl Menu for PlayerInventory {
                 ui_core,
                 &mut render_buffer,
             );
-            render_buffer.render(target, &ui_core.shader.tri_2d, sampler, &ui_core.text_system);
+            render_buffer.render(
+                target,
+                &ui_core.shader.tri_2d,
+                sampler,
+                &ui_core.text_system,
+            );
         }
     }
 }

@@ -33,7 +33,11 @@ pub struct OverworldGenerator {
 }
 
 impl OverworldGenerator {
-    pub fn new(structures: Vec<Box<StructureFinder>>, rand: WorldRngSeeder, ground: BlockId) -> Self {
+    pub fn new(
+        structures: Vec<Box<StructureFinder>>,
+        rand: WorldRngSeeder,
+        ground: BlockId,
+    ) -> Self {
         OverworldGenerator {
             structures: CombinedStructureGenerator::new(structures, rand),
             biomes: vec![],
@@ -47,7 +51,13 @@ impl OverworldGenerator {
         }
     }
 
-    pub fn add_biome(&mut self, b: BiomeId, terrain: NoiseParameters, terrain_base: i32, mut layers: GroundGen) {
+    pub fn add_biome(
+        &mut self,
+        b: BiomeId,
+        terrain: NoiseParameters,
+        terrain_base: i32,
+        mut layers: GroundGen,
+    ) {
         self.biomes.push(b);
         self.terrain_parameters.push(terrain);
         self.terrain_bases.push(terrain_base);
@@ -55,7 +65,12 @@ impl OverworldGenerator {
         self.ground_layers.push(layers);
     }
 
-    fn extract_chunk_biomes(&self, map: &BiomeMap, rel_x: usize, rel_z: usize) -> [[BiomeId; CHUNK_SIZE]; CHUNK_SIZE] {
+    fn extract_chunk_biomes(
+        &self,
+        map: &BiomeMap,
+        rel_x: usize,
+        rel_z: usize,
+    ) -> [[BiomeId; CHUNK_SIZE]; CHUNK_SIZE] {
         let mut ret = [[BiomeId::init(); CHUNK_SIZE]; CHUNK_SIZE];
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
@@ -66,7 +81,9 @@ impl OverworldGenerator {
     }
 
     fn gen_biome_map(&self, x: i32, z: i32) -> Box<BiomeMap> {
-        let mut map = Box::new([[usize::max_value(); BIOME_GEN_SIZE + 1]; BIOME_GEN_SIZE + 1]);
+        let mut map = Box::new(
+            [[usize::max_value(); BIOME_GEN_SIZE + 1]; BIOME_GEN_SIZE + 1],
+        );
         map[0][0] = self.corner_biome(x, z);
         map[0][BIOME_GEN_SIZE] = self.corner_biome(x, z + 1);
         map[BIOME_GEN_SIZE][0] = self.corner_biome(x + 1, z);
@@ -83,7 +100,15 @@ impl OverworldGenerator {
         }
 
 
-        spread_biomes(&mut map, &mut self.rand.rng(), 0, 0, BIOME_GEN_SIZE, false, false);
+        spread_biomes(
+            &mut map,
+            &mut self.rand.rng(),
+            0,
+            0,
+            BIOME_GEN_SIZE,
+            false,
+            false,
+        );
         map
     }
 
@@ -92,13 +117,14 @@ impl OverworldGenerator {
             if let Some(read) = self.biome_maps.get(&[gen_x, gen_z]) {
                 return read;
             }
-            self.biome_maps.alter([gen_x, gen_z], |map_opt| {
-                if let Some(m) = map_opt {
+            self.biome_maps.alter(
+                [gen_x, gen_z],
+                |map_opt| if let Some(m) = map_opt {
                     Some(m)
                 } else {
                     Some(self.gen_biome_map(gen_x, gen_z))
-                }
-            });
+                },
+            );
         }
     }
 
@@ -126,14 +152,14 @@ impl OverworldGenerator {
         let biome_nx = reader.get(x + 1, z);
         let biome_nz = reader.get(x, z + 1);
         let height = if biome == biome_nx && biome == biome_nz {
-            self.terrain_parameters[biome]
-                .generate(x as f32, z as f32, self.noise_gen.iter())
+            self.terrain_parameters[biome].generate(x as f32, z as f32, self.noise_gen.iter())
         } else {
-            [biome, biome_nx, biome_nz].iter()
+            [biome, biome_nx, biome_nz]
+                .iter()
                 .map(|b| {
-                    self.terrain_parameters[*b]
-                        .generate(x as f32, z as f32, self.noise_gen.iter())
-                }).sum::<f32>() / 3.
+                    self.terrain_parameters[*b].generate(x as f32, z as f32, self.noise_gen.iter())
+                })
+                .sum::<f32>() / 3.
         };
         height.round() as i32
     }
@@ -154,7 +180,8 @@ impl OverworldGenerator {
         let mut hm = self.gen_base_height_map(cx, cz, reader);
         for x in 0..cs {
             for z in 0..cs {
-                hm[x as usize][z as usize] += self.noise_height_at(cx * cs + x, cz * cs + z, reader);
+                hm[x as usize][z as usize] +=
+                    self.noise_height_at(cx * cs + x, cz * cs + z, reader);
             }
         }
         hm
@@ -173,7 +200,11 @@ impl Generator for OverworldGenerator {
         let bgc = BIOME_GEN_CHUNKS as i32;
         let rel_x = pos[0].mod_floor(&bgc) as usize;
         let rel_z = pos[2].mod_floor(&bgc) as usize;
-        self.extract_chunk_biomes(&self.read_biome_map(pos[0].div_floor(&bgc), pos[2].div_floor(&bgc)), rel_x, rel_z)
+        self.extract_chunk_biomes(
+            &self.read_biome_map(pos[0].div_floor(&bgc), pos[2].div_floor(&bgc)),
+            rel_x,
+            rel_z,
+        )
     }
 
     fn biome_at(&self, x: i32, z: i32) -> BiomeId {
@@ -187,12 +218,20 @@ impl Generator for OverworldGenerator {
         let mut chunk = Box::new(ChunkArray::<AtomicBlockId>::default());
         for x in 0..CHUNK_SIZE {
             for z in 0..CHUNK_SIZE {
-                let biome = biome_reader.get(x as i32 + pos[0] * CHUNK_SIZE as i32, z as i32 + pos[2] * CHUNK_SIZE as i32);
+                let biome = biome_reader.get(
+                    x as i32 + pos[0] * CHUNK_SIZE as i32,
+                    z as i32 + pos[2] * CHUNK_SIZE as i32,
+                );
                 let end_index = CHUNK_SIZE - 1;
                 let depth = hm[x][z] - (pos[1] * CHUNK_SIZE as i32 + end_index as i32);
-                let gen_depth = self.ground_layers[biome].gen_column(depth, &mut |d, block| {
-                    chunk[[x, end_index - d, z, ]] = AtomicBlockId::new(block)
-                }, x as i32 + pos[0] * CHUNK_SIZE as i32, z as i32 + pos[2] * CHUNK_SIZE as i32);
+                let gen_depth = self.ground_layers[biome].gen_column(
+                    depth,
+                    &mut |d, block| {
+                        chunk[[x, end_index - d, z]] = AtomicBlockId::new(block)
+                    },
+                    x as i32 + pos[0] * CHUNK_SIZE as i32,
+                    z as i32 + pos[2] * CHUNK_SIZE as i32,
+                );
                 for i in 0..(CHUNK_SIZE - gen_depth) {
                     chunk[[x, i, z]] = AtomicBlockId::new(self.ground);
                 }
@@ -214,8 +253,10 @@ impl Generator for OverworldGenerator {
 }
 
 fn spread_1d<R, I>(min: usize, max: usize, map: &mut BiomeMap, rand: &mut R, index: &mut I)
-    where R: Rng,
-          I: for<'b> FnMut(&'b mut BiomeMap, usize) -> &'b mut usize, {
+where
+    R: Rng,
+    I: for<'b> FnMut(&'b mut BiomeMap, usize) -> &'b mut usize,
+{
     let center_biome = *index(map, if rand.gen() { min } else { max });
     *index(map, (min + max) / 2) = center_biome;
     if max - min > 2 {
@@ -224,7 +265,15 @@ fn spread_1d<R, I>(min: usize, max: usize, map: &mut BiomeMap, rand: &mut R, ind
     }
 }
 
-fn spread_biomes(map: &mut BiomeMap, rand: &mut WorldGenRng, x: usize, z: usize, s: usize, px: bool, pz: bool) {
+fn spread_biomes(
+    map: &mut BiomeMap,
+    rand: &mut WorldGenRng,
+    x: usize,
+    z: usize,
+    s: usize,
+    px: bool,
+    pz: bool,
+) {
     assert_ne!(map[x][z], usize::max_value());
     assert_ne!(map[x + s][z], usize::max_value());
     assert_ne!(map[x][z + s], usize::max_value());
@@ -233,7 +282,8 @@ fn spread_biomes(map: &mut BiomeMap, rand: &mut WorldGenRng, x: usize, z: usize,
     let hs = s / 2;
     let cx = x + hs;
     let cz = z + hs;
-    map[cx][cz] = map[if (rnd_val & 1) != 0 { x } else { x + s }][if (rnd_val & 2) != 0 { z } else { z + s }];
+    map[cx][cz] =
+        map[if (rnd_val & 1) != 0 { x } else { x + s }][if (rnd_val & 2) != 0 { z } else { z + s }];
     if px {
         map[x + s][cz] = map[x + s][if (rnd_val & 4) != 0 { z } else { z + s }];
     }
@@ -251,7 +301,7 @@ fn spread_biomes(map: &mut BiomeMap, rand: &mut WorldGenRng, x: usize, z: usize,
 struct BiomeReader<'a> {
     generator: &'a OverworldGenerator,
     guard: Option<ReadGuard<'a, [i32; 2], Box<BiomeMap>>>,
-    pos: [i32; 2]
+    pos: [i32; 2],
 }
 
 impl<'a> BiomeReader<'a> {

@@ -30,7 +30,11 @@ impl Ray {
             fstart[i] *= inverse_direction[i];
         }
         BlockIntersectIterator {
-            base: [self.start[0].floor() as i32, self.start[1].floor() as i32, self.start[2].floor() as i32],
+            base: [
+                self.start[0].floor() as i32,
+                self.start[1].floor() as i32,
+                self.start[2].floor() as i32,
+            ],
             idirection: [
                 self.direction[0].signum() as i32,
                 self.direction[1].signum() as i32,
@@ -60,8 +64,12 @@ impl Iterator for BlockIntersectIterator {
     type Item = BlockIntersection;
     fn next(&mut self) -> Option<Self::Item> {
         let mut move_axis = 0;
-        if self.fstart[1] < self.fstart[move_axis] { move_axis = 1 }
-        if self.fstart[2] < self.fstart[move_axis] { move_axis = 2 }
+        if self.fstart[1] < self.fstart[move_axis] {
+            move_axis = 1
+        }
+        if self.fstart[2] < self.fstart[move_axis] {
+            move_axis = 2
+        }
         self.base[move_axis] += self.idirection[move_axis];
         let dist = self.fstart[move_axis];
         for pos in &mut self.fstart {
@@ -70,7 +78,7 @@ impl Iterator for BlockIntersectIterator {
         self.fstart[move_axis] = self.inverse_direction[move_axis];
         Some(BlockIntersection {
             block: BlockPos(self.base),
-            face: Direction::from_components(move_axis, self.idirection[move_axis].is_negative())
+            face: Direction::from_components(move_axis, self.idirection[move_axis].is_negative()),
         })
     }
 }
@@ -84,13 +92,19 @@ mod test {
         for x in 0..4 {
             for y in 0..4 {
                 for z in 0..4 {
-                    let ray = Ray::new([x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5], [0., 1., 0.]);
+                    let ray = Ray::new(
+                        [x as f32 + 0.5, y as f32 + 0.5, z as f32 + 0.5],
+                        [0., 1., 0.],
+                    );
                     let mut blocks = ray.blocks();
                     for i in 1..100 {
-                        assert_eq!(blocks.next(), Some(BlockIntersection {
-                            block: BlockPos([x, y + i, z]),
-                            face: Direction::NegY,
-                        }));
+                        assert_eq!(
+                            blocks.next(),
+                            Some(BlockIntersection {
+                                block: BlockPos([x, y + i, z]),
+                                face: Direction::NegY,
+                            })
+                        );
                     }
                 }
             }
@@ -102,14 +116,20 @@ mod test {
         let ray = Ray::new([0.5, 0., 0.], [1., 1., 0.]);
         let mut blocks = ray.blocks();
         for i in 0..100 {
-            assert_eq!(blocks.next(), Some(BlockIntersection {
-                block: BlockPos([i+1, i , 0]),
-                face: Direction::NegX,
-            }));
-            assert_eq!(blocks.next(), Some(BlockIntersection {
-                block: BlockPos([i + 1, i + 1, 0]),
-                face: Direction::NegY
-            }));
+            assert_eq!(
+                blocks.next(),
+                Some(BlockIntersection {
+                    block: BlockPos([i + 1, i, 0]),
+                    face: Direction::NegX,
+                })
+            );
+            assert_eq!(
+                blocks.next(),
+                Some(BlockIntersection {
+                    block: BlockPos([i + 1, i + 1, 0]),
+                    face: Direction::NegY,
+                })
+            );
         }
     }
 }

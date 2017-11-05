@@ -16,9 +16,7 @@ impl<T> Index<BlockPos> for ChunkArray<T> {
     type Output = T;
     fn index(&self, idx: BlockPos) -> &T {
         let cs = CHUNK_SIZE as i32;
-        &self.0
-            [idx[0].mod_floor(&cs) as usize]
-            [idx[1].mod_floor(&cs) as usize]
+        &self.0[idx[0].mod_floor(&cs) as usize][idx[1].mod_floor(&cs) as usize]
             [idx[2].mod_floor(&cs) as usize]
     }
 }
@@ -26,10 +24,11 @@ impl<T> Index<BlockPos> for ChunkArray<T> {
 impl<T> IndexMut<BlockPos> for ChunkArray<T> {
     fn index_mut(&mut self, idx: BlockPos) -> &mut T {
         let cs = CHUNK_SIZE as i32;
-        &mut self.0
-            [idx[0].mod_floor(&cs) as usize]
-            [idx[1].mod_floor(&cs) as usize]
-            [idx[2].mod_floor(&cs) as usize]
+        &mut self.0[idx[0].mod_floor(&cs) as usize][idx[1].mod_floor(&cs) as usize][idx[2]
+                                                                                        .mod_floor(
+            &cs,
+        ) as
+                                                                                        usize]
     }
 }
 
@@ -59,15 +58,16 @@ pub struct ChunkReader<'a> {
 
 impl<'a> ChunkReader<'a> {
     pub fn new(chunk: &'a Chunk) -> Self {
-        ChunkReader {
-            chunk: chunk
-        }
+        ChunkReader { chunk: chunk }
     }
     pub fn block(&self, pos: [usize; 3]) -> BlockId {
         self.chunk.data[pos].load()
     }
     pub fn effective_light(&self, pos: [usize; 3]) -> u8 {
-        max(self.chunk.artificial_light[pos].level(), self.chunk.natural_light[pos].level())
+        max(
+            self.chunk.artificial_light[pos].level(),
+            self.chunk.natural_light[pos].level(),
+        )
     }
 }
 
@@ -81,7 +81,7 @@ impl<'a> ChunkCache<'a> {
         if let Some(cref) = chunks.borrow_chunk(pos) {
             Ok(ChunkCache {
                 pos: pos,
-                chunk: cref
+                chunk: cref,
             })
         } else {
             Err(())

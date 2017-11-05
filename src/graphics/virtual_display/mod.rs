@@ -10,15 +10,27 @@ mod render_buffer;
 /// the origin is the top left corner of the display
 pub trait VirtualDisplay {
     ///position in Virtual display coordinates
-    fn textured_triangle(&mut self, position: [[f32; 2]; 3], tex_coords: [[f32; 2]; 3], texture_id: TextureId, brightness: f32);
+    fn textured_triangle(
+        &mut self,
+        position: [[f32; 2]; 3],
+        tex_coords: [[f32; 2]; 3],
+        texture_id: TextureId,
+        brightness: f32,
+    );
     ///position in Virtual display coordinates
-    fn textured_quad(&mut self, position: [[f32; 2]; 4], tex_coords: [[f32; 2]; 4], texture_id: TextureId, brightness: f32);
+    fn textured_quad(
+        &mut self,
+        position: [[f32; 2]; 4],
+        tex_coords: [[f32; 2]; 4],
+        texture_id: TextureId,
+        brightness: f32,
+    );
     fn fill_with_texture(&mut self, id: TextureId, brightness: f32) {
         self.textured_quad(
             [[0., 0.], [0., 1.], [1., 1.], [1., 0.]],
             [[0., 1.], [0., 0.], [1., 0.], [1., 1.]],
             id,
-            brightness
+            brightness,
         )
     }
 
@@ -29,13 +41,16 @@ pub trait VirtualDisplay {
     fn ui_size_x(&self) -> f32;
     ///size in ui-units; one ui-unit is the size of an item slot
     fn ui_size_y(&self) -> f32;
-    fn sub_display(&mut self, area: Rectangle<f32>) -> TransformedDisplay<Self> where Self: Sized {
+    fn sub_display(&mut self, area: Rectangle<f32>) -> TransformedDisplay<Self>
+    where
+        Self: Sized,
+    {
         TransformedDisplay {
             mul_x: area.max_x - area.min_x,
             add_x: area.min_x,
             mul_y: area.max_y - area.min_y,
             add_y: area.min_y,
-            display: self
+            display: self,
         }
     }
 }
@@ -45,15 +60,12 @@ pub struct TransformedDisplay<'a, D: 'a + VirtualDisplay> {
     add_x: f32,
     mul_y: f32,
     add_y: f32,
-    display: &'a mut D
+    display: &'a mut D,
 }
 
 impl<'a, D: 'a + VirtualDisplay> TransformedDisplay<'a, D> {
     fn map(&self, pos: [f32; 2]) -> [f32; 2] {
-        [
-            self.map_x(pos[0]),
-            self.map_y(pos[1]),
-        ]
+        [self.map_x(pos[0]), self.map_y(pos[1])]
     }
     fn map_x(&self, x: f32) -> f32 {
         x.mul_add(self.mul_x, self.add_x)
@@ -64,18 +76,44 @@ impl<'a, D: 'a + VirtualDisplay> TransformedDisplay<'a, D> {
 }
 
 impl<'a, D: 'a + VirtualDisplay> VirtualDisplay for TransformedDisplay<'a, D> {
-    fn textured_triangle(&mut self, position: [[f32; 2]; 3], tex_coords: [[f32; 2]; 3], texture_id: TextureId, brightness: f32) {
-        let position = [self.map(position[0]), self.map(position[1]), self.map(position[2]), ];
-        self.display.textured_triangle(position, tex_coords, texture_id, brightness);
+    fn textured_triangle(
+        &mut self,
+        position: [[f32; 2]; 3],
+        tex_coords: [[f32; 2]; 3],
+        texture_id: TextureId,
+        brightness: f32,
+    ) {
+        let position = [
+            self.map(position[0]),
+            self.map(position[1]),
+            self.map(position[2]),
+        ];
+        self.display.textured_triangle(
+            position,
+            tex_coords,
+            texture_id,
+            brightness,
+        );
     }
-    fn textured_quad(&mut self, position: [[f32; 2]; 4], tex_coords: [[f32; 2]; 4], texture_id: TextureId, brightness: f32) {
+    fn textured_quad(
+        &mut self,
+        position: [[f32; 2]; 4],
+        tex_coords: [[f32; 2]; 4],
+        texture_id: TextureId,
+        brightness: f32,
+    ) {
         let position = [
             self.map(position[0]),
             self.map(position[1]),
             self.map(position[2]),
             self.map(position[3]),
         ];
-        self.display.textured_quad(position, tex_coords, texture_id, brightness);
+        self.display.textured_quad(
+            position,
+            tex_coords,
+            texture_id,
+            brightness,
+        );
     }
     fn text(&mut self, text: Rc<TextDisplay<FontTextureHandle>>, pos: Rectangle<f32>) {
         let rect = Rectangle {
@@ -89,6 +127,10 @@ impl<'a, D: 'a + VirtualDisplay> VirtualDisplay for TransformedDisplay<'a, D> {
     fn x_y_ratio(&self) -> f32 {
         self.display.x_y_ratio() * self.mul_x / self.mul_y
     }
-    fn ui_size_x(&self) -> f32 { self.display.ui_size_x() * self.mul_x }
-    fn ui_size_y(&self) -> f32 { self.display.ui_size_y() * self.mul_y }
+    fn ui_size_x(&self) -> f32 {
+        self.display.ui_size_x() * self.mul_x
+    }
+    fn ui_size_y(&self) -> f32 {
+        self.display.ui_size_y() * self.mul_y
+    }
 }

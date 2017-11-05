@@ -7,7 +7,10 @@ use world::{CHUNK_SIZE, ChunkArray, ChunkPos, BlockPos, WorldRngSeeder};
 use block::{AtomicBlockId, BlockId};
 use world::generator::TerrainInformation;
 
-pub trait Structure where Self: Send + Sync {
+pub trait Structure
+where
+    Self: Send + Sync,
+{
     fn generate<'a>(&self, &'a mut GeneratingChunk<'a>, &WorldRngSeeder, &TerrainInformation);
 }
 
@@ -28,12 +31,17 @@ impl StructureList {
     }
 }
 
-pub trait StructureFinder where Self: Send + Sync {
-    fn push_structures(&self,
-                       chunk: ChunkPos,
-                       seeder: &WorldRngSeeder,
-                       terrain: &TerrainInformation,
-                       out: &mut StructureList);
+pub trait StructureFinder
+where
+    Self: Send + Sync,
+{
+    fn push_structures(
+        &self,
+        chunk: ChunkPos,
+        seeder: &WorldRngSeeder,
+        terrain: &TerrainInformation,
+        out: &mut StructureList,
+    );
     fn max_bounds(&self) -> [[i32; 2]; 3];
 }
 
@@ -46,11 +54,7 @@ impl<'a> GeneratingChunk<'a> {
     pub fn pos_in_chunk(&self, pos: [i32; 3]) -> Option<[usize; 3]> {
         let pos = vec3_add(pos, self.struct_pos);
         if pos.iter().all(|x| *x >= 0 && *x < CHUNK_SIZE as i32) {
-            Some([
-                pos[0] as usize,
-                pos[1] as usize,
-                pos[2] as usize,
-            ])
+            Some([pos[0] as usize, pos[1] as usize, pos[2] as usize])
         } else {
             None
         }
@@ -118,43 +122,55 @@ impl CombinedStructureGenerator {
         self.cached.clear();
     }
 
-    pub fn generate_chunk(&self, pos: ChunkPos, chunk: &mut ChunkArray<AtomicBlockId>, terrain: &TerrainInformation) {
+    pub fn generate_chunk(
+        &self,
+        pos: ChunkPos,
+        chunk: &mut ChunkArray<AtomicBlockId>,
+        terrain: &TerrainInformation,
+    ) {
         let cs = CHUNK_SIZE as i32;
         let rand = self.seeder.pushi(&*pos);
         for x in self.max_bounds[0].clone() {
             for y in self.max_bounds[1].clone() {
                 for z in self.max_bounds[2].clone() {
-                    self.with_chunk(ChunkPos([x + pos[0], y + pos[1], z + pos[2]]), |structures| {
-                        for s in structures.0.iter()
-                            .filter(|s| {
-                                s.2[0].contains(pos[0])
-                                    && s.2[1].contains(pos[1])
-                                    && s.2[2].contains(pos[2])
-                            }) {
+                    self.with_chunk(
+                        ChunkPos([x + pos[0], y + pos[1], z + pos[2]]),
+                        |structures| for s in structures.0.iter().filter(|s| {
+                            s.2[0].contains(pos[0]) && s.2[1].contains(pos[1]) &&
+                                s.2[2].contains(pos[2])
+                        })
+                        {
                             let rel_struct_pos = vec3_sub((s.1).0, vec3_scale(pos.0, cs));
                             let mut gen_chunk = GeneratingChunk {
                                 chunk: chunk,
                                 struct_pos: rel_struct_pos,
                             };
                             s.0.generate(&mut gen_chunk, &rand, terrain);
-                        }
-                    }, terrain);
+                        },
+                        terrain,
+                    );
                 }
             }
         }
     }
 
-    fn with_chunk<F: FnOnce(&StructureList)>(&self, pos: ChunkPos, f: F, terrain: &TerrainInformation) {
-        self.cached.alter(pos, |opt_list| {
-            if let Some(list) = opt_list {
+    fn with_chunk<F: FnOnce(&StructureList)>(
+        &self,
+        pos: ChunkPos,
+        f: F,
+        terrain: &TerrainInformation,
+    ) {
+        self.cached.alter(
+            pos,
+            |opt_list| if let Some(list) = opt_list {
                 f(&list);
                 Some(list)
             } else {
                 let list = self.find_structures(pos, terrain);
                 f(&list);
                 Some(list)
-            }
-        });
+            },
+        );
     }
 
     fn find_structures(&self, pos: ChunkPos, terrain: &TerrainInformation) -> StructureList {

@@ -14,9 +14,7 @@ struct PlayerCamera {
 impl Clone for PlayerCamera {
     fn clone(&self) -> Self {
         PlayerCamera {
-            camera: Camera {
-                ..self.camera
-            },
+            camera: Camera { ..self.camera },
             ..*self
         }
     }
@@ -36,11 +34,7 @@ pub struct Player {
 
 pub const PLAYER_SIZE: [f64; 3] = [0.6, 1.8, 0.6];
 const PLAYER_VIEW_Y: f64 = 1.6;
-const PLAYER_CAMERA_OFFSET: [f64; 3] = [
-    PLAYER_SIZE[0] / 2.,
-    PLAYER_VIEW_Y,
-    PLAYER_SIZE[2] / 2.,
-];
+const PLAYER_CAMERA_OFFSET: [f64; 3] = [PLAYER_SIZE[0] / 2., PLAYER_VIEW_Y, PLAYER_SIZE[2] / 2.];
 
 impl Player {
     pub fn new() -> Self {
@@ -68,7 +62,11 @@ impl Player {
     }
 
     pub fn change_look(&self, d_yaw: f64, d_pitch: f64) {
-        let PlayerCamera { ref mut camera, ref mut yaw, ref mut pitch } = *self.camera.lock().unwrap();
+        let PlayerCamera {
+            ref mut camera,
+            ref mut yaw,
+            ref mut pitch,
+        } = *self.camera.lock().unwrap();
         *yaw = ((*yaw + d_yaw) / 2. / PI).fract() * 2. * PI;
         *pitch = (*pitch - d_pitch).min(0.5 * PI).max(-0.5 * PI);
         camera.set_yaw_pitch(*yaw, *pitch);
@@ -105,11 +103,7 @@ impl Player {
         } else {
             let len = (m[0].powi(2) + m[2].powi(2)).sqrt();
             let rot_movement = if len < 1e-6 {
-                [
-                    0.,
-                    physics.object.v()[1],
-                    0.,
-                ]
+                [0., physics.object.v()[1], 0.]
             } else {
                 let (sin, cos) = camera.yaw.sin_cos();
                 let (sin, cos) = (sin as f64, cos as f64);
@@ -142,7 +136,10 @@ impl Player {
             let PlayerPhysics { ref mut object, .. } = *self.physics.lock().unwrap();
             let dif = vec3_sub(object.position(), object.previous_tick_position());
             let scaled = vec3_scale(dif, f64::from(sub_tick_time));
-            vec3_add(vec3_add(object.previous_tick_position(), PLAYER_CAMERA_OFFSET), scaled)
+            vec3_add(
+                vec3_add(object.previous_tick_position(), PLAYER_CAMERA_OFFSET),
+                scaled,
+            )
         };
         Camera {
             position: pos,

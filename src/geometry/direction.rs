@@ -5,7 +5,7 @@ pub enum Direction {
     PosY = 2,
     NegY = 3,
     PosZ = 4,
-    NegZ = 5
+    NegZ = 5,
 }
 
 pub const ALL_DIRECTIONS: [Direction; 6] = [

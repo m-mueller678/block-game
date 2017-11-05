@@ -23,6 +23,9 @@ impl LightState {
     }
     pub fn set(&self, level: u8, direction: Option<Direction>) {
         self.level.store(level, Ordering::Relaxed);
-        self.direction.store(direction.map(|d| d as u8).unwrap_or(NO_DIRECTION), Ordering::Relaxed);
+        self.direction.store(
+            direction.map(|d| d as u8).unwrap_or(NO_DIRECTION),
+            Ordering::Relaxed,
+        );
     }
 }

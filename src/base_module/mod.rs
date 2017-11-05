@@ -24,12 +24,12 @@ impl Init1 for InitT1 {
         p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("stone"); 6]),
             LightType::Opaque,
-            "stone".into()
+            "stone".into(),
         ));
         p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("dirt"); 6]),
             LightType::Opaque,
-            "dirt".into()
+            "dirt".into(),
         ));
         p1.blocks.add(Block::new(
             {
@@ -39,12 +39,12 @@ impl Init1 for InitT1 {
                 DrawType::FullOpaqueBlock(texture)
             },
             LightType::Opaque,
-            "grass".into()
+            "grass".into(),
         ));
         p1.blocks.add(Block::new(
             DrawType::FullOpaqueBlock([p1.textures.get("debug"); 6]),
             LightType::Source(15),
-            "debug_light".into()
+            "debug_light".into(),
         ));
         Box::new(InitT2())
     }
@@ -61,21 +61,29 @@ impl Init2 for InitT2 {
             0,
             GroundGen::new()
                 .push_layer(p2.blocks.by_name("grass").unwrap(), 1., 1.)
-                .push_layer(p2.blocks.by_name("dirt").unwrap(), 1., 4.));
+                .push_layer(p2.blocks.by_name("dirt").unwrap(), 1., 4.),
+        );
         p2.add_overworld_biome(
             p2.biomes.by_name("rock").unwrap(),
-            NoiseParameters::new()
-                .push(8., 128., 0., None)
-                .push(4., 32., None, None),
+            NoiseParameters::new().push(8., 128., 0., None).push(
+                4.,
+                32.,
+                None,
+                None,
+            ),
             32,
-            GroundGen::new()
+            GroundGen::new(),
         );
-        p2.add_structure(Box::new(CrossFinder { block: p2.blocks.by_name("debug_light").unwrap() }));
+        p2.add_structure(Box::new(CrossFinder {
+            block: p2.blocks.by_name("debug_light").unwrap(),
+        }));
     }
 }
 
 impl Module for BaseModule {
-    fn init(&self) -> Box<Init1> { Box::new(InitT1 {}) }
+    fn init(&self) -> Box<Init1> {
+        Box::new(InitT1 {})
+    }
 }
 
 pub fn module() -> Box<Module> {
@@ -87,7 +95,13 @@ struct CrossFinder {
 }
 
 impl StructureFinder for CrossFinder {
-    fn push_structures<'a, 'b, 'c>(&'a self, chunk: ChunkPos, rand: &'b WorldRngSeeder, t: &TerrainInformation, out: &'c mut StructureList) {
+    fn push_structures<'a, 'b, 'c>(
+        &'a self,
+        chunk: ChunkPos,
+        rand: &'b WorldRngSeeder,
+        t: &TerrainInformation,
+        out: &'c mut StructureList,
+    ) {
         let cs = CHUNK_SIZE as i32;
         let mut rand = rand.rng();
         if rand.gen_weighted_bool(10) {
@@ -98,7 +112,7 @@ impl StructureFinder for CrossFinder {
                 out.push(
                     Box::new(CrossGenerator { block: self.block }),
                     BlockPos([x, surface, z]),
-                    self.max_bounds()
+                    self.max_bounds(),
                 );
             }
         }
@@ -113,7 +127,12 @@ struct CrossGenerator {
 }
 
 impl Structure for CrossGenerator {
-    fn generate<'a>(&self, chunk: &'a mut GeneratingChunk<'a>, _: &WorldRngSeeder, _: &TerrainInformation) {
+    fn generate<'a>(
+        &self,
+        chunk: &'a mut GeneratingChunk<'a>,
+        _: &WorldRngSeeder,
+        _: &TerrainInformation,
+    ) {
         for i in -10..11 {
             chunk.set_block([i, 0, i], self.block);
             chunk.set_block([i, 0, -i], self.block);

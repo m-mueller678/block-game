@@ -11,16 +11,16 @@ pub use self::core_textures::CoreTextureMap;
 
 mod core_textures;
 
-pub type GameData=Arc<GameDataInner>;
+pub type GameData = Arc<GameDataInner>;
 
 pub struct GameDataInner {
     biomes: BiomeRegistry,
     block: BlockRegistry,
     generator: Box<Generator>,
-    core_textures:CoreTextureMap,
+    core_textures: CoreTextureMap,
 }
 
-pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader) {
+pub fn start<I: Iterator<Item = Box<Init1>>>(init1: I) -> (GameData, TextureLoader) {
     let mut block_registry = BlockRegistry::new();
     let mut texture_loader = TextureLoader::new();
     let mut biome_registry = BiomeRegistry::new();
@@ -30,9 +30,7 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader
             blocks: &mut block_registry,
             biomes: &mut biome_registry,
         };
-        init1.map(|m: Box<Init1>| {
-            m.run(&mut p1)
-        }).collect()
+        init1.map(|m: Box<Init1>| m.run(&mut p1)).collect()
     };
     let generator = {
         let mut p2 = Phase2 {
@@ -42,30 +40,34 @@ pub fn start<I: Iterator<Item=Box<Init1>>>(init1: I) -> (GameData, TextureLoader
             gen_biomes: vec![],
             structures: vec![],
         };
-        let _:Vec<()>=i2.into_iter().map(|m: Box<Init2>| {
-            m.run(&mut p2)
-        }).collect();
-        p2.build(block_registry.by_name("stone").unwrap(), &WorldRngSeeder::new(42))
+        let _: Vec<()> = i2.into_iter().map(|m: Box<Init2>| m.run(&mut p2)).collect();
+        p2.build(
+            block_registry.by_name("stone").unwrap(),
+            &WorldRngSeeder::new(42),
+        )
     };
-    (Arc::new(GameDataInner {
-        block: block_registry,
-        biomes: biome_registry,
-        generator: Box::new(generator),
-        core_textures:CoreTextureMap::new(&mut texture_loader)
-    }), texture_loader)
+    (
+        Arc::new(GameDataInner {
+            block: block_registry,
+            biomes: biome_registry,
+            generator: Box::new(generator),
+            core_textures: CoreTextureMap::new(&mut texture_loader),
+        }),
+        texture_loader,
+    )
 }
 
 impl GameDataInner {
-    pub fn generator(&self)->&Generator{
+    pub fn generator(&self) -> &Generator {
         &*self.generator
     }
-    pub fn blocks(&self)->&BlockRegistry{
+    pub fn blocks(&self) -> &BlockRegistry {
         &self.block
     }
-    pub fn biomes(&self)->&BiomeRegistry{
+    pub fn biomes(&self) -> &BiomeRegistry {
         &self.biomes
     }
-    pub fn core_textures(&self)->&CoreTextureMap{
+    pub fn core_textures(&self) -> &CoreTextureMap {
         &self.core_textures
     }
 }
@@ -85,7 +87,13 @@ pub struct Phase2<'a> {
 }
 
 impl<'a> Phase2<'a> {
-    pub fn add_overworld_biome(&mut self, b: BiomeId, terrain: NoiseParameters, t_base: i32, layers: GroundGen) {
+    pub fn add_overworld_biome(
+        &mut self,
+        b: BiomeId,
+        terrain: NoiseParameters,
+        t_base: i32,
+        layers: GroundGen,
+    ) {
         self.gen_biomes.push((b, terrain, t_base, layers));
     }
     pub fn add_structure(&mut self, s: Box<StructureFinder>) {

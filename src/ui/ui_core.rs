@@ -22,7 +22,7 @@ impl UiCore {
             Ok(s) => s,
             Err(e) => {
                 use std::process::exit;
-                eprintln!("shader compilation failed:\n{}",e);
+                eprintln!("shader compilation failed:\n{}", e);
                 exit(1)
             }
         };

@@ -29,7 +29,7 @@ pub enum Message {
         state: ElementState,
         button: MouseButton,
     },
-    BlockTargetChanged { target: Option<ray::BlockIntersection> },
+    BlockTargetChanged { target: Option<ray::BlockIntersection>, },
 }
 
 pub struct Ui {
@@ -46,7 +46,10 @@ impl Ui {
         world: Arc<World>,
         player: Arc<Player>,
     ) -> Self {
-        display.gl_window().set_cursor_state(CursorState::Hide).unwrap();
+        display
+            .gl_window()
+            .set_cursor_state(CursorState::Hide)
+            .unwrap();
         let core = UiCore::new(display, textures);
         Ui {
             in_game: GameUi::new(event_sender, world, player, &core),
@@ -60,20 +63,24 @@ impl Ui {
         loop {
             events.poll_events(|e| self.process_event(e));
             let draw_game = match self.state {
-                UiState::Closing => { break; }
-                UiState::InGame => { true }
-                UiState::Menu(ref m) => {
-                    m.transparent()
+                UiState::Closing => {
+                    break;
                 }
-                UiState::Swapped => unreachable!()
+                UiState::InGame => true,
+                UiState::Menu(ref m) => m.transparent(),
+                UiState::Swapped => unreachable!(),
             };
             let mut target = self.core.display.draw();
             target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
             if draw_game {
-                self.in_game.update_and_render(&self.core, &self.state, &mut target);
+                self.in_game.update_and_render(
+                    &self.core,
+                    &self.state,
+                    &mut target,
+                );
             }
             match self.state {
-                UiState::Closing | UiState::Swapped => { unreachable!() }
+                UiState::Closing | UiState::Swapped => unreachable!(),
                 UiState::InGame => {}
                 UiState::Menu(ref mut menu) => {
                     menu.render(&self.core, &mut target);
@@ -89,14 +96,20 @@ impl Ui {
         }
         let id = self.core.display.gl_window().id();
         match e {
-            Event::WindowEvent { window_id, ref event }if window_id == id => {
+            Event::WindowEvent {
+                window_id,
+                ref event,
+            } if window_id == id => {
                 match *event {
                     WindowEvent::KeyboardInput { input, .. } => {
                         self.core.key_state.update(&input);
                     }
                     WindowEvent::MouseMoved { position: (x, y), .. } => {
-                        let size = self.core.display.gl_window().get_inner_size().unwrap_or((1, 1));
-                        self.core.mouse_position = [x as f32 / size.0 as f32, y as f32 / size.1 as f32];
+                        let size = self.core.display.gl_window().get_inner_size().unwrap_or(
+                            (1, 1),
+                        );
+                        self.core.mouse_position =
+                            [x as f32 / size.0 as f32, y as f32 / size.1 as f32];
                     }
                     WindowEvent::Closed => {
                         self.state = UiState::Closing;
@@ -108,11 +121,13 @@ impl Ui {
                 self.state = match replace(&mut self.state, UiState::Swapped) {
                     UiState::Menu(mut m) => {
                         match m.process_event(event, &mut self.core) {
-                            EventResult::Processed => {
-                                UiState::Menu(m)
-                            }
+                            EventResult::Processed => UiState::Menu(m),
                             EventResult::MenuClosed => {
-                                self.core.display.gl_window().set_cursor_state(CursorState::Hide).unwrap();
+                                self.core
+                                    .display
+                                    .gl_window()
+                                    .set_cursor_state(CursorState::Hide)
+                                    .unwrap();
                                 UiState::InGame
                             }
                             EventResult::NewMenu(pushed) => {
@@ -123,13 +138,21 @@ impl Ui {
                     }
                     UiState::InGame => {
                         let mut new_state = UiState::InGame;
-                        self.in_game.process_window_event(event, &mut self.core, &mut new_state);
+                        self.in_game.process_window_event(
+                            event,
+                            &mut self.core,
+                            &mut new_state,
+                        );
                         if let UiState::Menu(_) = new_state {
-                            self.core.display.gl_window().set_cursor_state(CursorState::Normal).unwrap();
+                            self.core
+                                .display
+                                .gl_window()
+                                .set_cursor_state(CursorState::Normal)
+                                .unwrap();
                         }
                         new_state
                     }
-                    UiState::Closing | UiState::Swapped => unreachable!()
+                    UiState::Closing | UiState::Swapped => unreachable!(),
                 };
             }
             _ => {}

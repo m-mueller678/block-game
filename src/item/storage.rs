@@ -23,16 +23,18 @@ fn double_lock<'a, 'b>(s1: &'a Slot, s2: &'b Slot) -> (SlotLock<'a>, SlotLock<'b
     assert_ne!(s1 as *const Slot, s2 as *const Slot);
     loop {
         match s1.0.try_lock() {
-            Ok(l1) => match s2.0.try_lock() {
-                Ok(l2) => return (SlotLock(l1), SlotLock(l2)),
-                Err(TryLockError::WouldBlock) => {}
-                Err(e) => Err(e).unwrap(),
-            },
+            Ok(l1) => {
+                match s2.0.try_lock() {
+                    Ok(l2) => return (SlotLock(l1), SlotLock(l2)),
+                    Err(TryLockError::WouldBlock) => {}
+                    Err(e) => Err(e).unwrap(),
+                }
+            }
             Err(TryLockError::WouldBlock) => {}
             Err(e) => Err(e).unwrap(),
         }
         thread::yield_now();
-    };
+    }
 }
 
 impl Slot {
@@ -49,14 +51,14 @@ impl Slot {
                 &mut Some(ref mut to) => {
                     *from_lock = to.stack_from(game_data, from, 1);
                 }
-                to => {
-                    *to = Some(from)
-                }
+                to => *to = Some(from),
             }
         }
     }
     pub fn move_some_from(&self, game_data: &GameData, from_slot: &Slot, max: u32) {
-        if max == 0 { return; }
+        if max == 0 {
+            return;
+        }
         let (SlotLock(mut to_lock), SlotLock(mut from_lock)) = double_lock(self, from_slot);
         if let Some(ref mut to) = *to_lock {
             if let Some(mut from) = from_lock.take() {
@@ -92,14 +94,12 @@ impl From<Box<ItemStack>> for Slot {
 }
 
 pub struct SlotStorage {
-    slots: Vec<Slot>
+    slots: Vec<Slot>,
 }
 
 impl SlotStorage {
     pub fn new(size: usize) -> Self {
-        SlotStorage {
-            slots: (0..size).map(|_| Slot::new()).collect()
-        }
+        SlotStorage { slots: (0..size).map(|_| Slot::new()).collect() }
     }
     pub fn len(&self) -> usize {
         self.slots.len()

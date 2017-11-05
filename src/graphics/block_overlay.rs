@@ -8,7 +8,8 @@ use time::{SteadyTime, Duration};
 use vecmath::*;
 use glium;
 use glium::backend::Facade;
-use glium::{VertexBuffer,vertex, IndexBuffer, ProgramCreationError, Program, Surface, DrawParameters};
+use glium::{VertexBuffer, vertex, IndexBuffer, ProgramCreationError, Program, Surface,
+            DrawParameters};
 use glium::index::PrimitiveType;
 use geometry::{Direction, CORNER_OFFSET, CUBE_FACES};
 use world::{BlockPos, World};
@@ -16,8 +17,10 @@ use graphics::block::DrawType;
 use super::quad;
 
 pub struct Overlay2d<O, P>
-    where O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
-          P: FnMut() -> BlockPos + Send + 'static {
+where
+    O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
+    P: FnMut() -> BlockPos + Send + 'static,
+{
     data: O,
     player_position: P,
     range: i32,
@@ -25,8 +28,10 @@ pub struct Overlay2d<O, P>
 }
 
 impl<O, P> Overlay2d<O, P>
-    where O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
-          P: FnMut() -> BlockPos + Send + 'static {
+where
+    O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
+    P: FnMut() -> BlockPos + Send + 'static,
+{
     pub fn new(overlay: O, player_pos: P, range: i32, world: Arc<World>) -> Self {
         Overlay2d {
             data: overlay,
@@ -38,8 +43,10 @@ impl<O, P> Overlay2d<O, P>
 }
 
 impl<O, P> OverlayDataSupplier for Overlay2d<O, P>
-    where O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
-          P: FnMut() -> BlockPos + Send + 'static {
+where
+    O: FnMut(i32, i32) -> [f32; 3] + Send + 'static,
+    P: FnMut() -> BlockPos + Send + 'static,
+{
     fn get_data(&mut self) -> Vec<(BlockPos, Direction, [f32; 3])> {
         let pos = (self.player_position)();
         let mut faces = Vec::with_capacity((self.range as usize * 2 + 1).pow(2));
@@ -47,11 +54,17 @@ impl<O, P> OverlayDataSupplier for Overlay2d<O, P>
             let world = self.world.read();
             for z in (pos[2] - self.range)..(pos[2] + self.range) {
                 for dy in 0..self.range {
-                    match world.get_block(BlockPos([x, pos[1] - dy, z]))
-                        .map(|id| world.game_data().blocks().draw_type(id)) {
-                        None | Some(DrawType::None)  => {}
-                        Some(DrawType::FullOpaqueBlock(..))=> {
-                            faces.push((BlockPos([x, pos[1] - dy, z]), Direction::PosY, (self.data)(x, z)));
+                    match world.get_block(BlockPos([x, pos[1] - dy, z])).map(|id| {
+                        world.game_data().blocks().draw_type(id)
+                    }) {
+                        None |
+                        Some(DrawType::None) => {}
+                        Some(DrawType::FullOpaqueBlock(..)) => {
+                            faces.push((
+                                BlockPos([x, pos[1] - dy, z]),
+                                Direction::PosY,
+                                (self.data)(x, z),
+                            ));
                             break;
                         }
                     }
@@ -66,7 +79,10 @@ pub fn load_overlay_shader<F: Facade>(f: &F) -> Result<Program, ProgramCreationE
     Program::from_source(f, VERTEX_SRC, FRAGMENT_SRC, None)
 }
 
-pub trait OverlayDataSupplier where Self: Send + 'static {
+pub trait OverlayDataSupplier
+where
+    Self: Send + 'static,
+{
     fn get_data(&mut self) -> Vec<(BlockPos, Direction, [f32; 3])>;
 }
 
@@ -97,21 +113,33 @@ impl BlockOverlay {
             receiver: start_overlay(overlay),
         }
     }
-    pub fn draw<S: Surface>(&mut self, surface: &mut S, shader: &Program, transform: [[f32; 4]; 4]) -> Result<(), OverlayDrawError> {
+    pub fn draw<S: Surface>(
+        &mut self,
+        surface: &mut S,
+        shader: &Program,
+        transform: [[f32; 4]; 4],
+    ) -> Result<(), OverlayDrawError> {
         match self.receiver.try_recv() {
-            Err(TryRecvError::Disconnected) => { return Err(OverlayDrawError::OverlayPanic); }
+            Err(TryRecvError::Disconnected) => {
+                return Err(OverlayDrawError::OverlayPanic);
+            }
             Err(TryRecvError::Empty) => {}
             Ok(vertices) => {
                 let context = Rc::clone(self.v_buf.get_context());
                 let v_buf = match VertexBuffer::new(&context, &vertices) {
-                    Err(e) => { return Err(OverlayDrawError::BufferCreationError(Box::new(e))); }
-                    Ok(buffer) => buffer
+                    Err(e) => {
+                        return Err(OverlayDrawError::BufferCreationError(Box::new(e)));
+                    }
+                    Ok(buffer) => buffer,
                 };
                 let indices = quad::get_triangle_indices(vertices.len() / 4);
-                let i_buf = match IndexBuffer::new(&context, PrimitiveType::TrianglesList, &indices) {
-                    Err(e) => { return Err(OverlayDrawError::BufferCreationError(Box::new(e))); }
-                    Ok(buffer) => buffer
-                };
+                let i_buf =
+                    match IndexBuffer::new(&context, PrimitiveType::TrianglesList, &indices) {
+                        Err(e) => {
+                            return Err(OverlayDrawError::BufferCreationError(Box::new(e)));
+                        }
+                        Ok(buffer) => buffer,
+                    };
 
                 self.v_buf = v_buf;
                 self.i_buf = i_buf;
@@ -127,8 +155,13 @@ impl BlockOverlay {
             ..Default::default()
         };
         if let Err(e) = surface.draw(
-            &self.v_buf, &self.i_buf,
-            shader, &uniform! {transform:transform}, &parameters) {
+            &self.v_buf,
+            &self.i_buf,
+            shader,
+            &uniform! {transform:transform},
+            &parameters,
+        )
+        {
             return Err(OverlayDrawError::DrawError(e));
         }
         Ok(())
@@ -137,7 +170,10 @@ impl BlockOverlay {
 
 fn start_overlay(overlay: Box<OverlayDataSupplier>) -> Receiver<Vec<Vertex>> {
     let (sender, receiver) = sync_channel(1);
-    thread::Builder::new().name("block overlay updater".into()).spawn(move || update_overlay(overlay, sender)).unwrap();
+    thread::Builder::new()
+        .name("block overlay updater".into())
+        .spawn(move || update_overlay(overlay, sender))
+        .unwrap();
     receiver
 }
 
@@ -149,7 +185,10 @@ fn update_overlay(mut overlay: Box<OverlayDataSupplier>, sender: SyncSender<Vec<
         for (pos, face, color) in faces {
             let pos = [pos[0] as f32, pos[1] as f32, pos[2] as f32];
             for i in 0..4 {
-                let corner = vec3_add(vec3_scale(CORNER_OFFSET[CUBE_FACES[face as usize][i]], 1.05), [-0.025; 3]);
+                let corner = vec3_add(
+                    vec3_scale(CORNER_OFFSET[CUBE_FACES[face as usize][i]], 1.05),
+                    [-0.025; 3],
+                );
                 vertices.push(Vertex {
                     position: vec3_add(pos, corner),
                     color: color,
@@ -179,17 +218,27 @@ struct Vertex {
 
 //workaround for bug in implement_vertex macro
 //glium issue #1607
-impl vertex::Vertex for Vertex{
-    fn build_bindings()->vertex::VertexFormat{
-        static VERTEX_FORMAT:[(Cow<'static,str>,usize,vertex::AttributeType,bool);2]=[
-            (Cow::Borrowed("position"),0,vertex::AttributeType::F32F32F32,false),
-            (Cow::Borrowed("color"),4*3,vertex::AttributeType::F32F32F32,false),
+impl vertex::Vertex for Vertex {
+    fn build_bindings() -> vertex::VertexFormat {
+        static VERTEX_FORMAT: [(Cow<'static, str>, usize, vertex::AttributeType, bool); 2] = [
+            (
+                Cow::Borrowed("position"),
+                0,
+                vertex::AttributeType::F32F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("color"),
+                4 * 3,
+                vertex::AttributeType::F32F32F32,
+                false,
+            ),
         ];
         Cow::Borrowed(&VERTEX_FORMAT)
     }
 }
 
-const VERTEX_SRC: & str = r#"
+const VERTEX_SRC: &str = r#"
 #version 140
 
 in vec3 position;
@@ -205,7 +254,7 @@ void main(){
 }
 "#;
 
-const FRAGMENT_SRC: & str = r#"
+const FRAGMENT_SRC: &str = r#"
 #version 140
 
 in vec3 overlay_color;

@@ -18,7 +18,7 @@ pub struct RenderBuffer2d {
     width: f32,
     height: f32,
     context: Rc<Context>,
-    text_displays: Vec<(Rc<TextDisplay<FontTextureHandle>>, Rectangle<f32>)>
+    text_displays: Vec<(Rc<TextDisplay<FontTextureHandle>>, Rectangle<f32>)>,
 }
 
 pub fn load_2d_shader<F: Facade>(facade: &F) -> Result<Program, ProgramCreationError> {
@@ -26,25 +26,37 @@ pub fn load_2d_shader<F: Facade>(facade: &F) -> Result<Program, ProgramCreationE
 }
 
 impl VirtualDisplay for RenderBuffer2d {
-    fn textured_triangle(&mut self, position: [[f32; 2]; 3], tex_coords: [[f32; 2]; 3], texture_id: TextureId, brightness: f32) {
+    fn textured_triangle(
+        &mut self,
+        position: [[f32; 2]; 3],
+        tex_coords: [[f32; 2]; 3],
+        texture_id: TextureId,
+        brightness: f32,
+    ) {
         for i in 0..3 {
             self.indices.push(self.vertices.len() as u16);
             self.vertices.push(Vertex {
                 position: Self::map_to_gl(position[i]),
                 tex_coords: tex_coords[i],
                 texture_id: texture_id.to_u32() as f32,
-                brightness
+                brightness,
             });
         }
     }
-    fn textured_quad(&mut self, position: [[f32; 2]; 4], tex_coords: [[f32; 2]; 4], texture_id: TextureId, brightness: f32) {
+    fn textured_quad(
+        &mut self,
+        position: [[f32; 2]; 4],
+        tex_coords: [[f32; 2]; 4],
+        texture_id: TextureId,
+        brightness: f32,
+    ) {
         let first_index = self.vertices.len() as u16;
         for i in 0..4 {
             self.vertices.push(Vertex {
                 position: Self::map_to_gl(position[i]),
                 tex_coords: tex_coords[i],
                 texture_id: texture_id.to_u32() as f32,
-                brightness
+                brightness,
             });
         }
         self.indices.push(first_index);
@@ -86,11 +98,23 @@ impl RenderBuffer2d {
         surface: &mut S,
         tri_shader: &Program,
         sampler: uniforms::Sampler<CompressedSrgbTexture2dArray>,
-        text_system: &TextSystem
+        text_system: &TextSystem,
     ) {
         let v_buf = VertexBuffer::new(&self.context, &self.vertices).unwrap();
-        let i_buf = IndexBuffer::new(&self.context, index::PrimitiveType::TrianglesList, &self.indices).unwrap();
-        surface.draw(&v_buf, &i_buf, tri_shader, &uniform! {sampler:sampler}, &Default::default()).unwrap();
+        let i_buf = IndexBuffer::new(
+            &self.context,
+            index::PrimitiveType::TrianglesList,
+            &self.indices,
+        ).unwrap();
+        surface
+            .draw(
+                &v_buf,
+                &i_buf,
+                tri_shader,
+                &uniform! {sampler:sampler},
+                &Default::default(),
+            )
+            .unwrap();
         for text in &self.text_displays {
             let scale_x = 2. / text.0.get_width() * (text.1.max_x - text.1.min_x);
             let scale_y = 2. / text.0.get_height() * (text.1.max_y - text.1.min_y);
@@ -123,10 +147,30 @@ struct Vertex {
 impl vertex::Vertex for Vertex {
     fn build_bindings() -> vertex::VertexFormat {
         static VERTEX_FORMAT: [(Cow<'static, str>, usize, vertex::AttributeType, bool); 4] = [
-            (Cow::Borrowed("position"), 0, vertex::AttributeType::F32F32, false),
-            (Cow::Borrowed("tex_coords"), 2 * 4, vertex::AttributeType::F32F32, false),
-            (Cow::Borrowed("texture_id"), 4 * 4, vertex::AttributeType::F32, false),
-            (Cow::Borrowed("brightness"), 5 * 4, vertex::AttributeType::F32, false),
+            (
+                Cow::Borrowed("position"),
+                0,
+                vertex::AttributeType::F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("tex_coords"),
+                2 * 4,
+                vertex::AttributeType::F32F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("texture_id"),
+                4 * 4,
+                vertex::AttributeType::F32,
+                false,
+            ),
+            (
+                Cow::Borrowed("brightness"),
+                5 * 4,
+                vertex::AttributeType::F32,
+                false,
+            ),
         ];
         Cow::Borrowed(&VERTEX_FORMAT)
     }

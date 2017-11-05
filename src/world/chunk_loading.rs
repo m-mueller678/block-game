@@ -23,12 +23,12 @@ impl InnerMap {
     }
     fn dec(&mut self, pos: ChunkPos) {
         if let Entry::Occupied(mut o) = self.map.entry(pos) {
-            let new_count={
+            let new_count = {
                 let count: &mut _ = o.get_mut();
                 (*count) -= 1;
                 *count
             };
-            if new_count==0 {
+            if new_count == 0 {
                 o.remove();
                 if !self.new_loaded.remove(&pos) {
                     self.new_unloaded.insert(pos);
@@ -52,7 +52,7 @@ impl InnerMap {
 }
 
 pub struct LoadMap {
-    loaded: Arc<Mutex<InnerMap>>
+    loaded: Arc<Mutex<InnerMap>>,
 }
 
 impl LoadMap {
@@ -81,7 +81,7 @@ impl LoadMap {
             size: radius,
         }
     }
-    pub fn apply_to_world(&self, map: &mut ChunkMap, inserter: & Inserter) {
+    pub fn apply_to_world(&self, map: &mut ChunkMap, inserter: &Inserter) {
         self.loaded.lock().unwrap().apply_to_world(map, inserter);
     }
 }

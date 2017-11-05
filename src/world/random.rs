@@ -1,23 +1,18 @@
 use noise::{Perlin, Seedable};
 use rand::{SeedableRng, XorShiftRng, Rng};
 
-#[derive(Copy,Clone)]
+#[derive(Copy, Clone)]
 pub struct WorldRngSeeder {
     seed: [u32; 4],
     pos: usize,
 }
 
-pub type WorldGenRng=XorShiftRng;
+pub type WorldGenRng = XorShiftRng;
 
 impl WorldRngSeeder {
     pub fn new(seed: u64) -> Self {
         WorldRngSeeder {
-            seed: [
-                seed as u32,
-                (seed >> 32) as u32,
-                0x1234_5678,
-                0xfedc_ba98,
-            ],
+            seed: [seed as u32, (seed >> 32) as u32, 0x1234_5678, 0xfedc_ba98],
             pos: 0,
         }
     }
@@ -28,18 +23,18 @@ impl WorldRngSeeder {
         ret.pos += 1;
         ret
     }
-    pub fn pushi(&self,source:&[i32])->Self{
-        let mut ret=*self;
-        for s in source{
-            ret=ret.push_num(*s as u32);
+    pub fn pushi(&self, source: &[i32]) -> Self {
+        let mut ret = *self;
+        for s in source {
+            ret = ret.push_num(*s as u32);
         }
         ret
     }
     #[allow(dead_code)]
-    pub fn pushu(&self,source:&[u32])->Self{
-        let mut ret=*self;
-        for s in source{
-            ret=ret.push_num(*s);
+    pub fn pushu(&self, source: &[u32]) -> Self {
+        let mut ret = *self;
+        for s in source {
+            ret = ret.push_num(*s);
         }
         ret
     }
@@ -47,8 +42,8 @@ impl WorldRngSeeder {
         NoiseIterator { gen: self.rng() }
     }
     pub fn rng(&self) -> WorldGenRng {
-        let mut r=XorShiftRng::from_seed(self.seed);
-        for _ in 0..4{
+        let mut r = XorShiftRng::from_seed(self.seed);
+        for _ in 0..4 {
             r.next_u32();
         }
         r

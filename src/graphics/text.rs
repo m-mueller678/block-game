@@ -20,13 +20,12 @@ impl Deref for FontTextureHandle {
 impl FontTextureHandle {
     pub fn new<F: Facade>(facade: &F) -> Self {
         let font_data = system_fonts::get(&system_fonts::FontPropertyBuilder::new().build())
-            .expect("cannot find any system fonts").0;
+            .expect("cannot find any system fonts")
+            .0;
         let character_list = (0x21u8..0x7F).map(|i| i as char);
         let font_texture = FontTexture::new(facade, &font_data as &[u8], 32, character_list)
             .expect("cannot rasterize font");
 
-        FontTextureHandle {
-            texture: Rc::new(font_texture)
-        }
+        FontTextureHandle { texture: Rc::new(font_texture) }
     }
 }

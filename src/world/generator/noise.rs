@@ -3,7 +3,7 @@ use std::ops::Mul;
 use std;
 
 pub struct NoiseParameters {
-    parameters: Vec<Parameter>
+    parameters: Vec<Parameter>,
 }
 
 struct Parameter {
@@ -15,14 +15,14 @@ struct Parameter {
 
 impl NoiseParameters {
     pub fn new() -> Self {
-        NoiseParameters {
-            parameters: vec![]
-        }
+        NoiseParameters { parameters: vec![] }
     }
 
-    pub fn push<MI,MA>(mut self, amplitude: f32, wavelength: f32, min: MI, max: MA) -> Self
-    where MI:Into<Option<f32>>,
-          MA:Into<Option<f32>>{
+    pub fn push<MI, MA>(mut self, amplitude: f32, wavelength: f32, min: MI, max: MA) -> Self
+    where
+        MI: Into<Option<f32>>,
+        MA: Into<Option<f32>>,
+    {
         self.parameters.push(Parameter {
             scale: wavelength.recip(),
             amplitude: amplitude,
@@ -33,12 +33,19 @@ impl NoiseParameters {
     }
 
     pub fn generate<'a, I, N>(&self, x: f32, z: f32, mut noise: I) -> f32
-        where N: NoiseModule<[f32; 2]> + 'a,
-              N::Output: Mul<f32, Output=f32>,
-              I: Iterator<Item=&'a N> {
+    where
+        N: NoiseModule<[f32; 2]> + 'a,
+        N::Output: Mul<f32, Output = f32>,
+        I: Iterator<Item = &'a N>,
+    {
         let mut ret = 0.;
         for p in &self.parameters {
-            let n = noise.next().expect("end of noise iterator").get([x * p.scale, z * p.scale]) * p.amplitude;
+            let n = noise.next().expect("end of noise iterator").get(
+                [
+                    x * p.scale,
+                    z * p.scale,
+                ],
+            ) * p.amplitude;
             ret += n;
             if ret < p.min {
                 ret = p.min;

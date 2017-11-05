@@ -8,7 +8,7 @@ pub struct Object {
     v: V3,
     previous_position: V3,
     size: V3,
-    on_ground: bool
+    on_ground: bool,
 }
 
 impl Object {
@@ -70,9 +70,13 @@ impl Object {
         let move_positive = self.v[axis].is_sign_positive();
         let mut bounds = [[0.; 2]; 3];
         let mut move_front = 0.;
-        for (i,bounds) in bounds.iter_mut().enumerate() {
+        for (i, bounds) in bounds.iter_mut().enumerate() {
             if axis == i {
-                move_front = if move_positive { self.p[i] + self.size[i] } else { self.p[i] };
+                move_front = if move_positive {
+                    self.p[i] + self.size[i]
+                } else {
+                    self.p[i]
+                };
                 bounds[0] = move_front;
                 bounds[1] = move_front + self.v[i] * TICK_TIME;
                 if !move_positive {
@@ -86,26 +90,38 @@ impl Object {
         let range_x = [bounds[0][0].floor() as i32, bounds[0][1].ceil() as i32];
         let range_y = [bounds[1][0].floor() as i32, bounds[1][1].ceil() as i32];
         let range_z = [bounds[2][0].floor() as i32, bounds[2][1].ceil() as i32];
-        let mut min_collide_pos = if move_positive { f64::INFINITY } else { f64::NEG_INFINITY };
+        let mut min_collide_pos = if move_positive {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        };
         'find_collision: for x in range_x[0]..range_x[1] {
             for y in range_y[0]..range_y[1] {
                 for z in range_z[0]..range_z[1] {
                     let mut block_bounds = bounds;
-                    for b in &mut block_bounds[0] { *b -= f64::from(x); }
-                    for b in &mut block_bounds[1] { *b -= f64::from(y); }
-                    for b in &mut block_bounds[2] { *b -= f64::from(z); }
-                    let collide_pos = get_block_collision(block_bounds,
-                                                          axis,
-                                                          move_positive,
-                                                          BlockPos([x, y, z]),
-                                                          world
+                    for b in &mut block_bounds[0] {
+                        *b -= f64::from(x);
+                    }
+                    for b in &mut block_bounds[1] {
+                        *b -= f64::from(y);
+                    }
+                    for b in &mut block_bounds[2] {
+                        *b -= f64::from(z);
+                    }
+                    let collide_pos = get_block_collision(
+                        block_bounds,
+                        axis,
+                        move_positive,
+                        BlockPos([x, y, z]),
+                        world,
                     );
-                    let collide_pos_abs = collide_pos + f64::from(match axis {
-                        0 => x,
-                        1 => y,
-                        2 => z,
-                        _ => unreachable!()
-                    });
+                    let collide_pos_abs = collide_pos +
+                        f64::from(match axis {
+                            0 => x,
+                            1 => y,
+                            2 => z,
+                            _ => unreachable!(),
+                        });
 
                     if (collide_pos_abs < min_collide_pos) ^ !move_positive {
                         min_collide_pos = collide_pos_abs;
@@ -136,15 +152,28 @@ impl Object {
 }
 
 #[allow(unused_variables)]
-fn get_block_collision(block_bounds: [[f64; 2]; 3],
-                       move_axis: usize,
-                       move_positive: bool,
-                       p: BlockPos,
-                       world: &WorldReadGuard) -> f64 {
+fn get_block_collision(
+    block_bounds: [[f64; 2]; 3],
+    move_axis: usize,
+    move_positive: bool,
+    p: BlockPos,
+    world: &WorldReadGuard,
+) -> f64 {
     use block::BlockId;
     use std::f64;
-    let empty = world.get_block(p).map(|b| b == BlockId::empty()).unwrap_or(false);
+    let empty = world
+        .get_block(p)
+        .map(|b| b == BlockId::empty())
+        .unwrap_or(false);
     if empty {
-        if move_positive { f64::INFINITY } else { f64::NEG_INFINITY }
-    } else if move_positive { 0. } else { 1. }
+        if move_positive {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        }
+    } else if move_positive {
+        0.
+    } else {
+        1.
+    }
 }

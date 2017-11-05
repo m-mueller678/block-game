@@ -42,7 +42,8 @@ impl LightType {
     pub fn is_opaque(&self) -> bool {
         match *self {
             LightType::Opaque => true,
-            LightType::Transparent | LightType::Source(_) => false,
+            LightType::Transparent |
+            LightType::Source(_) => false,
         }
     }
 }
@@ -70,7 +71,13 @@ pub struct BlockRegistry {
 impl BlockRegistry {
     pub fn new() -> Self {
         BlockRegistry {
-            blocks: vec![Block { draw: DrawType::None, light: LightType::Transparent, name: "empty".into() }]
+            blocks: vec![
+                Block {
+                    draw: DrawType::None,
+                    light: LightType::Transparent,
+                    name: "empty".into(),
+                },
+            ],
         }
     }
     pub fn add(&mut self, block: Block) -> BlockId {
@@ -91,7 +98,8 @@ impl BlockRegistry {
         }
     }
     pub fn by_name(&self, name: &str) -> Option<BlockId> {
-        self.blocks.iter()
+        self.blocks
+            .iter()
             .enumerate()
             .filter(|&(_, block)| block.name == name)
             .map(|(i, _)| BlockId(i as u32))

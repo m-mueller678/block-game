@@ -17,22 +17,22 @@ pub struct ItemSlotRender {
 
 impl ItemSlotRender {
     pub fn new() -> Self {
-        ItemSlotRender {
-            count: None
-        }
+        ItemSlotRender { count: None }
     }
     pub fn render<D: VirtualDisplay>(
         &mut self,
         slot: &Slot,
         gd: &GameData,
         ui_core: &UiCore,
-        display: &mut D
+        display: &mut D,
     ) {
         let mut lock = slot.lock();
         if let Some(ref mut item) = lock.stack() {
             item.render(gd, ui_core, display);
             if item.display_stack_size() {
-                let count = self.count.get_or_insert_with(|| ItemCountRender::new(ui_core));
+                let count = self.count.get_or_insert_with(
+                    || ItemCountRender::new(ui_core),
+                );
                 count.update(item.count());
                 count.render(display);
             } else {
