@@ -1,6 +1,8 @@
-use slog_term::*;
-use slog::*;
 use std::sync::Mutex;
+use slog_term::*;
+use slog::Drain;
+
+pub use slog::Logger;
 
 pub fn root_logger()->&'static Logger{
     &ROOT_LOGGER
