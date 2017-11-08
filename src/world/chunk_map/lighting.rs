@@ -2,7 +2,6 @@ use geometry::{Direction, ALL_DIRECTIONS};
 use world::BlockPos;
 use super::{ChunkMap, ChunkCache, chunk_at};
 use block::LightType;
-use std::sync::atomic::Ordering;
 
 pub const MAX_NATURAL_LIGHT: u8 = 5;
 
@@ -203,10 +202,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
 
     fn set_light(&mut self, pos: BlockPos, light: Light) {
         self.cache.chunk.artificial_light[pos].set(light.0, light.1);
-        self.cache.chunk.update_render.store(
-            true,
-            Ordering::Release,
-        );
+        self.cache.set_update(self.world);
         self.world.update_adjacent_chunks(pos);
     }
     fn compute_light_to(&mut self, _: Direction, level: u8) -> u8 {
@@ -265,10 +261,7 @@ impl<'a> LightMap for NaturalLightMap<'a> {
 
     fn set_light(&mut self, pos: BlockPos, light: Light) {
         self.cache.chunk.natural_light[pos].set(light.0, light.1);
-        self.cache.chunk.update_render.store(
-            true,
-            Ordering::Release,
-        );
+        self.cache.set_update(self.world);
         self.world.update_adjacent_chunks(pos);
     }
 

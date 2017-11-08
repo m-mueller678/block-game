@@ -95,4 +95,8 @@ impl<'a> ChunkCache<'a> {
             Ok(())
         }
     }
+
+    pub fn set_update(&self,map:&ChunkMap){
+        ChunkMap::set_chunk_update(&map.chunk_updates,self.chunk,self.pos);
+    }
 }

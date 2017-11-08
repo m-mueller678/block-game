@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
@@ -53,7 +53,7 @@ impl Inserter {
             let shared = Arc::clone(&self.shared);
             let pos = pos;
             self.threads.lock().unwrap().execute(move || {
-                Self::generate_chunk(shared, pos)
+                Self::generate_chunk(&*shared, pos)
             });
         }
     }
@@ -71,7 +71,7 @@ impl Inserter {
         }
     }
 
-    fn generate_chunk(shared: Arc<(GameData, Mutex<InsertBuffer>)>, pos: ChunkPos) {
+    fn generate_chunk(shared: &(GameData, Mutex<InsertBuffer>), pos: ChunkPos) {
         let data = shared.0.generator().gen_chunk(pos);
         let mut sources = Vec::new();
         for x in 0..CHUNK_SIZE {
@@ -154,7 +154,7 @@ impl Inserter {
                     &mut sources_to_trigger,
                     &mut sky_light,
                 );
-                chunk.update_render.store(true, Ordering::Release);
+                ChunkMap::set_chunk_update(&chunks.chunk_updates,chunk,facing);
             }
         }
         increase_light(
@@ -187,5 +187,6 @@ impl Inserter {
                 relight.build_queue(&mut lm),
             );
         }
+        chunks.update_render(insert_pos);
     }
 }

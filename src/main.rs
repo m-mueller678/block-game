@@ -25,6 +25,7 @@ extern crate slog_term;
 extern crate lazy_static;
 #[macro_use]
 extern crate measure_time;
+extern crate crossbeam;
 
 use glium::glutin::{MouseButton, ElementState};
 use num::Integer;

@@ -1,6 +1,7 @@
 use std::collections::hash_map::*;
 use std::sync::atomic::Ordering;
 use num::Integer;
+use crossbeam::sync::SegQueue;
 use block::{BlockId, LightType};
 use geometry::Direction;
 use geometry::ray::{Ray, BlockIntersection};
@@ -23,6 +24,7 @@ pub struct ChunkMap {
     chunks: HashMap<[i32; 3], Box<Chunk>>,
     game_data: GameData,
     logger: Logger,
+    chunk_updates:SegQueue<ChunkPos>,
 }
 
 impl ChunkMap {
@@ -31,6 +33,7 @@ impl ChunkMap {
             chunks: HashMap::new(),
             game_data: game_data,
             logger: root_logger().clone(),
+            chunk_updates:SegQueue::new(),
         }
     }
     pub fn remove_chunk(&mut self, pos: ChunkPos) -> Option<Box<Chunk>> {
@@ -72,7 +75,7 @@ impl ChunkMap {
                     remove_and_relight(&mut self.natural_lightmap(chunk_pos), &[pos]);
                 }
             }
-            chunk.update_render.store(true, Ordering::Release);
+            Self::set_chunk_update(&self.chunk_updates,chunk,chunk_pos);
             if self.game_data.blocks().is_opaque_draw(before) ^
                self.game_data.blocks().is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
@@ -82,10 +85,16 @@ impl ChunkMap {
             Err(())
         }
     }
-    pub fn reset_chunk_updated(&self, pos: ChunkPos) -> bool {
-        self.borrow_chunk(pos)
-            .map(|c| c.update_render.swap(false, Ordering::Acquire))
-            .unwrap_or(false)
+    pub fn poll_chunk_update(&self) -> Option<ChunkPos> {
+        while let Some(pos)=self.chunk_updates.try_pop(){
+            let still_needs_update=self.borrow_chunk(pos)
+                .map(|c| c.update_render.swap(false, Ordering::Acquire))
+                .unwrap_or(false);
+            if still_needs_update{
+                return Some(pos);
+            }
+        }
+        None
     }
     pub fn chunk_loaded(&self, pos: ChunkPos) -> bool {
         self.borrow_chunk(pos).is_some()
@@ -237,11 +246,18 @@ impl ChunkMap {
     }
     fn update_render(&self, pos: ChunkPos) {
         if let Some(chunk) = self.borrow_chunk(pos) {
-            chunk.update_render.store(true, Ordering::Release)
+            Self::set_chunk_update(&self.chunk_updates,chunk,pos);
         }
     }
     fn borrow_chunk(&self, p: ChunkPos) -> Option<&Chunk> {
         self.chunks.get(&[p[0], p[1], p[2]]).map(|b| b.as_ref())
+    }
+
+    fn set_chunk_update(queue:&SegQueue<ChunkPos>,chunk:&Chunk,pos:ChunkPos){
+        let old=chunk.update_render.swap(true,Ordering::Release);
+        if old!=true{
+            queue.push(pos);
+        }
     }
 }
 

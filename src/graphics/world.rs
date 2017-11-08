@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::hash_map::*;
 use glium;
 use super::{RenderChunk, ChunkUniforms};
 use glium::texture::CompressedSrgbTexture2dArray;
@@ -89,11 +89,10 @@ impl WorldRender {
                 }
             }
         }
-        let needs_update = self.render_chunks
-            .iter_mut()
-            .find(|p| world.reset_chunk_updated(*p.0));
-        if let Some(chunk) = needs_update {
-            chunk.1.update(world, *chunk.0);
+        if let Some(pos) = world.poll_chunk_update() {
+            if let Some(ref mut chunk)=self.render_chunks.get_mut(&pos){
+                chunk.update(world,pos);
+            }
         }
     }
 }
