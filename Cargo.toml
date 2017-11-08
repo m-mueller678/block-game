@@ -3,6 +3,7 @@ name = "block"
 version = "0.1.0"
 authors = ["m-mueller678"]
 
+
 [dependencies]
 glium = "0.17.0"
 piston3d-cam = "0.3.0"
@@ -20,5 +21,4 @@ owning_ref = "0.3.3"
 slog = "2.0.12"
 slog-term = "2.2.0"
 lazy_static = "0.2.8"
-
-[profile.dev]
+measure_time = "0.1.5"

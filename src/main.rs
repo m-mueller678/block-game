@@ -23,6 +23,8 @@ extern crate slog;
 extern crate slog_term;
 #[macro_use]
 extern crate lazy_static;
+#[macro_use]
+extern crate measure_time;
 
 use glium::glutin::{MouseButton, ElementState};
 use num::Integer;
