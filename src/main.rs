@@ -18,7 +18,11 @@ extern crate chashmap;
 extern crate glium_text_rusttype;
 extern crate font_loader;
 extern crate owning_ref;
-
+#[macro_use]
+extern crate slog;
+extern crate slog_term;
+#[macro_use]
+extern crate lazy_static;
 
 use glium::glutin::{MouseButton, ElementState};
 use num::Integer;
@@ -42,6 +46,7 @@ mod module;
 mod physics;
 mod player;
 mod item;
+mod logging;
 
 mod base_module;
 

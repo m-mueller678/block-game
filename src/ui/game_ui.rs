@@ -1,15 +1,14 @@
-use glium::glutin::*;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;use glium::glutin::*;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
-use graphics::*;
-use world::{BlockPos, World};
-use geometry::*;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
-use window_util;
-use player::Player;
 use cam::Camera;
+use window_util;
+use graphics::*;
+use geometry::*;
+use player::Player;
+use world::{BlockPos, World};
 use module::GameData;
 use super::{KeyboardState, Message};
 pub use super::UiState;
@@ -221,25 +220,26 @@ impl GameUi {
                     self.block_target
                 );
                 if let Some((target, direction)) =
-                    self.block_target.clone().map(|t| (t.block, t.face))
-                {
-                    let facing_block = target.facing(direction);
-                    let world_r = self.world.read();
-                    println!(" ({:?})", facing_block);
-                    println!("id: {:?}", world_r.get_block(target).unwrap());
-                    println!(
-                        "natural light: {:?}, artificial light: {:?}",
-                        world_r.natural_light(facing_block).unwrap(),
-                        world_r.artificial_light(facing_block).unwrap()
-                    );
-                    println!(
-                        "gen-biome: {}",
-                        self.world.game_data().biomes()[self.world.game_data().generator().biome_at(
-                            target[0],
-                            target[2],
-                        )].name()
-                    );
-                } else {
+                self.block_target.clone().map(|t| (t.block, t.face))
+                    {
+                        let facing_block = target.facing(direction);
+                        let world_r = self.world.read();
+                        println!(" ({:?})", facing_block);
+                        if let (Some(id), Some(nl), Some(al)) = (
+                            world_r.get_block(target),
+                            world_r.natural_light(facing_block),
+                            world_r.artificial_light(facing_block)
+                        ) {
+                            println!("id: {:?}\nnatural light: {:?}, artificial light: {:?}", id, nl, al);
+                        }
+                        println!(
+                            "gen-biome: {}",
+                            self.world.game_data().biomes()[self.world.game_data().generator().biome_at(
+                                target[0],
+                                target[2],
+                            )].name()
+                        );
+                    } else {
                     println!()
                 }
             }
