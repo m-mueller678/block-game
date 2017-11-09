@@ -23,7 +23,7 @@ impl TextureId {
     }
 }
 
-pub use self::chunk::{RenderChunk, ChunkUniforms};
+pub use self::chunk::{RenderChunk,RenderChunkUpdate, ChunkUniforms};
 pub use self::block::DrawType;
 pub use self::world::WorldRender;
 pub use self::line::Vertex as LineVertex;

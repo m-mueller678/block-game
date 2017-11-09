@@ -1,3 +1,4 @@
+#![feature(vec_resize_default)]
 #![feature(integer_atomics)]
 #![feature(conservative_impl_trait)]
 #![feature(range_contains)]

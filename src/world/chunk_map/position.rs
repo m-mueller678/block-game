@@ -1,4 +1,6 @@
 use std::ops::Deref;
+use num::Integer;
+use world::CHUNK_SIZE;
 use geometry::Direction;
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
@@ -16,6 +18,15 @@ impl ChunkPos {
 impl BlockPos {
     pub fn facing(&self, d: Direction) -> Self {
         BlockPos(d.apply_to_pos(self.0))
+    }
+
+    pub fn containing_chunk(&self)->ChunkPos{
+        static CS:i32=CHUNK_SIZE as i32;
+        ChunkPos([
+            self[0].div_floor(&CS),
+            self[1].div_floor(&CS),
+            self[2].div_floor(&CS),
+        ])
     }
 }
 
