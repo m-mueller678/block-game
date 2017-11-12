@@ -1,10 +1,8 @@
 use super::atomic_light::LightState;
-use super::{ChunkPos, ChunkMap};
-use block::{AtomicBlockId, BlockId};
+use block::AtomicBlockId;
 use std::sync::atomic::AtomicBool;
 use num::Integer;
 use world::BlockPos;
-use std::cmp::max;
 use std::ops::{Index, IndexMut};
 
 pub const CHUNK_SIZE: usize = 32;
@@ -50,53 +48,4 @@ pub struct Chunk {
     pub artificial_light: ChunkArray<LightState>,
     pub natural_light: ChunkArray<LightState>,
     pub update_render: AtomicBool,
-}
-
-pub struct ChunkReader<'a> {
-    chunk: &'a Chunk,
-}
-
-impl<'a> ChunkReader<'a> {
-    pub fn new(chunk: &'a Chunk) -> Self {
-        ChunkReader { chunk: chunk }
-    }
-    pub fn block(&self, pos: [usize; 3]) -> BlockId {
-        self.chunk.data[pos].load()
-    }
-    pub fn effective_light(&self, pos: [usize; 3]) -> u8 {
-        max(
-            self.chunk.artificial_light[pos].level(),
-            self.chunk.natural_light[pos].level(),
-        )
-    }
-}
-
-pub struct ChunkCache<'a> {
-    pos: ChunkPos,
-    pub chunk: &'a Chunk,
-}
-
-impl<'a> ChunkCache<'a> {
-    pub fn new<'b: 'a>(pos: ChunkPos, chunks: &'b ChunkMap) -> Result<Self, ()> {
-        if let Some(cref) = chunks.borrow_chunk(pos) {
-            Ok(ChunkCache {
-                pos: pos,
-                chunk: cref,
-            })
-        } else {
-            Err(())
-        }
-    }
-    pub fn load<'b: 'a>(&mut self, pos: ChunkPos, chunks: &'b ChunkMap) -> Result<(), ()> {
-        if pos == self.pos {
-            Ok(())
-        } else {
-            *self = Self::new(pos, chunks)?;
-            Ok(())
-        }
-    }
-
-    pub fn set_update(&self,map:&ChunkMap){
-        ChunkMap::set_chunk_update(&map.chunk_updates,self.chunk,self.pos);
-    }
 }

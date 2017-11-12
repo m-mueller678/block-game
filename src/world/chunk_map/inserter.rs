@@ -154,7 +154,7 @@ impl Inserter {
                     &mut sources_to_trigger,
                     &mut sky_light,
                 );
-                ChunkMap::set_chunk_update(&chunks.chunk_updates,chunk,facing);
+                ChunkMap::set_chunk_update(&chunks.chunk_updates,&*chunk,facing);
             }
         }
         increase_light(

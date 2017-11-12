@@ -8,7 +8,6 @@ use geometry::CORNER_OFFSET;
 use glium;
 use super::{RenderChunk, RenderChunkUpdate, ChunkUniforms};
 use glium::texture::CompressedSrgbTexture2dArray;
-use logging;
 use world::{CHUNK_SIZE, BlockPos, ChunkPos, World};
 
 #[derive(PartialEq, Eq, Clone, Copy)]
