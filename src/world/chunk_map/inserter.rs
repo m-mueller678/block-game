@@ -1,10 +1,12 @@
-use std::collections::VecDeque;
+use std::collections::HashSet;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
+use world::World;
 use super::*;
+
 
 struct QueuedChunk {
     light_sources: Vec<(BlockPos, u8)>,
@@ -13,13 +15,12 @@ struct QueuedChunk {
 }
 
 pub struct Inserter {
-    shared: Arc<(GameData, Mutex<InsertBuffer>)>,
+    shared: Arc<(GameData, Mutex<Shared>)>,
     threads: Mutex<ThreadPool>,
 }
 
-struct InsertBuffer {
-    chunks: VecDeque<(QueuedChunk)>,
-    pending: Vec<ChunkPos>,
+struct Shared {
+    pending: HashSet<ChunkPos>,
 }
 
 impl Inserter {
@@ -27,51 +28,44 @@ impl Inserter {
         Inserter {
             shared: Arc::new((
                 gen,
-                Mutex::new(InsertBuffer {
-                    chunks: VecDeque::new(),
-                    pending: Vec::new(),
+                Mutex::new(Shared {
+                    pending: HashSet::new(),
                 }),
             )),
             threads: Mutex::new(ThreadPool::with_name("chunk generator".into(), 3)),
         }
     }
 
-    pub fn insert(&self, pos: ChunkPos, world: &ChunkMap) {
-        if world.chunk_loaded(pos) {
+    pub fn insert(&self, pos: ChunkPos, world: Arc<World>) {
+        if world.read().chunk_loaded(pos) {
             return;
         }
         {
             let mut lock = self.shared.1.lock().unwrap();
-            if lock.chunks.iter().any(|chunk| chunk.pos == pos) ||
-                lock.pending.iter().any(|p| *p == pos)
-            {
+            if lock.pending.contains(&pos){
                 return;
             }
-            lock.pending.push(pos);
+            lock.pending.insert(pos);
         }
         {
             let shared = Arc::clone(&self.shared);
             let pos = pos;
             self.threads.lock().unwrap().execute(move || {
-                Self::generate_chunk(&*shared, pos)
+                Self::generate_chunk(&*shared, pos, &*world.read())
             });
         }
     }
 
     pub fn cancel_insertion(&self, pos: ChunkPos) -> Result<(), ()> {
         let mut lock = self.shared.1.lock().unwrap();
-        if let Some(pending_index) = lock.pending.iter().position(|p| *p == pos) {
-            lock.pending.swap_remove(pending_index);
-            Ok(())
-        } else if let Some(generated_index) = lock.chunks.iter().position(|qc| qc.pos == pos) {
-            lock.chunks.swap_remove_back(generated_index);
+        if lock.pending.remove(&pos) {
             Ok(())
         } else {
             Err(())
         }
     }
 
-    fn generate_chunk(shared: &(GameData, Mutex<InsertBuffer>), pos: ChunkPos) {
+    fn generate_chunk(shared: &(GameData, Mutex<Shared>), pos: ChunkPos, chunks: &ChunkMap) {
         let data = shared.0.generator().gen_chunk(pos);
         let mut sources = Vec::new();
         for x in 0..CHUNK_SIZE {
@@ -95,23 +89,22 @@ impl Inserter {
                 }
             }
         }
-        let insert = QueuedChunk {
+        let chunk = QueuedChunk {
             light_sources: sources,
             pos: pos,
             data: data,
         };
+
         {
+            //make sure insertion has not been canceled
             let mut lock = shared.1.lock().unwrap();
-            if let Some(index) = lock.pending.iter().position(|p| *p == pos) {
-                lock.pending.swap_remove(index);
-                lock.chunks.push_back(insert);
+            if !lock.pending.remove(&pos){
+                return;
             }
         }
-    }
 
-    pub fn push_to_world(&self, chunks: &mut ChunkMap) {
         let mut sources_to_trigger = UpdateQueue::new();
-        let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
+        let insert_pos = {
             chunks.chunks.insert(
                 [chunk.pos[0], chunk.pos[1], chunk.pos[2]],
                 Box::new(Chunk {
@@ -125,8 +118,6 @@ impl Inserter {
                 sources_to_trigger.push(source.1, source.0, None);
             }
             chunk.pos
-        } else {
-            return;
         };
 
         let cs = CHUNK_SIZE as i32;
@@ -154,7 +145,7 @@ impl Inserter {
                     &mut sources_to_trigger,
                     &mut sky_light,
                 );
-                ChunkMap::set_chunk_update(&chunks.chunk_updates,&*chunk,facing);
+                ChunkMap::set_chunk_update(&chunks.chunk_updates, &*chunk, facing);
             }
         }
         increase_light(

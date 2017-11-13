@@ -62,7 +62,7 @@ fn main() {
 
     let (send, rec) = channel();
     let (display, mut events_loop) = window_util::create_window();
-    let world = Arc::new(World::new(game_data));
+    let world = World::new(game_data);
     let w2 = Arc::clone(&world);
     let player = Arc::new(player::Player::new());
     let p2 = Arc::clone(&player);

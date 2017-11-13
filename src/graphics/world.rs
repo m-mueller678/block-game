@@ -1,3 +1,4 @@
+use logging;
 use std::collections::hash_map::*;
 use std::sync::mpsc::*;
 use std::sync::{Arc, Mutex};
@@ -104,7 +105,6 @@ impl WorldRender {
         sampler: glium::uniforms::Sampler<CompressedSrgbTexture2dArray>,
         quad_shader: &glium::Program,
     ) -> Result<(), glium::DrawError> {
-        print_time!("draw");
         let params = glium::DrawParameters {
             depth: glium::Depth {
                 test: glium::draw_parameters::DepthTest::IfLess,
@@ -153,7 +153,6 @@ impl WorldRender {
     pub fn update<F: glium::backend::Facade>(&mut self,
                                              player_pos: BlockPos,
                                              facade: &F) {
-        print_time!("update");
         let chunk_pos = player_pos.containing_chunk();
         if chunk_pos != self.player_chunk {
             self.player_chunk = chunk_pos;
