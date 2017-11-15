@@ -1,5 +1,6 @@
 use std::sync::mpsc::Sender;
-use std::sync::Arc;use glium::glutin::*;
+use std::sync::Arc;
+use glium::glutin::*;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
@@ -212,23 +213,34 @@ impl GameUi {
         }
         match key.virtual_keycode {
             Some(VirtualKeyCode::Z) => {
+                let float_pos = self.player.position();
                 print!(
                     "pos: {:?}, dir: {:?}, look_at: {:?}",
-                    self.player.position(),
+                    float_pos,
                     self.player.look_direction(),
                     self.block_target
+                );
+                let block_pos = BlockPos([
+                    float_pos[0].floor() as i32,
+                    float_pos[1].floor() as i32,
+                    float_pos[2].floor() as i32,
+                ]);
+                let world = self.world.read();
+                println!("chunk: {:?}, enabled: {}, loaded: {}",
+                         block_pos.containing_chunk(),
+                         world.chunk_loader().chunk_enabled(block_pos.containing_chunk()),
+                         world.chunk_loader().chunk_loaded(block_pos.containing_chunk()),
                 );
                 if let Some((target, direction)) =
                 self.block_target.clone().map(|t| (t.block, t.face))
                     {
                         let facing_block = target.facing(direction);
-                        let world_r = self.world.read();
                         println!(" ({:?})", facing_block);
                         if let (Some(id), Some(nl), Some(al)) = (
-                            world_r.get_block(target),
+                            world.get_block(target),
                             //TODO enable natural light
-                            Some(0),//world_r.natural_light(facing_block),
-                            world_r.artificial_light(facing_block)
+                            Some(0), //world_r.natural_light(facing_block),
+                            world.artificial_light(facing_block)
                         ) {
                             println!("id: {:?}\nnatural light: {:?}, artificial light: {:?}", id, nl, al);
                         }

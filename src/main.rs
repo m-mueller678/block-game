@@ -95,7 +95,7 @@ fn main() {
                     chunk_pos = new_chunk_pos;
                     #[allow(unused_assignments)]
                     {
-                        chunk_load_guard = world.load_cube(chunk_at(block_pos), 2);
+                        chunk_load_guard = world.load_cube(block_pos.containing_chunk(), 2);
                     }
                 }
                 loop {
