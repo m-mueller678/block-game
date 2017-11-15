@@ -6,12 +6,20 @@ use geometry::Direction;
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub struct ChunkPos(pub [i32; 3]);
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub struct BlockPos(pub [i32; 3]);
 
 impl ChunkPos {
     pub fn facing(&self, d: Direction) -> Self {
         ChunkPos(d.apply_to_pos(self.0))
+    }
+
+    pub fn first_block(&self) -> BlockPos {
+        BlockPos([
+            self[0] * CHUNK_SIZE as i32,
+            self[1] * CHUNK_SIZE as i32,
+            self[2] * CHUNK_SIZE as i32,
+        ])
     }
 }
 
@@ -20,8 +28,8 @@ impl BlockPos {
         BlockPos(d.apply_to_pos(self.0))
     }
 
-    pub fn containing_chunk(&self)->ChunkPos{
-        static CS:i32=CHUNK_SIZE as i32;
+    pub fn containing_chunk(&self) -> ChunkPos {
+        static CS: i32 = CHUNK_SIZE as i32;
         ChunkPos([
             self[0].div_floor(&CS),
             self[1].div_floor(&CS),

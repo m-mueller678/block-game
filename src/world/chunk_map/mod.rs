@@ -3,20 +3,21 @@ use chashmap::*;
 use std::sync::atomic::Ordering;
 use num::Integer;
 use crossbeam::sync::SegQueue;
-use block::{BlockId, LightType};
-use geometry::Direction;
+use block::BlockId;
 use geometry::ray::{Ray, BlockIntersection};
 use module::GameData;
-use logging::*;
 
-mod inserter;
+mod pre_inserter;
 mod position;
+mod chunk_loader;
 mod lighting;
 mod atomic_light;
 mod chunk;
 
 pub use self::position::*;
-pub use self::inserter::Inserter;
+pub use self::pre_inserter::PreInserter;
+use self::lighting::LightUpdater;
+use self::chunk_loader::ChunkLoader;
 pub use self::chunk::*;
 
 use self::lighting::*;
@@ -24,8 +25,9 @@ use self::lighting::*;
 pub struct ChunkMap {
     chunks: CHashMap<[i32; 3], Box<Chunk>>,
     game_data: GameData,
-    logger: Logger,
-    chunk_updates:SegQueue<ChunkPos>,
+    chunk_updates: SegQueue<ChunkPos>,
+    chunk_loader: ChunkLoader,
+    light_updater: LightUpdater,
 }
 
 impl ChunkMap {
@@ -33,12 +35,10 @@ impl ChunkMap {
         ChunkMap {
             chunks: CHashMap::new(),
             game_data: game_data,
-            logger: root_logger().clone(),
-            chunk_updates:SegQueue::new(),
+            chunk_updates: SegQueue::new(),
+            chunk_loader: ChunkLoader::new(),
+            light_updater: LightUpdater::new(),
         }
-    }
-    pub fn remove_chunk(&self, pos: ChunkPos) -> Option<Box<Chunk>> {
-        self.chunks.remove(&[pos[0], pos[1], pos[2]])
     }
     pub fn set_block(&self, pos: BlockPos, block: BlockId) -> Result<(), ()> {
         let chunk_pos = Self::chunk_at(pos);
@@ -48,37 +48,15 @@ impl ChunkMap {
                 before = chunk.data[pos].load();
                 chunk.data[pos].store(block);
             }
-            match (*self.game_data.blocks().light_type(before),
-                   *self.game_data.blocks().light_type(block)) {
-                (LightType::Transparent, LightType::Transparent) |
-                (LightType::Opaque, LightType::Opaque) => {}
-                (LightType::Source(s1), LightType::Source(s2)) => {
-                    if s2 > s1 {
-                        increase_light(&mut self.artificial_lightmap(chunk_pos),
-                                       UpdateQueue::single(s2, pos, None));
-                    } else if s2 < s1 {
-                        remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos]);
-                    }
-                }
-                (LightType::Source(_), LightType::Transparent) => {
-                    remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos]);
-                }
-                (LightType::Transparent, LightType::Source(s)) => {
-                    increase_light(&mut self.artificial_lightmap(chunk_pos),
-                                   UpdateQueue::single(s, pos, None));
-                }
-                (LightType::Opaque, _) => {
-                    relight(&mut self.artificial_lightmap(chunk_pos), pos);
-                    relight(&mut self.natural_lightmap(chunk_pos), pos);
-                }
-                (_, LightType::Opaque) => {
-                    remove_and_relight(&mut self.artificial_lightmap(chunk_pos), &[pos]);
-                    remove_and_relight(&mut self.natural_lightmap(chunk_pos), &[pos]);
-                }
+            let before_lt = self.game_data.blocks().light_type(before);
+            let new_lt = self.game_data.blocks().light_type(block);
+            if *before_lt != *new_lt {
+                let light = &chunk.artificial_light[pos];
+                self.light_updater.block_light_changed((light.level(), light.direction()), new_lt, pos);
             }
-            Self::set_chunk_update(&self.chunk_updates,&*chunk,chunk_pos);
-            if self.game_data.blocks().is_opaque_draw(before) ^
-               self.game_data.blocks().is_opaque_draw(block) {
+            Self::set_chunk_update(&self.chunk_updates, &*chunk, chunk_pos);
+            if self.game_data.blocks().is_opaque_draw(before) !=
+                self.game_data.blocks().is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
             }
             Ok(())
@@ -87,11 +65,11 @@ impl ChunkMap {
         }
     }
     pub fn poll_chunk_update(&self) -> Option<ChunkPos> {
-        while let Some(pos)=self.chunk_updates.try_pop(){
-            let still_needs_update=self.borrow_chunk(pos)
+        while let Some(pos) = self.chunk_updates.try_pop() {
+            let still_needs_update = self.borrow_chunk(pos)
                 .map(|c| c.update_render.swap(false, Ordering::Acquire))
                 .unwrap_or(false);
-            if still_needs_update{
+            if still_needs_update {
                 return Some(pos);
             }
         }
@@ -103,15 +81,26 @@ impl ChunkMap {
     pub fn chunk_at(pos: BlockPos) -> ChunkPos {
         use num::Integer;
         ChunkPos([pos[0].div_floor(&(CHUNK_SIZE as i32)),
-                  pos[1].div_floor(&(CHUNK_SIZE as i32)),
-                  pos[2].div_floor(&(CHUNK_SIZE as i32))])
+            pos[1].div_floor(&(CHUNK_SIZE as i32)),
+            pos[2].div_floor(&(CHUNK_SIZE as i32))])
     }
     pub fn game_data(&self) -> &GameData {
         &self.game_data
     }
+    pub fn light(&self) -> &LightUpdater {
+        &self.light_updater
+    }
+    pub fn chunk_loader(&self) -> &ChunkLoader {
+        &self.chunk_loader
+    }
+
+    pub fn complete_tick(&self) {
+        self.chunk_loader.apply(self);
+        self.light_updater.apply(self);
+    }
 
     pub fn lock_chunk(&self, pos: ChunkPos) -> Option<ChunkReader> {
-        self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
+        self.borrow_chunk(pos).map(ChunkReader::new)
     }
     pub fn block_ray_trace(&self,
                            start: [f32; 3],
@@ -143,83 +132,12 @@ impl ChunkMap {
         self.borrow_chunk(Self::chunk_at(pos))
             .map(|c| c.data[pos].load())
     }
-    pub fn natural_light(&self, pos: BlockPos) -> Option<(u8, Option<Direction>)> {
-        if let Some(chunk) = self.borrow_chunk(Self::chunk_at(pos)) {
-            let light = &chunk.natural_light[pos];
-            Some((light.level(), light.direction()))
-        } else {
-            None
-        }
-    }
-    pub fn artificial_light(&self, pos: BlockPos) -> Option<(u8, Option<Direction>)> {
+    pub fn artificial_light(&self, pos: BlockPos) -> Option<(u8, LightDirection)> {
         if let Some(chunk) = self.borrow_chunk(Self::chunk_at(pos)) {
             let light = &chunk.artificial_light[pos];
             Some((light.level(), light.direction()))
         } else {
             None
-        }
-    }
-    fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
-        ArtificialLightMap::new(self, ChunkCache::new(p, self).unwrap())
-    }
-    fn natural_lightmap(&self, p: ChunkPos) -> NaturalLightMap {
-        NaturalLightMap::new(self, ChunkCache::new(p, self).unwrap())
-    }
-    fn trigger_chunk_face_brightness(&self,
-                                     pos: ChunkPos,
-                                     face: Direction,
-                                     artificial_updates: &mut UpdateQueue,
-                                     natural_updates: &mut UpdateQueue) {
-        let (positive, d1, d2, face_direction) = match face {
-            Direction::PosX => (true, 1, 2, 0),
-            Direction::NegX => (false, 1, 2, 0),
-            Direction::PosY => (true, 0, 2, 1),
-            Direction::NegY => (false, 0, 2, 1),
-            Direction::PosZ => (true, 0, 1, 2),
-            Direction::NegZ => (false, 0, 1, 2),
-        };
-
-        let mut brightness = [[(0, 0); CHUNK_SIZE]; CHUNK_SIZE];
-        let chunk = match self.borrow_chunk(pos) {
-            Some(chunk) => chunk,
-            None => {
-                error!(self.logger,
-                       "chunk at {:?} disappeared before face brightness update",
-                       pos);
-                return;
-            }
-        };
-        for (i, brightness) in brightness.iter_mut().enumerate() {
-            for (j, brightness) in brightness.iter_mut().enumerate() {
-                let mut block_pos = [0, 0, 0];
-                block_pos[d1] = i;
-                block_pos[d2] = j;
-                block_pos[face_direction] = if positive { CHUNK_SIZE - 1 } else { 0 };
-                brightness.0 = chunk.artificial_light[block_pos].level();
-                brightness.1 = chunk.natural_light[block_pos].level();
-            }
-        }
-        let chunk_size = CHUNK_SIZE as i32;
-        for (i, brightness) in brightness.iter_mut().enumerate() {
-            for (j, brightness) in brightness.iter_mut().enumerate() {
-                let mut block_pos = BlockPos([pos[0] * chunk_size,
-                                              pos[1] * chunk_size,
-                                              pos[2] * chunk_size]);
-                block_pos.0[d1] += i as i32;
-                block_pos.0[d2] += j as i32;
-                block_pos.0[face_direction] += if positive { CHUNK_SIZE as i32 } else { -1 };
-
-                if brightness.0 > 1 {
-                    artificial_updates.push(brightness.0 - 1, block_pos, Some(face));
-                }
-                if brightness.1 > 1 {
-                    if face == Direction::NegY && brightness.1 == MAX_NATURAL_LIGHT {
-                        natural_updates.push(MAX_NATURAL_LIGHT, block_pos, Some(face));
-                    } else {
-                        natural_updates.push(brightness.1 - 1, block_pos, Some(face));
-                    }
-                }
-            }
         }
     }
     fn update_adjacent_chunks(&self, block_pos: BlockPos) {
@@ -247,16 +165,16 @@ impl ChunkMap {
     }
     fn update_render(&self, pos: ChunkPos) {
         if let Some(chunk) = self.borrow_chunk(pos) {
-            Self::set_chunk_update(&self.chunk_updates,&*chunk,pos);
+            Self::set_chunk_update(&self.chunk_updates, &*chunk, pos);
         }
     }
-    fn borrow_chunk(&self, p: ChunkPos) -> Option<ReadGuard<[i32;3],Box<Chunk>>> {
+    fn borrow_chunk(&self, p: ChunkPos) -> Option<ReadGuard<[i32; 3], Box<Chunk>>> {
         self.chunks.get(&[p[0], p[1], p[2]])
     }
 
-    fn set_chunk_update(queue:&SegQueue<ChunkPos>,chunk:&Chunk,pos:ChunkPos){
-        let old=chunk.update_render.swap(true,Ordering::Release);
-        if old!=true{
+    fn set_chunk_update(queue: &SegQueue<ChunkPos>, chunk: &Chunk, pos: ChunkPos) {
+        let old = chunk.update_render.swap(true, Ordering::Release);
+        if old != true {
             queue.push(pos);
         }
     }
@@ -267,25 +185,22 @@ pub fn chunk_at(pos: BlockPos) -> ChunkPos {
 }
 
 pub struct ChunkReader<'a> {
-    chunk: ReadGuard<'a,[i32;3],Box<Chunk>>,
+    chunk: ReadGuard<'a, [i32; 3], Box<Chunk>>,
 }
 
 impl<'a> ChunkReader<'a> {
-    pub fn new(chunk:ReadGuard<'a,[i32;3],Box<Chunk>>) -> Self {
+    pub fn new(chunk: ReadGuard<'a, [i32; 3], Box<Chunk>>) -> Self {
         ChunkReader { chunk: chunk }
     }
     pub fn block(&self, pos: [usize; 3]) -> BlockId {
         self.chunk.data[pos].load()
     }
     pub fn effective_light(&self, pos: [usize; 3]) -> u8 {
-        std::cmp::max(
-            self.chunk.artificial_light[pos].level(),
-            self.chunk.natural_light[pos].level(),
-        )
+        self.chunk.artificial_light[pos].level()
     }
 }
 
-impl<'a> std::ops::Deref for ChunkReader<'a>{
+impl<'a> std::ops::Deref for ChunkReader<'a> {
     type Target = Chunk;
     fn deref(&self) -> &Self::Target {
         &*self.chunk
@@ -294,30 +209,32 @@ impl<'a> std::ops::Deref for ChunkReader<'a>{
 
 pub struct ChunkCache<'a> {
     pos: ChunkPos,
-    pub chunk: ChunkReader<'a>,
+    chunk: Option<ChunkReader<'a>>,
 }
 
 impl<'a> ChunkCache<'a> {
-    pub fn new<'b: 'a>(pos: ChunkPos, chunks: &'b ChunkMap) -> Result<Self, ()> {
-        if let Some(cref) = chunks.lock_chunk(pos) {
-            Ok(ChunkCache {
-                pos: pos,
-                chunk: cref,
-            })
-        } else {
-            Err(())
+    pub fn new() -> Self {
+        ChunkCache {
+            pos: ChunkPos([0; 3]),
+            chunk: None,
         }
     }
-    pub fn load<'b: 'a>(&mut self, pos: ChunkPos, chunks: &'b ChunkMap) -> Result<(), ()> {
-        if pos == self.pos {
-            Ok(())
+
+    pub fn load(&mut self, pos: ChunkPos, chunks: &'a ChunkMap) -> Result<(), ()> {
+        if self.chunk.is_none() || pos != self.pos {
+            if let Some(cref) = chunks.lock_chunk(pos) {
+                self.pos = pos;
+                self.chunk = Some(cref);
+                Ok(())
+            } else {
+                Err(())
+            }
         } else {
-            *self = Self::new(pos, chunks)?;
             Ok(())
         }
     }
 
-    pub fn set_update(&self,map:&ChunkMap){
-        ChunkMap::set_chunk_update(&map.chunk_updates,&*self.chunk,self.pos);
+    pub fn chunk(&self) -> &Chunk {
+        self.chunk.as_ref().unwrap()
     }
 }

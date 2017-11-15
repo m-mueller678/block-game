@@ -57,4 +57,17 @@ impl Direction {
             _ => panic!("direction from components: invalid axis: {}", axis),
         }
     }
+    pub fn axis(&self) -> usize {
+        match *self {
+            Direction::PosX | Direction::NegX => 0,
+            Direction::PosY | Direction::NegY => 1,
+            Direction::PosZ | Direction::NegZ => 2,
+        }
+    }
+    pub fn positive(&self) -> bool {
+        match *self {
+            Direction::PosX | Direction::PosY | Direction::PosZ => true,
+            Direction::NegX | Direction::NegY | Direction::NegZ => false,
+        }
+    }
 }

@@ -11,7 +11,7 @@ pub use self::chunk_map::*;
 pub use self::chunk_loading::LoadGuard;
 use std::ops::Deref;
 use block::AtomicBlockId;
-use std::sync::{Arc, RwLock, Mutex, MutexGuard,Weak};
+use std::sync::{Arc, Mutex, MutexGuard,Weak};
 use self::chunk_loading::LoadMap;
 use timekeeper::Timekeeper;
 use module::GameData;
@@ -31,7 +31,7 @@ pub type TimeGuard<'a> = MutexGuard<'a, Timekeeper>;
 
 pub struct World {
     chunks: ChunkMap,
-    inserter: Inserter,
+    inserter: PreInserter,
     loaded: LoadMap,
     game_data: GameData,
     time: Mutex<Timekeeper>,
@@ -41,7 +41,7 @@ impl World {
     pub fn new(game_data: GameData) -> Arc<Self> {
         let ret=Arc::new(World {
             chunks: ChunkMap::new(Arc::clone(&game_data)),
-            inserter: Inserter::new(Arc::clone(&game_data)),
+            inserter: PreInserter::new(Arc::clone(&game_data)),
             loaded: LoadMap::new(Weak::new()),
             game_data,
             time: Mutex::new(Timekeeper::new()),
@@ -64,9 +64,5 @@ impl World {
 
     pub fn load_cube(&self, center: ChunkPos, radius: i32) -> LoadGuard {
         self.loaded.load_cube(center, radius)
-    }
-
-    pub fn flush_chunk(&self) {
-
     }
 }

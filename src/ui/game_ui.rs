@@ -226,7 +226,8 @@ impl GameUi {
                         println!(" ({:?})", facing_block);
                         if let (Some(id), Some(nl), Some(al)) = (
                             world_r.get_block(target),
-                            world_r.natural_light(facing_block),
+                            //TODO enable natural light
+                            Some(0),//world_r.natural_light(facing_block),
                             world_r.artificial_light(facing_block)
                         ) {
                             println!("id: {:?}\nnatural light: {:?}, artificial light: {:?}", id, nl, al);

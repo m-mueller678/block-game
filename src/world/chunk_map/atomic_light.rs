@@ -1,5 +1,6 @@
 use geometry::Direction;
 use std::sync::atomic::{Ordering, AtomicU8};
+use super::lighting::LightDirection;
 
 #[derive(Default)]
 pub struct LightState {
@@ -13,18 +14,21 @@ impl LightState {
     pub fn level(&self) -> u8 {
         self.level.load(Ordering::Relaxed)
     }
-    pub fn direction(&self) -> Option<Direction> {
+    pub fn direction(&self) -> LightDirection {
         let raw = self.direction.load(Ordering::Relaxed);
         if raw == NO_DIRECTION {
-            None
+            LightDirection::SelfLit
         } else {
-            Some(Direction::from_usize(raw as usize))
+            LightDirection::Directed(Direction::from_usize(raw as usize))
         }
     }
-    pub fn set(&self, level: u8, direction: Option<Direction>) {
+    pub fn set(&self, level: u8, direction: LightDirection) {
         self.level.store(level, Ordering::Relaxed);
         self.direction.store(
-            direction.map(|d| d as u8).unwrap_or(NO_DIRECTION),
+            match direction {
+                LightDirection::SelfLit => NO_DIRECTION,
+                LightDirection::Directed(d) => d as u8,
+            },
             Ordering::Relaxed,
         );
     }

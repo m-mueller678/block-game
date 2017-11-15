@@ -160,8 +160,8 @@ fn main() {
                         }
                     }
                 }
-                world.flush_chunk();
                 player.tick(&world.read());
+                world.read().complete_tick();
                 let tick_end_time = SteadyTime::now();
                 let real_tick_duration = tick_end_time - tick_start_time;
                 let planned_tick_duration = Duration::nanoseconds((TICK_TIME * 1e9) as i64);

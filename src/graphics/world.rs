@@ -1,4 +1,3 @@
-use logging;
 use std::collections::hash_map::*;
 use std::sync::mpsc::*;
 use std::sync::{Arc, Mutex};

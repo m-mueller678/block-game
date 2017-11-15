@@ -1,14 +1,11 @@
 use std::collections::hash_map::*;
-use std::collections::hash_set::*;
 use std::sync::{Arc, Mutex, Weak};
-use super::{ChunkPos, ChunkMap, Inserter, World};
+use logging;
+use super::{ChunkPos, World};
 
 struct InnerMap {
     map: HashMap<ChunkPos, u32>,
     world: Weak<World>,
-
-    new_loaded: HashSet<ChunkPos>,
-    new_unloaded: HashSet<ChunkPos>,
 }
 
 impl InnerMap {
@@ -18,8 +15,14 @@ impl InnerMap {
                 Entry::Occupied(mut o) => (*o.get_mut()) += 1,
                 Entry::Vacant(v) => {
                     v.insert(1);
-                    let world2=world.clone();
-                    world2.inserter.insert(pos, world);
+                    let world2 = Arc::clone(&world);
+                    if !world2.read().chunk_loader().enable_chunk(pos) {
+                        world2.inserter.insert(pos, world);
+                    } else {
+                        error!(logging::root_logger(),
+                               "chunk {:?} was already enabled",
+                               pos);
+                    }
                 }
             }
         }
@@ -34,8 +37,8 @@ impl InnerMap {
                 };
                 if new_count == 0 {
                     o.remove();
-                    if world.inserter.cancel_insertion(pos).is_err() {
-                        world.read().remove_chunk(pos).unwrap();
+                    if !world.read().chunk_loader().disable_chunk(pos) {
+                        error!(logging::root_logger(), "chunk {:?} was not enabled", pos);
                     }
                 }
             } else {
@@ -50,21 +53,19 @@ pub struct LoadMap {
 }
 
 impl LoadMap {
-    pub fn new(world:Weak<World>) -> Self {
+    pub fn new(world: Weak<World>) -> Self {
         LoadMap {
             loaded: Arc::new(Mutex::new(InnerMap {
-                world,
-                map: HashMap::new(),
-                new_loaded: HashSet::new(),
-                new_unloaded: HashSet::new(),
-            })),
+                                            world,
+                                            map: HashMap::new(),
+                                        })),
         }
     }
 
-    pub fn reset_world(&self,world:Weak<World>){
-        let mut lock=self.loaded.lock().unwrap();
+    pub fn reset_world(&self, world: Weak<World>) {
+        let mut lock = self.loaded.lock().unwrap();
         assert!(lock.map.is_empty());
-        lock.world=world;
+        lock.world = world;
     }
 
     pub fn load_cube(&self, center: ChunkPos, radius: i32) -> LoadGuard {
