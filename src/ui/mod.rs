@@ -104,7 +104,7 @@ impl Ui {
                     WindowEvent::KeyboardInput { input, .. } => {
                         self.core.key_state.update(&input);
                     }
-                    WindowEvent::MouseMoved { position: (x, y), .. } => {
+                    WindowEvent::CursorMoved { position: (x, y), .. } => {
                         let size = self.core.display.gl_window().get_inner_size().unwrap_or(
                             (1, 1),
                         );

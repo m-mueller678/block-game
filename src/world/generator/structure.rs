@@ -136,8 +136,8 @@ impl CombinedStructureGenerator {
                     self.with_chunk(
                         ChunkPos([x + pos[0], y + pos[1], z + pos[2]]),
                         |structures| for s in structures.0.iter().filter(|s| {
-                            s.2[0].contains(pos[0]) && s.2[1].contains(pos[1]) &&
-                                s.2[2].contains(pos[2])
+                            s.2[0].contains(&pos[0]) && s.2[1].contains(&pos[1]) &&
+                                s.2[2].contains(&pos[2])
                         })
                         {
                             let rel_struct_pos = vec3_sub((s.1).0, vec3_scale(pos.0, cs));

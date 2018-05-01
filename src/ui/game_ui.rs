@@ -189,7 +189,7 @@ impl GameUi {
     ) {
         match *evt {
             WindowEvent::KeyboardInput { input, .. } => self.process_keyboard_event(&input, state),
-            WindowEvent::MouseMoved { position: (x, y), .. } => {
+            WindowEvent::CursorMoved { position: (x, y), .. } => {
                 //TODO use raw input
                 if let Ok((x, y)) = window_util::read_mouse_delta(&ui_core.display, (x, y)) {
                     self.player.change_look(x / 300., y / 300.);

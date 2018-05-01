@@ -3,7 +3,7 @@ use glium::glutin::*;
 
 pub fn read_mouse_delta(win: &Display, new_pos: (f64, f64)) -> Result<(f64, f64), ()> {
     let win = win.gl_window();
-    if let Some(size) = win.get_inner_size_pixels() {
+    if let Some(size) = win.get_inner_size() {
         let dx = new_pos.0 - f64::from(size.0) / 2.;
         let dy = new_pos.1 - f64::from(size.1) / 2.;
         win.set_cursor_position(

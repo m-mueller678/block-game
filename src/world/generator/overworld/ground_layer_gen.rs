@@ -1,4 +1,4 @@
-use noise::{Perlin, NoiseModule};
+use noise::{Perlin,NoiseFn};
 use world::CHUNK_SIZE;
 use world::random::*;
 use block::BlockId;
@@ -54,7 +54,7 @@ impl GroundGen {
                 Some(&(block, ref perlin, min_thickness, max_depth)) => {
                     let max_thickness = (max_depth - depth) as f32;
                     assert!(max_thickness - min_thickness > -0.01);
-                    let noise = (0.5 * perlin.get([x as f32 / 32., z as f32 / 32.])) + 0.5;
+                    let noise = (0.5 * perlin.get([x as f64 / 32., z as f64 / 32.]))as f32 + 0.5;
                     let thickness = min_thickness + noise * (max_thickness - min_thickness);
                     depth += thickness;
                     let depth = depth.round() as i32;

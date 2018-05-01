@@ -82,7 +82,7 @@ impl VirtualDisplay for RenderBuffer2d {
 
 impl RenderBuffer2d {
     pub fn new(display: &Display) -> Self {
-        let size = display.gl_window().get_inner_size_pixels();
+        let size = display.gl_window().get_inner_size();
         RenderBuffer2d {
             vertices: Vec::new(),
             indices: Vec::new(),

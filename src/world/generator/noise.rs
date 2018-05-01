@@ -1,5 +1,4 @@
-use noise::NoiseModule;
-use std::ops::Mul;
+use noise::NoiseFn;
 use std;
 
 pub struct NoiseParameters {
@@ -34,18 +33,17 @@ impl NoiseParameters {
 
     pub fn generate<'a, I, N>(&self, x: f32, z: f32, mut noise: I) -> f32
     where
-        N: NoiseModule<[f32; 2]> + 'a,
-        N::Output: Mul<f32, Output = f32>,
+        N: NoiseFn<[f64; 2]> + 'a,
         I: Iterator<Item = &'a N>,
     {
         let mut ret = 0.;
         for p in &self.parameters {
             let n = noise.next().expect("end of noise iterator").get(
                 [
-                    x * p.scale,
-                    z * p.scale,
+                    (x * p.scale) as f64,
+                    (z * p.scale) as f64,
                 ],
-            ) * p.amplitude;
+            ) as f32 * p.amplitude;
             ret += n;
             if ret < p.min {
                 ret = p.min;
