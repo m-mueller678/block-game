@@ -33,7 +33,6 @@ use std::sync::Arc;
 use std::thread;
 use ui::Message;
 
-
 mod window_util;
 mod graphics;
 mod block;
@@ -54,17 +53,17 @@ const TICK_TIME: f64 = 1. / 16.;
 fn main() {
     let (game_data, textures) = module::start([base_module::module()].iter().map(|m| m.init()));
     let block_light = game_data.blocks().by_name("debug_light").unwrap();
-
     let (send, rec) = channel();
     let (display, mut events_loop) = window_util::create_window();
     let world = Arc::new(World::new(game_data));
     let w2 = Arc::clone(&world);
-    let player = Arc::new(player::Player::new());
+    let (player_pos_rec, player_pos_send) = ui::new_position_channel();
+    let player = Arc::new(player::Player::new(player_pos_send));
     let p2 = Arc::clone(&player);
     thread::Builder::new()
         .name("logic".into())
         .spawn(move || {
-        #[allow(unused_variables)]
+            #[allow(unused_variables)]
             let mut chunk_load_guard;
             let mut chunk_pos = ChunkPos([2_000_000_000; 3]);
             let mut mouse_pressed_since = [None; 2];
@@ -89,9 +88,9 @@ fn main() {
                 if new_chunk_pos != chunk_pos {
                     chunk_pos = new_chunk_pos;
                     #[allow(unused_assignments)]
-                    {
-                        chunk_load_guard = world.load_cube(chunk_at(block_pos), 2);
-                    }
+                        {
+                            chunk_load_guard = world.load_cube(chunk_at(block_pos), 2);
+                        }
                 }
                 loop {
                     match rec.try_recv() {
@@ -106,10 +105,10 @@ fn main() {
                                button,
                            }) => {
                             mouse_pressed_since[match button {
-                                                    MouseButton::Left => 0,
-                                                    MouseButton::Right => 1,
-                                                    _ => continue,
-                                                }] = Some(SteadyTime::now());
+                                MouseButton::Left => 0,
+                                MouseButton::Right => 1,
+                                _ => continue,
+                            }] = Some(SteadyTime::now());
                             if button == MouseButton::Right {
                                 if let Some(ref block_target) = block_target {
                                     world
@@ -127,10 +126,10 @@ fn main() {
                                button,
                            }) => {
                             mouse_pressed_since[match button {
-                                                    MouseButton::Left => 0,
-                                                    MouseButton::Right => 1,
-                                                    _ => continue,
-                                                }] = None;
+                                MouseButton::Left => 0,
+                                MouseButton::Right => 1,
+                                _ => continue,
+                            }] = None;
                         }
                         Err(TryRecvError::Disconnected) => return,
                         Err(TryRecvError::Empty) => break,
@@ -156,7 +155,7 @@ fn main() {
                     }
                 }
                 world.flush_chunk();
-                player.tick(&world.read());
+                player.tick(world.time().current_tick(), &world.read());
                 let tick_end_time = SteadyTime::now();
                 let real_tick_duration = tick_end_time - tick_start_time;
                 let planned_tick_duration = Duration::nanoseconds((TICK_TIME * 1e9) as i64);
@@ -174,6 +173,6 @@ fn main() {
             }
         })
         .expect("cannot create main logic thread");
-    let mut ui = ui::Ui::new(display, textures, send, w2, p2);
+    let mut ui = ui::Ui::new(display, textures, send, w2, p2, player_pos_rec);
     ui.run(&mut events_loop);
 }

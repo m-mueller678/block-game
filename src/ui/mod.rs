@@ -9,13 +9,17 @@ use block_texture_loader::TextureLoader;
 use self::game_ui::GameUi;
 use self::keyboard_state::KeyboardState;
 use self::menu::{Menu, MenuLayerController, EventResult};
+use self::player_controller::PlayerController;
+
 pub use self::ui_core::UiCore;
+pub use self::position_interpolator::{PositionUpdateSender, PositionInterpolator, new as new_position_channel};
 
-
+mod player_controller;
 mod keyboard_state;
 mod game_ui;
 mod ui_core;
 mod menu;
+mod position_interpolator;
 
 pub enum UiState {
     Swapped,
@@ -29,7 +33,7 @@ pub enum Message {
         state: ElementState,
         button: MouseButton,
     },
-    BlockTargetChanged { target: Option<ray::BlockIntersection>, },
+    BlockTargetChanged { target: Option<ray::BlockIntersection> },
 }
 
 pub struct Ui {
@@ -45,6 +49,7 @@ impl Ui {
         event_sender: Sender<Message>,
         world: Arc<World>,
         player: Arc<Player>,
+        player_pos: PositionInterpolator,
     ) -> Self {
         display
             .gl_window()
@@ -52,7 +57,7 @@ impl Ui {
             .unwrap();
         let core = UiCore::new(display, textures);
         Ui {
-            in_game: GameUi::new(event_sender, world, player, &core),
+            in_game: GameUi::new(event_sender, world, PlayerController::new(player, player_pos), &core),
             core: core,
             state: UiState::InGame,
         }
@@ -70,10 +75,13 @@ impl Ui {
                 UiState::Menu(ref m) => m.transparent(),
                 UiState::Swapped => unreachable!(),
             };
+            if draw_game {
+                self.in_game.update(&self.core);
+            }
             let mut target = self.core.display.draw();
             target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
             if draw_game {
-                self.in_game.update_and_render(
+                self.in_game.render(
                     &self.core,
                     &self.state,
                     &mut target,

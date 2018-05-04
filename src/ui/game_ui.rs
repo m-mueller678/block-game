@@ -1,5 +1,6 @@
 use std::sync::mpsc::Sender;
-use std::sync::Arc;use glium::glutin::*;
+use std::sync::Arc;
+use glium::glutin::*;
 use glium::*;
 use glium::uniforms::SamplerWrapFunction;
 use vecmath::{vec3_add, vec3_scale, col_mat4_mul, mat4_cast};
@@ -7,10 +8,9 @@ use cam::Camera;
 use window_util;
 use graphics::*;
 use geometry::*;
-use player::Player;
-use world::{BlockPos, World};
+use world::{BlockPos, World, timekeeper::TickId};
 use module::GameData;
-use super::{KeyboardState, Message};
+use super::{KeyboardState, Message, player_controller::PlayerController};
 pub use super::UiState;
 use super::ui_core::UiCore;
 
@@ -27,16 +27,18 @@ pub struct GameUi {
     block_target: Option<ray::BlockIntersection>,
     overlays: Vec<(BlockOverlay, String)>,
     current_overlay: usize,
-    player: Arc<Player>,
-    camera: Camera<f64>,
+    player: PlayerController,
     game_data: GameData,
+    camera: Camera<f64>,
+    tick: TickId,
+    sub_tick: f32,
 }
 
 impl GameUi {
     pub fn new(
         event_sender: Sender<Message>,
         world: Arc<World>,
-        player: Arc<Player>,
+        player: PlayerController,
         core: &UiCore,
     ) -> Self {
         let index_buffer = IndexBuffer::<u32>::new(
@@ -51,7 +53,6 @@ impl GameUi {
                 color: [1., 1., 0.],
             }; 10],
         ).unwrap();
-        let camera = player.sub_tick_camera(0.);
         let mut ret = GameUi {
             event_sender: event_sender,
             game_data: Arc::clone(world.game_data()),
@@ -63,18 +64,21 @@ impl GameUi {
             overlays: Vec::new(),
             current_overlay: 0,
             player: player,
-            camera: camera,
+            camera: Camera::new([0.0; 3]),
+            sub_tick: 0.,
+            tick: TickId::zero(),
         };
         ret.load_overlays();
         ret
     }
 
-    pub fn update_and_render(&mut self, ui_core: &UiCore, state: &UiState, target: &mut Frame) {
+    pub fn update(&mut self, ui_core: &UiCore) {
+        let pos = self.player.position();
         let pos = BlockPos(
             [
-                self.camera.position[0].floor() as i32,
-                self.camera.position[1].floor() as i32,
-                self.camera.position[2].floor() as i32,
+                pos[0].floor() as i32,
+                pos[1].floor() as i32,
+                pos[2].floor() as i32,
             ],
         );
         self.world_render.update(
@@ -82,17 +86,28 @@ impl GameUi {
             &self.world.read(),
             &ui_core.display,
         );
+    }
+
+    pub fn render(&mut self, ui_core: &UiCore, state: &UiState, target: &mut Frame) {
+        self.update_time();
         {
-            let time = self.world.time().sub_tick_time();
             if let UiState::InGame = *state {
                 let movement = Self::read_movement(&ui_core.key_state);
                 self.player.set_movement(movement);
             }
-            self.camera = self.player.sub_tick_camera(time);
         }
         self.update_block_target();
         self.write_cursor();
-        self.render(ui_core, target);
+        self.do_render(ui_core, target);
+    }
+
+    fn update_time(&mut self) {
+        {
+            let time = self.world.time();
+            self.tick = time.current_tick();
+            self.sub_tick = time.sub_tick_time();
+        }
+        self.camera = self.player.sub_tick_camera(self.tick, self.sub_tick);
     }
 
     fn read_movement(kb: &KeyboardState) -> [f64; 3] {
@@ -264,7 +279,8 @@ impl GameUi {
                 *state = UiState::Menu(Box::new(MenuLayerController::new(vec![
                     Box::new(PlayerInventory::new(
                         Arc::clone(&self.game_data),
-                        Arc::clone(&self.player),
+                        //TODO pass inventory wrapper instead?
+                        Arc::clone(self.player.get_player()),
                     )),
                 ])));
             }
@@ -286,7 +302,7 @@ impl GameUi {
         }
     }
 
-    fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
+    fn do_render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         {
             let perspective = {
                 let f = (0.5 as f32).tan();

@@ -3,8 +3,20 @@ use TICK_TIME;
 
 const AVERAGE_TICK_COUNT: u64 = 8;
 
+#[derive(Ord, PartialOrd, Eq, PartialEq, Hash, Debug, Clone, Copy, Default)]
+pub struct TickId(u64);
+
+impl TickId {
+    pub fn zero() -> Self {
+        TickId(0)
+    }
+    pub fn next(self) -> Self {
+        TickId(self.0 + 1)
+    }
+}
+
 pub struct Timekeeper {
-    tick: u64,
+    tick: TickId,
     previous_tick: SteadyTime,
     average_tick_nanoseconds: u64,
 }
@@ -12,10 +24,14 @@ pub struct Timekeeper {
 impl Timekeeper {
     pub fn new() -> Self {
         Timekeeper {
-            tick: 0,
+            tick: TickId::zero(),
             previous_tick: SteadyTime::now(),
             average_tick_nanoseconds: (TICK_TIME * 1e9) as u64,
         }
+    }
+
+    pub fn current_tick(&self) -> TickId {
+        self.tick
     }
 
     pub fn sub_tick_time(&self) -> f32 {
@@ -31,6 +47,6 @@ impl Timekeeper {
         self.average_tick_nanoseconds += duration;
         self.average_tick_nanoseconds /= AVERAGE_TICK_COUNT;
         self.previous_tick = now;
-        self.tick += 1;
+        self.tick = self.tick.next();
     }
 }
