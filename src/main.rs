@@ -22,6 +22,7 @@ extern crate slog;
 extern crate slog_term;
 #[macro_use]
 extern crate lazy_static;
+extern crate rayon;
 
 use glium::glutin::{MouseButton, ElementState};
 use num::Integer;
@@ -54,8 +55,9 @@ fn main() {
     let (game_data, textures) = module::start([base_module::module()].iter().map(|m| m.init()));
     let block_light = game_data.blocks().by_name("debug_light").unwrap();
     let (send, rec) = channel();
+    let (chunk_send, chunk_rec) = graphics::chunk_update_channel();
     let (display, mut events_loop) = window_util::create_window();
-    let world = Arc::new(World::new(game_data));
+    let world = Arc::new(World::new(game_data, chunk_send));
     let w2 = Arc::clone(&world);
     let (player_pos_rec, player_pos_send) = ui::new_position_channel();
     let player = Arc::new(player::Player::new(player_pos_send));
@@ -173,6 +175,6 @@ fn main() {
             }
         })
         .expect("cannot create main logic thread");
-    let mut ui = ui::Ui::new(display, textures, send, w2, p2, player_pos_rec);
+    let mut ui = ui::Ui::new(display, textures, send, w2, chunk_rec, p2, player_pos_rec);
     ui.run(&mut events_loop);
 }

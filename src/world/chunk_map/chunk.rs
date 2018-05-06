@@ -1,7 +1,6 @@
 use super::atomic_light::LightState;
 use super::{ChunkPos, ChunkMap};
-use block::{AtomicBlockId, BlockId};
-use std::sync::atomic::AtomicBool;
+use block::AtomicBlockId;
 use num::Integer;
 use world::BlockPos;
 use std::cmp::max;
@@ -49,24 +48,13 @@ pub struct Chunk {
     pub data: ChunkArray<AtomicBlockId>,
     pub artificial_light: ChunkArray<LightState>,
     pub natural_light: ChunkArray<LightState>,
-    pub update_render: AtomicBool,
 }
 
-pub struct ChunkReader<'a> {
-    chunk: &'a Chunk,
-}
-
-impl<'a> ChunkReader<'a> {
-    pub fn new(chunk: &'a Chunk) -> Self {
-        ChunkReader { chunk: chunk }
-    }
-    pub fn block(&self, pos: [usize; 3]) -> BlockId {
-        self.chunk.data[pos].load()
-    }
+impl Chunk {
     pub fn effective_light(&self, pos: [usize; 3]) -> u8 {
         max(
-            self.chunk.artificial_light[pos].level(),
-            self.chunk.natural_light[pos].level(),
+            self.artificial_light[pos].level(),
+            self.natural_light[pos].level(),
         )
     }
 }
@@ -94,5 +82,8 @@ impl<'a> ChunkCache<'a> {
             *self = Self::new(pos, chunks)?;
             Ok(())
         }
+    }
+    pub fn pos(&self) -> ChunkPos {
+        self.pos
     }
 }

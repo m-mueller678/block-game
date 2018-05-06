@@ -1,6 +1,7 @@
 use glium::backend::Facade;
 use glium::{Program, ProgramCreationError};
 
+mod chunk_update;
 mod quad;
 mod line;
 mod chunk;
@@ -30,6 +31,7 @@ pub use self::line::Vertex as LineVertex;
 pub use self::block_overlay::{BlockOverlay, OverlayDataSupplier, Overlay2d};
 pub use self::virtual_display::{RenderBuffer2d, VirtualDisplay, TransformedDisplay};
 pub use self::text::FontTextureHandle;
+pub use self::chunk_update::{ChunkUpdateSender, ChunkUpdateReceiver, chunk_update_channel};
 
 use self::quad::Vertex as QuadVertex;
 

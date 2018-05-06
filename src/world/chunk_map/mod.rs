@@ -1,11 +1,12 @@
 use std::collections::hash_map::*;
-use std::sync::atomic::Ordering;
+use std::sync::{Arc, Mutex};
 use num::Integer;
 use block::{BlockId, LightType};
 use geometry::Direction;
 use geometry::ray::{Ray, BlockIntersection};
 use module::GameData;
 use logging::*;
+use graphics::ChunkUpdateSender;
 
 mod inserter;
 mod position;
@@ -20,20 +21,22 @@ pub use self::chunk::*;
 use self::lighting::*;
 
 pub struct ChunkMap {
-    chunks: HashMap<[i32; 3], Box<Chunk>>,
+    chunks: HashMap<[i32; 3], Arc<Chunk>>,
     game_data: GameData,
     logger: Logger,
+    graphics_update_sender: Mutex<ChunkUpdateSender>,
 }
 
 impl ChunkMap {
-    pub fn new(game_data: GameData) -> Self {
+    pub fn new(game_data: GameData, update: ChunkUpdateSender) -> Self {
         ChunkMap {
             chunks: HashMap::new(),
             game_data: game_data,
             logger: root_logger().clone(),
+            graphics_update_sender: Mutex::new(update),
         }
     }
-    pub fn remove_chunk(&mut self, pos: ChunkPos) -> Option<Box<Chunk>> {
+    pub fn remove_chunk(&mut self, pos: ChunkPos) -> Option<Arc<Chunk>> {
         self.chunks.remove(&[pos[0], pos[1], pos[2]])
     }
     pub fn set_block(&self, pos: BlockPos, block: BlockId) -> Result<(), ()> {
@@ -72,7 +75,7 @@ impl ChunkMap {
                     remove_and_relight(&mut self.natural_lightmap(chunk_pos), &[pos]);
                 }
             }
-            chunk.update_render.store(true, Ordering::Release);
+            self.update_render(chunk_pos);
             if self.game_data.blocks().is_opaque_draw(before) ^
                self.game_data.blocks().is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
@@ -81,11 +84,6 @@ impl ChunkMap {
         } else {
             Err(())
         }
-    }
-    pub fn reset_chunk_updated(&self, pos: ChunkPos) -> bool {
-        self.borrow_chunk(pos)
-            .map(|c| c.update_render.swap(false, Ordering::Acquire))
-            .unwrap_or(false)
     }
     pub fn chunk_loaded(&self, pos: ChunkPos) -> bool {
         self.borrow_chunk(pos).is_some()
@@ -100,9 +98,6 @@ impl ChunkMap {
         &self.game_data
     }
 
-    pub fn lock_chunk(&self, pos: ChunkPos) -> Option<ChunkReader> {
-        self.borrow_chunk(pos).map(|x| ChunkReader::new(x))
-    }
     pub fn block_ray_trace(&self,
                            start: [f32; 3],
                            direction: [f32; 3],
@@ -236,8 +231,8 @@ impl ChunkMap {
         }
     }
     fn update_render(&self, pos: ChunkPos) {
-        if let Some(chunk) = self.borrow_chunk(pos) {
-            chunk.update_render.store(true, Ordering::Release)
+        if let Some(chunk) = self.chunks.get(&*pos) {
+            self.graphics_update_sender.lock().unwrap().send(pos, chunk);
         }
     }
     fn borrow_chunk(&self, p: ChunkPos) -> Option<&Chunk> {

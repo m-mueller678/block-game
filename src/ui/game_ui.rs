@@ -38,6 +38,7 @@ impl GameUi {
     pub fn new(
         event_sender: Sender<Message>,
         world: Arc<World>,
+        chunk_update_receiver: ChunkUpdateReceiver,
         player: PlayerController,
         core: &UiCore,
     ) -> Self {
@@ -56,8 +57,8 @@ impl GameUi {
         let mut ret = GameUi {
             event_sender: event_sender,
             game_data: Arc::clone(world.game_data()),
+            world_render: WorldRender::new(Arc::clone(world.game_data()), chunk_update_receiver),
             world: world,
-            world_render: WorldRender::new(),
             cursor_line_vertices: vertex_buffer,
             cursor_line_indices: index_buffer,
             block_target: None,
@@ -83,7 +84,6 @@ impl GameUi {
         );
         self.world_render.update(
             pos,
-            &self.world.read(),
             &ui_core.display,
         );
     }

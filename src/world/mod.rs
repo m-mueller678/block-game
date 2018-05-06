@@ -14,6 +14,7 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, Mutex, MutexGuard};
 use self::chunk_loading::LoadMap;
 use timekeeper::Timekeeper;
 use module::GameData;
+use graphics::ChunkUpdateSender;
 
 pub type WorldReadGuard<'a> = RwLockReadGuard<'a, ChunkMap>;
 pub type TimeGuard<'a> = MutexGuard<'a, Timekeeper>;
@@ -27,9 +28,9 @@ pub struct World {
 }
 
 impl World {
-    pub fn new(game_data: GameData) -> Self {
+    pub fn new(game_data: GameData, chunk_sender: ChunkUpdateSender) -> Self {
         World {
-            chunks: RwLock::new(ChunkMap::new(Arc::clone(&game_data))),
+            chunks: RwLock::new(ChunkMap::new(Arc::clone(&game_data), chunk_sender)),
             inserter: Inserter::new(Arc::clone(&game_data)),
             loaded: LoadMap::new(),
             game_data,

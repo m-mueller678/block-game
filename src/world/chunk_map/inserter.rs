@@ -1,5 +1,4 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use threadpool::ThreadPool;
 use block::*;
@@ -114,11 +113,10 @@ impl Inserter {
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             chunks.chunks.insert(
                 [chunk.pos[0], chunk.pos[1], chunk.pos[2]],
-                Box::new(Chunk {
+                Arc::new(Chunk {
                     natural_light: Default::default(),
                     data: *chunk.data,
                     artificial_light: Default::default(),
-                    update_render: AtomicBool::new(false),
                 }),
             );
             for source in &chunk.light_sources {
@@ -147,14 +145,14 @@ impl Inserter {
         }
         for face in &ALL_DIRECTIONS {
             let facing = insert_pos.facing(*face);
-            if let Some(chunk) = chunks.borrow_chunk(facing) {
+            if chunks.chunk_loaded(facing) {
                 chunks.trigger_chunk_face_brightness(
                     facing,
                     face.invert(),
                     &mut sources_to_trigger,
                     &mut sky_light,
                 );
-                chunk.update_render.store(true, Ordering::Release);
+                chunks.update_render(facing);
             }
         }
         increase_light(

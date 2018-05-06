@@ -6,6 +6,7 @@ use world::World;
 use geometry::*;
 use player::Player;
 use block_texture_loader::TextureLoader;
+use graphics::ChunkUpdateReceiver;
 use self::game_ui::GameUi;
 use self::keyboard_state::KeyboardState;
 use self::menu::{Menu, MenuLayerController, EventResult};
@@ -48,6 +49,7 @@ impl Ui {
         textures: TextureLoader,
         event_sender: Sender<Message>,
         world: Arc<World>,
+        chunk_update_receiver: ChunkUpdateReceiver,
         player: Arc<Player>,
         player_pos: PositionInterpolator,
     ) -> Self {
@@ -57,7 +59,13 @@ impl Ui {
             .unwrap();
         let core = UiCore::new(display, textures);
         Ui {
-            in_game: GameUi::new(event_sender, world, PlayerController::new(player, player_pos), &core),
+            in_game: GameUi::new(
+                event_sender,
+                world,
+                chunk_update_receiver,
+                PlayerController::new(player, player_pos),
+                &core,
+            ),
             core: core,
             state: UiState::InGame,
         }

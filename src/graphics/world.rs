@@ -1,18 +1,38 @@
 use glium;
-use super::{RenderChunk, ChunkUniforms};
+use graphics::chunk::{RenderChunk, ChunkUniforms, RenderChunkData};
+use graphics::ChunkUpdateReceiver;
 use glium::texture::CompressedSrgbTexture2dArray;
-use world::{CHUNK_SIZE, BlockPos, ChunkPos, WorldReadGuard, chunk_at};
+use std::sync::mpsc::*;
+use std::collections::{HashMap, HashSet};
+use world::{CHUNK_SIZE, BlockPos, ChunkPos, chunk_at};
+use rayon;
+use module::GameData;
 
 pub struct WorldRender {
     render_dist: i32,
-    render_chunks: Vec<(ChunkPos, RenderChunk)>,
+    render_chunks: HashMap<ChunkPos, RenderChunk>,
+    need_update: Vec<ChunkPos>,
+    updating: HashSet<ChunkPos>,
+    render_chunk_receiver: Receiver<(ChunkPos, RenderChunkData)>,
+    render_chunk_sender: Sender<(ChunkPos, RenderChunkData)>,
+    player_chunk: ChunkPos,
+    chunk_update_receiver: ChunkUpdateReceiver,
+    game_data: GameData,
 }
 
 impl WorldRender {
-    pub fn new() -> Self {
+    pub fn new(game_data: GameData, chunk_update_receiver: ChunkUpdateReceiver) -> Self {
+        let (s, r) = channel();
         WorldRender {
             render_dist: 4,
-            render_chunks: Vec::new(),
+            render_chunks: Default::default(),
+            need_update: Default::default(),
+            updating: Default::default(),
+            render_chunk_receiver: r,
+            render_chunk_sender: s,
+            player_chunk: ChunkPos([0, 0, 0]),
+            chunk_update_receiver,
+            game_data,
         }
     }
     pub fn draw<S: glium::Surface>(
@@ -38,7 +58,7 @@ impl WorldRender {
             light: [0., -2., 1.],
             sampler: sampler,
         };
-        let chunk_iter = self.render_chunks.iter().filter(|&&(ref pos, _)| {
+        let chunk_iter = self.render_chunks.iter().filter(|&(ref pos, _)| {
             let corners: Vec<[f32; 3]> = CORNER_OFFSET
                 .iter()
                 .map(|c| {
@@ -61,39 +81,96 @@ impl WorldRender {
         }
         Ok(())
     }
+
     pub fn update<F: glium::backend::Facade>(
         &mut self,
         player_pos: BlockPos,
-        world: &WorldReadGuard,
         facade: &F,
     ) {
-        let chunk_pos = chunk_at(player_pos);
-        let render_dist = self.render_dist;
-        self.render_chunks.retain(|&(ref pos, _)| {
-            (pos[0] - chunk_pos[0]).abs() <= render_dist &&
-                (pos[1] - chunk_pos[1]).abs() <= render_dist &&
-                (pos[2] - chunk_pos[2]).abs() <= render_dist
+        let player_pos = chunk_at(player_pos);
+        //poll updates
+        while let Some(pos) = self.chunk_update_receiver.poll_chunk_update() {
+            if pos.square_distance(player_pos) <= self.render_dist * self.render_dist {
+                self.queue_chunk_update(pos);
+            }
+        }
+        if player_pos != self.player_chunk {
+            self.change_player_pos(player_pos)
+        }
+        self.spawn_chunk_workers();
+        let square_render_dist = self.render_dist * self.render_dist;
+        self.render_chunks.retain(|&ref pos, _| {
+            pos.square_distance(player_pos) <= square_render_dist
         });
+        self.receive_finished_chunks(facade);
+    }
+
+    fn change_player_pos(&mut self, player_pos: ChunkPos) {
+        self.player_chunk = player_pos;
         let range = -self.render_dist..(self.render_dist + 1);
         for x in range.clone() {
             for y in range.clone() {
                 for z in range.clone() {
-                    let chunk_pos =
-                        ChunkPos([x + chunk_pos[0], y + chunk_pos[1], z + chunk_pos[2]]);
-                    if !self.render_chunks.iter().any(
-                        |&(ref pos, _)| *pos == chunk_pos,
-                    ) && world.chunk_loaded(chunk_pos)
-                    {
-                        let render_chunk = RenderChunk::new(facade, world, chunk_pos);
-                        self.render_chunks.push((chunk_pos, render_chunk));
+                    let pos = ChunkPos([x, y, z]);
+                    if pos.square_distance(player_pos) > self.render_dist * self.render_dist {
+                        continue;
+                    }
+                    if !self.render_chunks.contains_key(&pos) && !self.updating.contains(&pos) {
+                        self.queue_chunk_update(pos);
                     }
                 }
             }
         }
-        for chunk in &mut self.render_chunks {
-            if world.reset_chunk_updated(chunk.0) {
-                chunk.1.update(world, chunk.0);
+    }
+
+    fn spawn_chunk_workers(&mut self) {
+        let player_chunk = self.player_chunk;
+        self.need_update.sort_unstable_by_key(|pos| pos.square_distance(player_chunk));
+        {
+            let mut i = 0;
+            while i < self.need_update.len() {
+                let pos = self.need_update[i];
+                if self.updating.contains(&pos) {
+                    i += 1;
+                } else {
+                    if let Some(region) = self.chunk_update_receiver.get_chunk(pos).cloned() {
+                        self.updating.insert(pos);
+                        let sender = self.render_chunk_sender.clone();
+                        let game_data = self.game_data.clone();
+                        rayon::spawn(move || {
+                            let render_chunk = RenderChunkData::new(&region, game_data.blocks(), pos);
+                            sender.send((pos, render_chunk)).unwrap();
+                        });
+                    }
+                    self.need_update.remove(i);
+                }
             }
+        }
+        self.need_update.sort_unstable();
+    }
+
+    fn receive_finished_chunks<F: glium::backend::Facade>(&mut self, facade: &F) {
+        const MAX_CHUNKS_PER_TICK: u32 = 1;
+        for _ in 0..MAX_CHUNKS_PER_TICK {
+            match self.render_chunk_receiver.try_recv() {
+                Ok((pos, chunk_data)) => {
+                    self.updating.remove(&pos);
+                    self.render_chunks.insert(pos, RenderChunk::new(chunk_data, facade));
+                }
+                Err(TryRecvError::Empty) => {
+                    break;
+                }
+                Err(TryRecvError::Disconnected) => {
+                    unreachable!()
+                }
+            }
+        }
+    }
+
+    fn queue_chunk_update(&mut self, pos: ChunkPos) {
+        match self.need_update.binary_search(&pos) {
+            Ok(_) => {}
+            Err(i) => { self.need_update.insert(i, pos); }
         }
     }
 }
