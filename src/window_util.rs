@@ -1,19 +1,15 @@
 use glium::backend::glutin::*;
 use glium::glutin::*;
+use ui::UiCore;
 
-pub fn read_mouse_delta(win: &Display, new_pos: (f64, f64)) -> Result<(f64, f64), ()> {
-    let win = win.gl_window();
-    if let Some(size) = win.get_inner_size() {
-        let dx = new_pos.0 - f64::from(size.0) / 2.;
-        let dy = new_pos.1 - f64::from(size.1) / 2.;
-        win.set_cursor_position(
-            size.0 as i32 / 2,
-            size.1 as i32 / 2,
-        )?;
-        Ok((dx, dy))
-    } else {
-        Err(())
-    }
+pub fn read_mouse_delta(core: &UiCore, new_pos: (f64, f64)) -> (f64, f64) {
+    let dx = new_pos.0 - f64::from(core.window_size.0) / 2.;
+    let dy = new_pos.1 - f64::from(core.window_size.1) / 2.;
+    core.display.gl_window().set_cursor_position(
+        core.window_size.0 as i32 / 2,
+        core.window_size.1 as i32 / 2,
+    ).ok();
+    (dx, dy)
 }
 
 pub fn create_window() -> (Display, EventsLoop) {

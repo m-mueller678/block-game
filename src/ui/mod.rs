@@ -53,11 +53,8 @@ impl Ui {
         player: Arc<Player>,
         player_pos: PositionInterpolator,
     ) -> Self {
-        display
-            .gl_window()
-            .set_cursor_state(CursorState::Hide)
-            .unwrap();
         let core = UiCore::new(display, textures);
+        core.disable_cursor();
         Ui {
             in_game: GameUi::new(
                 event_sender,
@@ -74,7 +71,8 @@ impl Ui {
     pub fn run(&mut self, events: &mut EventsLoop) {
         use glium::Surface;
         loop {
-            events.poll_events(|e| self.process_event(e));
+            use time::Duration;
+            events.poll_events(|e| println!("{}",Duration::span(||{self.process_event(e)}).num_microseconds().unwrap()));
             let draw_game = match self.state {
                 UiState::Closing => {
                     break;
@@ -120,10 +118,20 @@ impl Ui {
                     WindowEvent::KeyboardInput { input, .. } => {
                         self.core.key_state.update(&input);
                     }
+                    WindowEvent::Focused(b)=>{
+                        if b{
+                            if let UiState::InGame=self.state{
+                                self.core.disable_cursor();
+                            }
+                        }else{
+                            self.core.enable_cursor();
+                        }
+                    }
+                    WindowEvent::Resized(x, y) => {
+                        self.core.window_size = (x, y);
+                    }
                     WindowEvent::CursorMoved { position: (x, y), .. } => {
-                        let size = self.core.display.gl_window().get_inner_size().unwrap_or(
-                            (1, 1),
-                        );
+                        let size = self.core.window_size;
                         self.core.mouse_position =
                             [x as f32 / size.0 as f32, y as f32 / size.1 as f32];
                     }
@@ -139,11 +147,7 @@ impl Ui {
                         match m.process_event(event, &mut self.core) {
                             EventResult::Processed => UiState::Menu(m),
                             EventResult::MenuClosed => {
-                                self.core
-                                    .display
-                                    .gl_window()
-                                    .set_cursor_state(CursorState::Hide)
-                                    .unwrap();
+                                self.core.disable_cursor();
                                 UiState::InGame
                             }
                             EventResult::NewMenu(pushed) => {
@@ -160,11 +164,7 @@ impl Ui {
                             &mut new_state,
                         );
                         if let UiState::Menu(_) = new_state {
-                            self.core
-                                .display
-                                .gl_window()
-                                .set_cursor_state(CursorState::Normal)
-                                .unwrap();
+                            self.core.enable_cursor()
                         }
                         new_state
                     }
