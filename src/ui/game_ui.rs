@@ -73,7 +73,7 @@ impl GameUi {
         ret
     }
 
-    pub fn update(&mut self, ui_core: &UiCore) {
+    pub fn update(&mut self, ui_core: &UiCore, state: &UiState) {
         let pos = self.player.position();
         let pos = BlockPos(
             [
@@ -86,16 +86,14 @@ impl GameUi {
             pos,
             &ui_core.display,
         );
+        if let UiState::InGame = *state {
+            let movement = Self::read_movement(&ui_core.key_state);
+            self.player.set_movement(movement);
+        }
     }
 
-    pub fn render(&mut self, ui_core: &UiCore, state: &UiState, target: &mut Frame) {
+    pub fn render(&mut self, ui_core: &UiCore, target: &mut Frame) {
         self.update_time();
-        {
-            if let UiState::InGame = *state {
-                let movement = Self::read_movement(&ui_core.key_state);
-                self.player.set_movement(movement);
-            }
-        }
         self.update_block_target();
         self.write_cursor();
         self.do_render(ui_core, target);
@@ -287,11 +285,24 @@ impl GameUi {
     }
 
     fn update_block_target(&mut self) {
-        let new_block_target = self.world.read().block_ray_trace(
-            to_f32(self.camera.position),
-            to_f32(self.camera.forward),
-            100.,
-        );
+        use vecmath::vec3_cast;
+        use geometry::ray::Ray;
+        let ray = Ray::new(vec3_cast(self.camera.position), vec3_cast(self.camera.forward));
+        let mut new_block_target = None;
+        for intersect in ray.blocks().take(300) {
+            let (chunk, index) = intersect.block.pos_in_chunk();
+            if let Some(chunk) = self.world_render.get_chunk(chunk) {
+                match self.game_data.blocks().draw_type(chunk.data[index].load()) {
+                    DrawType::FullOpaqueBlock(_) => {
+                        new_block_target = Some(intersect);
+                        break;
+                    }
+                    DrawType::None => {}
+                }
+            } else {
+                break;
+            }
+        }
         if new_block_target != self.block_target {
             self.block_target = new_block_target.clone();
             self.event_sender

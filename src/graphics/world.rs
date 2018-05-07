@@ -4,7 +4,7 @@ use graphics::ChunkUpdateReceiver;
 use glium::texture::CompressedSrgbTexture2dArray;
 use std::sync::mpsc::*;
 use std::collections::{HashMap, HashSet};
-use world::{CHUNK_SIZE, BlockPos, ChunkPos, chunk_at};
+use world::{CHUNK_SIZE, BlockPos, ChunkPos, chunk_at, Chunk};
 use rayon;
 use module::GameData;
 
@@ -103,6 +103,10 @@ impl WorldRender {
             pos.square_distance(player_pos) <= square_render_dist
         });
         self.receive_finished_chunks(facade);
+    }
+
+    pub fn get_chunk(&self, pos: ChunkPos) -> Option<&Chunk> {
+        self.chunk_update_receiver.get_chunk(pos).map(|r| &*r.center)
     }
 
     fn change_player_pos(&mut self, player_pos: ChunkPos) {

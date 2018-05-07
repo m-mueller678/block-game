@@ -71,8 +71,9 @@ impl Ui {
     pub fn run(&mut self, events: &mut EventsLoop) {
         use glium::Surface;
         loop {
-            use time::Duration;
-            events.poll_events(|e| println!("{}",Duration::span(||{self.process_event(e)}).num_microseconds().unwrap()));
+            use time;
+            let t1 = time::precise_time_ns();
+            events.poll_events(|e| self.process_event(e));
             let draw_game = match self.state {
                 UiState::Closing => {
                     break;
@@ -81,18 +82,21 @@ impl Ui {
                 UiState::Menu(ref m) => m.transparent(),
                 UiState::Swapped => unreachable!(),
             };
+            let t2 = time::precise_time_ns();
             if draw_game {
-                self.in_game.update(&self.core);
+                self.in_game.update(&self.core, &self.state);
             }
+            let t3 = time::precise_time_ns();
             let mut target = self.core.display.draw();
             target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
+            let t4 = time::precise_time_ns();
             if draw_game {
                 self.in_game.render(
                     &self.core,
-                    &self.state,
                     &mut target,
                 );
             }
+            let t5 = time::precise_time_ns();
             match self.state {
                 UiState::Closing | UiState::Swapped => unreachable!(),
                 UiState::InGame => {}
@@ -100,7 +104,12 @@ impl Ui {
                     menu.render(&self.core, &mut target);
                 }
             }
+            let t6 = time::precise_time_ns();
             target.finish().unwrap();
+            let t7 = time::precise_time_ns();
+            if (t7 - t1) > 17000000 {
+                println!("{:7.4}, {:7.4}, {:7.4}, {:7.4}, {:7.4}, {:7.4}", (t2 - t1) as f32 / 1000000., (t3 - t2) as f32 / 1000000., (t4 - t3) as f32 / 1000000., (t5 - t4) as f32 / 1000000., (t6 - t5) as f32 / 1000000., (t7 - t6) as f32 / 1000000.);
+            }
         }
     }
 
@@ -118,12 +127,12 @@ impl Ui {
                     WindowEvent::KeyboardInput { input, .. } => {
                         self.core.key_state.update(&input);
                     }
-                    WindowEvent::Focused(b)=>{
-                        if b{
-                            if let UiState::InGame=self.state{
+                    WindowEvent::Focused(b) => {
+                        if b {
+                            if let UiState::InGame = self.state {
                                 self.core.disable_cursor();
                             }
-                        }else{
+                        } else {
                             self.core.enable_cursor();
                         }
                     }

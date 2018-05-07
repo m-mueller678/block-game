@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 use num::Integer;
 use block::{BlockId, LightType};
 use geometry::Direction;
-use geometry::ray::{Ray, BlockIntersection};
 use module::GameData;
 use logging::*;
 use graphics::ChunkUpdateSender;
@@ -98,32 +97,6 @@ impl ChunkMap {
         &self.game_data
     }
 
-    pub fn block_ray_trace(&self,
-                           start: [f32; 3],
-                           direction: [f32; 3],
-                           range: f32)
-                           -> Option<BlockIntersection> {
-        for intersect in Ray::new(start, direction).blocks() {
-            let sq_dist: f32 = intersect
-                .block
-                .0
-                .iter()
-                .map(|x| *x as f32 + 0.5)
-                .zip(start.iter())
-                .map(|x| x.1 - x.0)
-                .map(|x| x * x)
-                .sum();
-            if sq_dist > range * range {
-                return None;
-            }
-            if let Some(id) = self.get_block(intersect.block) {
-                if self.game_data.blocks().is_opaque_draw(id) {
-                    return Some(intersect);
-                }
-            }
-        }
-        unreachable!() // ray block iterator is infinite
-    }
     pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
         self.borrow_chunk(Self::chunk_at(pos))
             .map(|c| c.data[pos].load())

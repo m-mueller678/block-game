@@ -1,5 +1,7 @@
 use std::ops::Deref;
 use geometry::Direction;
+use num::Integer;
+use world::CHUNK_SIZE;
 
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Hash)]
 pub struct ChunkPos(pub [i32; 3]);
@@ -21,6 +23,14 @@ impl ChunkPos {
 impl BlockPos {
     pub fn facing(&self, d: Direction) -> Self {
         BlockPos(d.apply_to_pos(self.0))
+    }
+
+    pub fn pos_in_chunk(&self) -> (ChunkPos, [usize; 3]) {
+        let cs = CHUNK_SIZE as i32;
+        let (xq, xr) = self[0].div_mod_floor(&cs);
+        let (yq, yr) = self[1].div_mod_floor(&cs);
+        let (zq, zr) = self[2].div_mod_floor(&cs);
+        (ChunkPos([xq, yq, zq]), [xr as usize, yr as usize, zr as usize])
     }
 }
 
