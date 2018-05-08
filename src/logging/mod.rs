@@ -3,6 +3,9 @@ use slog_term::*;
 use slog::Drain;
 
 pub use slog::Logger;
+pub use self::performance::Monitor as PerformanceMonitor;
+
+mod performance;
 
 pub fn root_logger()->&'static Logger{
     &ROOT_LOGGER

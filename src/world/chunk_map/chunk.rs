@@ -5,6 +5,7 @@ use num::Integer;
 use world::BlockPos;
 use std::cmp::max;
 use std::ops::{Index, IndexMut};
+use std::sync::atomic::AtomicBool;
 
 pub const CHUNK_SIZE: usize = 32;
 
@@ -24,10 +25,10 @@ impl<T> IndexMut<BlockPos> for ChunkArray<T> {
     fn index_mut(&mut self, idx: BlockPos) -> &mut T {
         let cs = CHUNK_SIZE as i32;
         &mut self.0[idx[0].mod_floor(&cs) as usize][idx[1].mod_floor(&cs) as usize][idx[2]
-                                                                                        .mod_floor(
-            &cs,
-        ) as
-                                                                                        usize]
+            .mod_floor(
+                &cs,
+            ) as
+            usize]
     }
 }
 
@@ -48,6 +49,7 @@ pub struct Chunk {
     pub data: ChunkArray<AtomicBlockId>,
     pub artificial_light: ChunkArray<LightState>,
     pub natural_light: ChunkArray<LightState>,
+    pub is_in_update_queue: AtomicBool,
 }
 
 impl Chunk {

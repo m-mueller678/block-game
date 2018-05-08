@@ -1,5 +1,6 @@
 use glium::glutin::*;
 use glium::backend::glutin::Display;
+use logging::PerformanceMonitor;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
 use world::World;
@@ -41,6 +42,7 @@ pub struct Ui {
     state: UiState,
     core: UiCore,
     in_game: GameUi,
+    perf: PerformanceMonitor,
 }
 
 impl Ui {
@@ -65,15 +67,24 @@ impl Ui {
             ),
             core: core,
             state: UiState::InGame,
+            perf: PerformanceMonitor::new("ui loop".into(), 40000000, 16700000, &[
+                ("events", 3000000, 500000),
+                ("decide draw game", 100000, 50000),
+                ("game update", 10000000, 1000000),
+                ("frame creation", 40000000, 40000000),
+                ("game render", 3000000, 1000000),
+                ("menu render", 1000000, 500000),
+                ("frame finish", 40000000, 40000000),
+            ]),
         }
     }
 
     pub fn run(&mut self, events: &mut EventsLoop) {
         use glium::Surface;
         loop {
-            use time;
-            let t1 = time::precise_time_ns();
+            self.perf.start_run();
             events.poll_events(|e| self.process_event(e));
+            self.perf.action_complete();
             let draw_game = match self.state {
                 UiState::Closing => {
                     break;
@@ -82,21 +93,21 @@ impl Ui {
                 UiState::Menu(ref m) => m.transparent(),
                 UiState::Swapped => unreachable!(),
             };
-            let t2 = time::precise_time_ns();
+            self.perf.action_complete();
             if draw_game {
                 self.in_game.update(&self.core, &self.state);
             }
-            let t3 = time::precise_time_ns();
+            self.perf.action_complete();
             let mut target = self.core.display.draw();
             target.clear_color_and_depth((0.5, 0.5, 0.5, 1.), 1.0);
-            let t4 = time::precise_time_ns();
+            self.perf.action_complete();
             if draw_game {
                 self.in_game.render(
                     &self.core,
                     &mut target,
                 );
             }
-            let t5 = time::precise_time_ns();
+            self.perf.action_complete();
             match self.state {
                 UiState::Closing | UiState::Swapped => unreachable!(),
                 UiState::InGame => {}
@@ -104,12 +115,10 @@ impl Ui {
                     menu.render(&self.core, &mut target);
                 }
             }
-            let t6 = time::precise_time_ns();
+            self.perf.action_complete();
             target.finish().unwrap();
-            let t7 = time::precise_time_ns();
-            if (t7 - t1) > 17000000 {
-                println!("{:7.4}, {:7.4}, {:7.4}, {:7.4}, {:7.4}, {:7.4}", (t2 - t1) as f32 / 1000000., (t3 - t2) as f32 / 1000000., (t4 - t3) as f32 / 1000000., (t5 - t4) as f32 / 1000000., (t6 - t5) as f32 / 1000000., (t7 - t6) as f32 / 1000000.);
-            }
+            self.perf.action_complete();
+            self.perf.end_run();
         }
     }
 

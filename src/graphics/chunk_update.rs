@@ -1,4 +1,4 @@
-use std::sync::{Arc, Weak};
+use std::sync::{Arc, Weak, atomic::Ordering};
 use std::sync::mpsc::*;
 use std::collections::hash_map::{HashMap, Entry};
 use world::{ChunkPos, Chunk};
@@ -38,6 +38,8 @@ impl ChunkUpdateReceiver {
     pub fn poll_chunk_update(&mut self) -> Option<ChunkPos> {
         if let Some(c) = self.try_recv() {
             let pos = c.pos;
+            //relaxed ordering because synchronised by channel
+            c.chunk.is_in_update_queue.store(false, Ordering::Relaxed);
             self.insert_chunk_to_map(c);
             Some(pos)
         } else {
@@ -108,7 +110,11 @@ mod sender {
     impl ChunkUpdateSender {
         // take mutable reference to guarantee Sync safety
         pub fn send(&mut self, pos: ChunkPos, chunk: &Arc<Chunk>) {
-            self.send.send(ChunkUpdate { pos, chunk: chunk.clone() }).unwrap();
+            use std::sync::atomic::Ordering;
+            //relaxed ordering because synchronised by channel
+            if !chunk.is_in_update_queue.swap(true, Ordering::Relaxed) {
+                self.send.send(ChunkUpdate { pos, chunk: chunk.clone() }).unwrap();
+            }
         }
     }
 

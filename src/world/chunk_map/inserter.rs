@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, atomic::AtomicBool};
 use threadpool::ThreadPool;
 use block::*;
 use geometry::{Direction, ALL_DIRECTIONS};
@@ -117,6 +117,7 @@ impl Inserter {
                     natural_light: Default::default(),
                     data: *chunk.data,
                     artificial_light: Default::default(),
+                    is_in_update_queue: AtomicBool::new(false),
                 }),
             );
             for source in &chunk.light_sources {
