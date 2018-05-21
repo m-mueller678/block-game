@@ -46,6 +46,7 @@ mod physics;
 mod player;
 mod item;
 mod logging;
+mod debug;
 
 mod base_module;
 

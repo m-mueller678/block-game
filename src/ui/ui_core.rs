@@ -6,6 +6,7 @@ use glium::glutin::{MouseCursor, CursorState};
 use graphics::*;
 use super::KeyboardState;
 
+const DISABLE_MOUSE_GRABBING: bool = true;
 
 pub struct UiCore {
     pub display: Display,
@@ -51,12 +52,18 @@ impl UiCore {
     }
 
     pub fn enable_cursor(&mut self) {
+        if DISABLE_MOUSE_GRABBING {
+            return;
+        }
         self.set_cursor_state(CursorState::Normal);
         let win = self.display.gl_window();
         win.set_cursor(MouseCursor::Default);
     }
 
     pub fn disable_cursor(&mut self) {
+        if DISABLE_MOUSE_GRABBING {
+            return;
+        }
         self.set_cursor_state(CursorState::Grab);
         let win = self.display.gl_window();
         win.set_cursor(MouseCursor::NoneCursor);
