@@ -55,7 +55,7 @@ impl Ui {
         player: Arc<Player>,
         player_pos: PositionInterpolator,
     ) -> Self {
-        let core = UiCore::new(display, textures);
+        let mut core = UiCore::new(display, textures);
         core.disable_cursor();
         Ui {
             in_game: GameUi::new(
@@ -84,6 +84,7 @@ impl Ui {
         loop {
             self.perf.start_run();
             events.poll_events(|e| self.process_event(e));
+            self.core.update();
             self.perf.action_complete();
             let draw_game = match self.state {
                 UiState::Closing => {

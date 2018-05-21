@@ -2,7 +2,7 @@ use glium::texture::CompressedSrgbTexture2dArray;
 use block_texture_loader::TextureLoader;
 use glium::backend::glutin::Display;
 use glium_text_rusttype::TextSystem;
-use glium::glutin::{MouseCursor,CursorState};
+use glium::glutin::{MouseCursor, CursorState};
 use graphics::*;
 use super::KeyboardState;
 
@@ -15,7 +15,9 @@ pub struct UiCore {
     pub mouse_position: [f32; 2],
     pub font_texture: FontTextureHandle,
     pub text_system: TextSystem,
-    pub window_size:(u32,u32),
+    pub window_size: (u32, u32),
+
+    pending_cursor_change: Option<CursorState>,
 }
 
 impl UiCore {
@@ -28,7 +30,7 @@ impl UiCore {
                 exit(1)
             }
         };
-        let window_size=display.gl_window().get_inner_size().unwrap();
+        let window_size = display.gl_window().get_inner_size().unwrap();
         UiCore {
             shader: shader,
             textures: textures.load(&display),
@@ -38,18 +40,34 @@ impl UiCore {
             text_system: TextSystem::new(&display),
             window_size,
             display,
+            pending_cursor_change: None,
         }
     }
 
-    pub fn enable_cursor(&self){
-        let win=self.display.gl_window();
-        win.set_cursor(MouseCursor::Default);
-        win.set_cursor_state(CursorState::Normal).unwrap();
+    pub fn update(&mut self) {
+        if let Some(s) = self.pending_cursor_change {
+            self.set_cursor_state(s);
+        }
     }
 
-    pub fn disable_cursor(&self){
-        let win=self.display.gl_window();
+    pub fn enable_cursor(&mut self) {
+        self.set_cursor_state(CursorState::Normal);
+        let win = self.display.gl_window();
+        win.set_cursor(MouseCursor::Default);
+    }
+
+    pub fn disable_cursor(&mut self) {
+        self.set_cursor_state(CursorState::Grab);
+        let win = self.display.gl_window();
         win.set_cursor(MouseCursor::NoneCursor);
-        win.set_cursor_state(CursorState::Grab).unwrap();
+    }
+
+    fn set_cursor_state(&mut self, state: CursorState) {
+        let win = self.display.gl_window();
+        if win.set_cursor_state(state).is_err() {
+            self.pending_cursor_change = Some(state);
+        } else {
+            self.pending_cursor_change = None;
+        }
     }
 }
