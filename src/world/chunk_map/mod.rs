@@ -1,4 +1,4 @@
-use std::collections::hash_map::*;
+use chashmap::{CHashMap, ReadGuard};
 use std::sync::{Arc, Mutex};
 use num::Integer;
 use block::{BlockId, LightType};
@@ -12,15 +12,17 @@ mod position;
 mod lighting;
 mod atomic_light;
 mod chunk;
+mod chunk_cache;
 
 pub use self::position::*;
 pub use self::inserter::Inserter;
 pub use self::chunk::*;
+pub use self::chunk_cache::ChunkCache;
 
 use self::lighting::*;
 
 pub struct ChunkMap {
-    chunks: HashMap<[i32; 3], Arc<Chunk>>,
+    chunks: CHashMap<[i32; 3], Arc<Chunk>>,
     game_data: GameData,
     logger: Logger,
     graphics_update_sender: Mutex<ChunkUpdateSender>,
@@ -29,13 +31,13 @@ pub struct ChunkMap {
 impl ChunkMap {
     pub fn new(game_data: GameData, update: ChunkUpdateSender) -> Self {
         ChunkMap {
-            chunks: HashMap::new(),
+            chunks: CHashMap::new(),
             game_data: game_data,
             logger: root_logger().clone(),
             graphics_update_sender: Mutex::new(update),
         }
     }
-    pub fn remove_chunk(&mut self, pos: ChunkPos) -> Option<Arc<Chunk>> {
+    pub fn remove_chunk(&self, pos: ChunkPos) -> Option<Arc<Chunk>> {
         self.chunks.remove(&[pos[0], pos[1], pos[2]])
     }
     pub fn set_block(&self, pos: BlockPos, block: BlockId) -> Result<(), ()> {
@@ -205,11 +207,11 @@ impl ChunkMap {
     }
     fn update_render(&self, pos: ChunkPos) {
         if let Some(chunk) = self.chunks.get(&*pos) {
-            self.graphics_update_sender.lock().unwrap().send(pos, chunk);
+            self.graphics_update_sender.lock().unwrap().send(pos, &*chunk);
         }
     }
-    fn borrow_chunk(&self, p: ChunkPos) -> Option<&Chunk> {
-        self.chunks.get(&[p[0], p[1], p[2]]).map(|b| b.as_ref())
+    fn borrow_chunk(&self, p: ChunkPos) -> Option<ReadGuard<[i32; 3], Arc<Chunk>>> {
+        self.chunks.get(&[p[0], p[1], p[2]])
     }
 }
 

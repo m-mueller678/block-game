@@ -108,7 +108,7 @@ impl Inserter {
         }
     }
 
-    pub fn push_to_world(&self, chunks: &mut ChunkMap) {
+    pub fn push_to_world(&self, chunks: &ChunkMap) {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             chunks.chunks.insert(
@@ -176,7 +176,7 @@ impl Inserter {
                             insert_pos[2] * cs + z as i32,
                         ],
                     );
-                    if inserted_cache.chunk.natural_light[[x, 0, z]].level() != MAX_NATURAL_LIGHT {
+                    if inserted_cache.chunk().natural_light[[x, 0, z]].level() != MAX_NATURAL_LIGHT {
                         remove_light_rec(&mut lm, abs_pos, Direction::NegY, &mut relight);
                     }
                 }

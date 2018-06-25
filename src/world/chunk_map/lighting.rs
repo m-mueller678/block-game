@@ -183,7 +183,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
             self.world
                 .game_data
                 .blocks()
-                .light_type(self.cache.chunk.data[pos].load())
+                .light_type(self.cache.chunk().data[pos].load())
                 .is_opaque()
         }
     }
@@ -195,13 +195,13 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
         {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.artificial_light[pos];
+            let atomic_light = &self.cache.chunk().artificial_light[pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
     fn set_light(&mut self, pos: BlockPos, light: Light) {
-        self.cache.chunk.artificial_light[pos].set(light.0, light.1);
+        self.cache.chunk().artificial_light[pos].set(light.0, light.1);
         self.world.update_render(self.cache.pos());
         self.world.update_adjacent_chunks(pos);
     }
@@ -213,7 +213,7 @@ impl<'a> LightMap for ArtificialLightMap<'a> {
             0
         } else {
             match *self.world.game_data.blocks().light_type(
-                self.cache.chunk.data[pos]
+                self.cache.chunk().data[pos]
                     .load(),
             ) {
                 LightType::Source(s) => s,
@@ -245,7 +245,7 @@ impl<'a> LightMap for NaturalLightMap<'a> {
             self.world
                 .game_data
                 .blocks()
-                .light_type(self.cache.chunk.data[pos].load())
+                .light_type(self.cache.chunk().data[pos].load())
                 .is_opaque()
         }
     }
@@ -254,13 +254,13 @@ impl<'a> LightMap for NaturalLightMap<'a> {
         if self.cache.load(chunk_at(pos), self.world).is_err() {
             (0, None)
         } else {
-            let atomic_light = &self.cache.chunk.natural_light[pos];
+            let atomic_light = &self.cache.chunk().natural_light[pos];
             (atomic_light.level(), atomic_light.direction())
         }
     }
 
     fn set_light(&mut self, pos: BlockPos, light: Light) {
-        self.cache.chunk.natural_light[pos].set(light.0, light.1);
+        self.cache.chunk().natural_light[pos].set(light.0, light.1);
         self.world.update_render(self.cache.pos());
         self.world.update_adjacent_chunks(pos);
     }

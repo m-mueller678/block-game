@@ -1,5 +1,4 @@
 use super::atomic_light::LightState;
-use super::{ChunkPos, ChunkMap};
 use block::AtomicBlockId;
 use num::Integer;
 use world::BlockPos;
@@ -58,34 +57,5 @@ impl Chunk {
             self.artificial_light[pos].level(),
             self.natural_light[pos].level(),
         )
-    }
-}
-
-pub struct ChunkCache<'a> {
-    pos: ChunkPos,
-    pub chunk: &'a Chunk,
-}
-
-impl<'a> ChunkCache<'a> {
-    pub fn new<'b: 'a>(pos: ChunkPos, chunks: &'b ChunkMap) -> Result<Self, ()> {
-        if let Some(cref) = chunks.borrow_chunk(pos) {
-            Ok(ChunkCache {
-                pos: pos,
-                chunk: cref,
-            })
-        } else {
-            Err(())
-        }
-    }
-    pub fn load<'b: 'a>(&mut self, pos: ChunkPos, chunks: &'b ChunkMap) -> Result<(), ()> {
-        if pos == self.pos {
-            Ok(())
-        } else {
-            *self = Self::new(pos, chunks)?;
-            Ok(())
-        }
-    }
-    pub fn pos(&self) -> ChunkPos {
-        self.pos
     }
 }
