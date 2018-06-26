@@ -1,7 +1,7 @@
 use std::collections::hash_map::*;
 use std::collections::hash_set::*;
 use std::sync::{Arc, Mutex};
-use super::{ChunkPos, ChunkMap, Inserter};
+use super::{ChunkPos, World};
 
 struct InnerMap {
     map: HashMap<ChunkPos, u32>,
@@ -38,15 +38,19 @@ impl InnerMap {
             panic!("load map count decreased below zero");
         }
     }
-    fn apply_to_world(&mut self, map: &ChunkMap, inserter: &Inserter) {
+    fn apply_to_world(&mut self, map: &World) {
         for pos in self.new_unloaded.drain() {
-            if map.remove_chunk(pos).is_none() {
-                inserter.cancel_insertion(pos).unwrap();
+            if map.chunks.remove_chunk(pos).is_none() {
+                map.inserter.cancel_insertion(pos).unwrap();
+            } else {
+                map.block_controllers.unload_chunk(pos);
             }
         }
-        inserter.push_to_world(map);
+        map.inserter.push_to_world(&map.chunks, |pos| {
+            map.block_controllers.enable_chunk(pos);
+        });
         for pos in self.new_loaded.drain() {
-            inserter.insert(pos, map);
+            map.inserter.insert(pos, &map.chunks);
         }
     }
 }
@@ -81,8 +85,8 @@ impl LoadMap {
             size: radius,
         }
     }
-    pub fn apply_to_world(&self, map: &ChunkMap, inserter: &Inserter) {
-        self.loaded.lock().unwrap().apply_to_world(map, inserter);
+    pub fn apply_to_world(&self, map: &World) {
+        self.loaded.lock().unwrap().apply_to_world(map);
     }
 }
 

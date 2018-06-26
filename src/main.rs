@@ -115,7 +115,6 @@ fn main() {
                             if button == MouseButton::Right {
                                 if let Some(ref block_target) = block_target {
                                     world
-                                        .read()
                                         .set_block(
                                             block_target.block.facing(block_target.face),
                                             block_light,
@@ -139,16 +138,15 @@ fn main() {
                     }
                 }
                 if let Some(block_target) = block_target.clone() {
-                    let read_guard = world.read();
                     if let Some(pressed_since) = mouse_pressed_since[0] {
                         if (SteadyTime::now() - pressed_since).num_milliseconds() > 500 {
-                            read_guard
+                            world
                                 .set_block(block_target.block, BlockId::empty())
                                 .is_ok();
                         }
                     } else if let Some(pressed_since) = mouse_pressed_since[1] {
                         if (SteadyTime::now() - pressed_since).num_milliseconds() > 500 {
-                            read_guard
+                            world
                                 .set_block(
                                     block_target.block.facing(block_target.face),
                                     block_light,
@@ -158,7 +156,7 @@ fn main() {
                     }
                 }
                 world.flush_chunk();
-                player.tick(world.time().current_tick(), &world.read());
+                player.tick(world.time().current_tick(), &world);
                 let tick_end_time = SteadyTime::now();
                 let real_tick_duration = tick_end_time - tick_start_time;
                 let planned_tick_duration = Duration::nanoseconds((TICK_TIME * 1e9) as i64);

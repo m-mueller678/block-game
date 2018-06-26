@@ -234,12 +234,11 @@ impl GameUi {
                 self.block_target.clone().map(|t| (t.block, t.face))
                     {
                         let facing_block = target.facing(direction);
-                        let world_r = self.world.read();
                         println!(" ({:?})", facing_block);
                         if let (Some(id), Some(nl), Some(al)) = (
-                            world_r.get_block(target),
-                            world_r.natural_light(facing_block),
-                            world_r.artificial_light(facing_block)
+                            self.world.get_block(target),
+                            self.world.natural_light(facing_block),
+                            self.world.artificial_light(facing_block)
                         ) {
                             println!("id: {:?}\nnatural light: {:?}, artificial light: {:?}", id, nl, al);
                         }

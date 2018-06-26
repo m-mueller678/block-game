@@ -51,11 +51,10 @@ where
         let pos = (self.player_position)();
         let mut faces = Vec::with_capacity((self.range as usize * 2 + 1).pow(2));
         for x in (pos[0] - self.range)..(pos[0] + self.range) {
-            let world = self.world.read();
             for z in (pos[2] - self.range)..(pos[2] + self.range) {
                 for dy in 0..self.range {
-                    match world.get_block(BlockPos([x, pos[1] - dy, z])).map(|id| {
-                        world.game_data().blocks().draw_type(id)
+                    match self.world.get_block(BlockPos([x, pos[1] - dy, z])).map(|id| {
+                        self.world.game_data().blocks().draw_type(id)
                     }) {
                         None |
                         Some(DrawType::None) => {}

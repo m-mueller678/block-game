@@ -108,7 +108,7 @@ impl Inserter {
         }
     }
 
-    pub fn push_to_world(&self, chunks: &ChunkMap) {
+    pub fn push_to_world<F: Fn(ChunkPos)>(&self, chunks: &ChunkMap, on_insert: F) {
         let mut sources_to_trigger = UpdateQueue::new();
         let insert_pos = if let Some(chunk) = self.shared.1.lock().unwrap().chunks.pop_front() {
             chunks.chunks.insert(
@@ -120,6 +120,7 @@ impl Inserter {
                     is_in_update_queue: AtomicBool::new(false),
                 }),
             );
+            on_insert(chunk.pos);
             for source in &chunk.light_sources {
                 sources_to_trigger.push(source.1, source.0, None);
             }

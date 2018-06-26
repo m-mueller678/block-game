@@ -95,9 +95,6 @@ impl ChunkMap {
                   pos[1].div_floor(&(CHUNK_SIZE as i32)),
                   pos[2].div_floor(&(CHUNK_SIZE as i32))])
     }
-    pub fn game_data(&self) -> &GameData {
-        &self.game_data
-    }
 
     pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
         self.borrow_chunk(Self::chunk_at(pos))

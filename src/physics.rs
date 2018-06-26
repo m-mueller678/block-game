@@ -1,4 +1,4 @@
-use world::{BlockPos, WorldReadGuard};
+use world::{BlockPos, World};
 use TICK_TIME;
 
 type V3 = [f64; 3];
@@ -36,7 +36,7 @@ impl Object {
         self.on_ground
     }
 
-    pub fn tick(&mut self, collision_world: Option<&WorldReadGuard>, gravity: bool) {
+    pub fn tick(&mut self, collision_world: Option<&World>, gravity: bool) {
         use vecmath::*;
         if gravity {
             self.v[1] -= TICK_TIME * 10.;
@@ -55,7 +55,7 @@ impl Object {
         self.p
     }
 
-    fn move_axis(&mut self, axis: usize, world: &WorldReadGuard) {
+    fn move_axis(&mut self, axis: usize, world: &World) {
         use std::f64;
         if self.v[axis].abs() < 1e-6 {
             return;
@@ -150,7 +150,7 @@ fn get_block_collision(
     move_axis: usize,
     move_positive: bool,
     p: BlockPos,
-    world: &WorldReadGuard,
+    world: &World,
 ) -> f64 {
     use block::BlockId;
     use std::f64;

@@ -1,4 +1,4 @@
-use world::{WorldReadGuard, timekeeper::TickId};
+use world::{World, timekeeper::TickId};
 use physics::Object as PhysObject;
 use item::{SlotStorage, Slot};
 use std::sync::Mutex;
@@ -74,7 +74,7 @@ impl Player {
         }
     }
 
-    pub fn tick(&self, tick: TickId, world: &WorldReadGuard) {
+    pub fn tick(&self, tick: TickId, world: &World) {
         use vecmath::{vec3_add, vec3_scale};
         let position = {
             let mut physics = self.physics.lock().unwrap();

@@ -6,7 +6,7 @@ use world::CHUNK_SIZE;
 #[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Hash)]
 pub struct ChunkPos(pub [i32; 3]);
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Hash)]
 pub struct BlockPos(pub [i32; 3]);
 
 impl ChunkPos {
