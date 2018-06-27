@@ -1,5 +1,6 @@
 mod chunk_map;
 mod chunk_loading;
+mod inserter;
 
 pub mod random;
 pub mod biome;
@@ -10,6 +11,7 @@ pub mod block_controller;
 pub use self::random::{WorldRngSeeder, WorldGenRng};
 pub use self::chunk_map::{ChunkPos, Chunk, CHUNK_SIZE, BlockPos, chunk_at, ChunkArray};
 pub use self::chunk_loading::LoadGuard;
+pub use self::block_controller::{CreateError, BlockController};
 
 use block::AtomicBlockId;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -19,7 +21,8 @@ use module::GameData;
 use graphics::ChunkUpdateSender;
 use block::BlockId;
 use geometry::Direction;
-use self::chunk_map::{ChunkMap, Inserter};
+use self::chunk_map::{ChunkMap};
+use self::inserter::Inserter;
 use self::block_controller::BlockControllerMap;
 
 pub type TimeGuard<'a> = MutexGuard<'a, Timekeeper>;

@@ -2,12 +2,11 @@ use chashmap::{CHashMap, ReadGuard};
 use std::sync::{Arc, Mutex};
 use num::Integer;
 use block::{BlockId, LightType};
-use geometry::Direction;
+use geometry::{Direction, ALL_DIRECTIONS};
 use module::GameData;
 use logging::*;
 use graphics::ChunkUpdateSender;
 
-mod inserter;
 mod position;
 mod lighting;
 mod atomic_light;
@@ -15,7 +14,6 @@ mod chunk;
 mod chunk_cache;
 
 pub use self::position::*;
-pub use self::inserter::Inserter;
 pub use self::chunk::*;
 pub use self::chunk_cache::ChunkCache;
 
@@ -78,7 +76,7 @@ impl ChunkMap {
             }
             self.update_render(chunk_pos);
             if self.game_data.blocks().is_opaque_draw(before) ^
-               self.game_data.blocks().is_opaque_draw(block) {
+                self.game_data.blocks().is_opaque_draw(block) {
                 self.update_adjacent_chunks(pos);
             }
             Ok(())
@@ -92,8 +90,8 @@ impl ChunkMap {
     pub fn chunk_at(pos: BlockPos) -> ChunkPos {
         use num::Integer;
         ChunkPos([pos[0].div_floor(&(CHUNK_SIZE as i32)),
-                  pos[1].div_floor(&(CHUNK_SIZE as i32)),
-                  pos[2].div_floor(&(CHUNK_SIZE as i32))])
+            pos[1].div_floor(&(CHUNK_SIZE as i32)),
+            pos[2].div_floor(&(CHUNK_SIZE as i32))])
     }
 
     pub fn get_block(&self, pos: BlockPos) -> Option<BlockId> {
@@ -114,6 +112,73 @@ impl ChunkMap {
             Some((light.level(), light.direction()))
         } else {
             None
+        }
+    }
+
+    pub fn insert_chunk(&self, insert_pos: ChunkPos, chunk: Arc<Chunk>, light_sources: &[(BlockPos, u8)]) {
+        let mut sources_to_trigger = UpdateQueue::new();
+        self.chunks.insert([insert_pos[0], insert_pos[1], insert_pos[2]], chunk);
+        for source in light_sources {
+            sources_to_trigger.push(source.1, source.0, None);
+        }
+
+        let cs = CHUNK_SIZE as i32;
+        let mut sky_light = UpdateQueue::new();
+        if !self.chunk_loaded(insert_pos.facing(Direction::PosY)) {
+            for x in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    let abs_pos = BlockPos(
+                        [
+                            cs * insert_pos[0] + x as i32,
+                            cs * insert_pos[1] + cs - 1,
+                            cs * insert_pos[2] + z as i32,
+                        ],
+                    );
+                    sky_light.push(MAX_NATURAL_LIGHT, abs_pos, Some(Direction::NegY));
+                }
+            }
+        }
+        for face in &ALL_DIRECTIONS {
+            let facing = insert_pos.facing(*face);
+            if self.chunk_loaded(facing) {
+                self.trigger_chunk_face_brightness(
+                    facing,
+                    face.invert(),
+                    &mut sources_to_trigger,
+                    &mut sky_light,
+                );
+                self.update_render(facing);
+            }
+        }
+        increase_light(
+            &mut self.artificial_lightmap(insert_pos),
+            sources_to_trigger,
+        );
+        increase_light(&mut self.natural_lightmap(insert_pos), sky_light);
+
+        //block natural light in chunk below
+        if self.chunk_loaded(insert_pos.facing(Direction::NegY)) {
+            let mut relight = RelightData::new();
+            let mut lm = self.natural_lightmap(insert_pos);
+            let inserted_cache = ChunkCache::new(insert_pos, &self).unwrap();
+            for x in 0..CHUNK_SIZE {
+                for z in 0..CHUNK_SIZE {
+                    let abs_pos = BlockPos(
+                        [
+                            insert_pos[0] * cs + x as i32,
+                            insert_pos[1] * cs - 1,
+                            insert_pos[2] * cs + z as i32,
+                        ],
+                    );
+                    if inserted_cache.chunk().natural_light[[x, 0, z]].level() != MAX_NATURAL_LIGHT {
+                        remove_light_rec(&mut lm, abs_pos, Direction::NegY, &mut relight);
+                    }
+                }
+            }
+            increase_light(
+                &mut self.natural_lightmap(insert_pos.facing(Direction::NegY)),
+                relight.build_queue(&mut lm),
+            );
         }
     }
     fn artificial_lightmap(&self, p: ChunkPos) -> ArtificialLightMap {
@@ -160,8 +225,8 @@ impl ChunkMap {
         for (i, brightness) in brightness.iter_mut().enumerate() {
             for (j, brightness) in brightness.iter_mut().enumerate() {
                 let mut block_pos = BlockPos([pos[0] * chunk_size,
-                                              pos[1] * chunk_size,
-                                              pos[2] * chunk_size]);
+                    pos[1] * chunk_size,
+                    pos[2] * chunk_size]);
                 block_pos.0[d1] += i as i32;
                 block_pos.0[d2] += j as i32;
                 block_pos.0[face_direction] += if positive { CHUNK_SIZE as i32 } else { -1 };

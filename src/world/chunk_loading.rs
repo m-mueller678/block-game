@@ -1,7 +1,7 @@
 use std::collections::hash_map::*;
 use std::collections::hash_set::*;
 use std::sync::{Arc, Mutex};
-use super::{ChunkPos, World};
+use super::{ChunkPos, World, inserter::ChunkOperation};
 
 struct InnerMap {
     map: HashMap<ChunkPos, u32>,
@@ -21,6 +21,7 @@ impl InnerMap {
             }
         }
     }
+
     fn dec(&mut self, pos: ChunkPos) {
         if let Entry::Occupied(mut o) = self.map.entry(pos) {
             let new_count = {
@@ -38,19 +39,27 @@ impl InnerMap {
             panic!("load map count decreased below zero");
         }
     }
+
+    /// load and unload chunks
+    /// all loading and unloading should be done by this function
+    /// assumes no other load or unload operations are performed while this function is running
     fn apply_to_world(&mut self, map: &World) {
         for pos in self.new_unloaded.drain() {
-            if map.chunks.remove_chunk(pos).is_none() {
-                map.inserter.cancel_insertion(pos).unwrap();
-            } else {
+            map.inserter.cancel(pos);
+            if map.chunks.chunk_loaded(pos) {
                 map.block_controllers.unload_chunk(pos);
+                map.chunks.remove_chunk(pos);
             }
         }
-        map.inserter.push_to_world(&map.chunks, |pos| {
-            map.block_controllers.enable_chunk(pos);
+        map.inserter.poll(map, |pos| {
+            if self.map.get(&pos).cloned().unwrap_or(0) > 0 {
+                ChunkOperation::Insert
+            } else {
+                ChunkOperation::Discard
+            }
         });
         for pos in self.new_loaded.drain() {
-            map.inserter.insert(pos, &map.chunks);
+            map.inserter.request(pos, &map.chunks);
         }
     }
 }
