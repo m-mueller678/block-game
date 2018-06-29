@@ -1,4 +1,5 @@
-use time::SteadyTime;
+use time::{SteadyTime, Duration};
+use std::thread;
 use TICK_TIME;
 
 const AVERAGE_TICK_COUNT: u64 = 8;
@@ -12,6 +13,9 @@ impl TickId {
     }
     pub fn next(self) -> Self {
         TickId(self.0 + 1)
+    }
+    pub fn ticks_since(self, other: Self) -> u64 {
+        self.0 - other.0
     }
 }
 
@@ -41,10 +45,18 @@ impl Timekeeper {
     }
 
     pub fn next_tick(&mut self) {
-        let now = SteadyTime::now();
-        let duration = (now - self.previous_tick).num_nanoseconds().unwrap_or(0) as u64;
+        let tick_duration = Duration::milliseconds(50);
+
+        let mut now = SteadyTime::now();
+        let mut duration = now - self.previous_tick;
+        let wait = tick_duration - duration;
+        if let Ok(wait_std) = wait.to_std() {
+            thread::sleep(wait_std);
+            duration = tick_duration;
+            now = now + wait;
+        }
         self.average_tick_nanoseconds *= AVERAGE_TICK_COUNT - 1;
-        self.average_tick_nanoseconds += duration;
+        self.average_tick_nanoseconds += duration.num_nanoseconds().unwrap_or(i64::max_value()) as u64;
         self.average_tick_nanoseconds /= AVERAGE_TICK_COUNT;
         self.previous_tick = now;
         self.tick = self.tick.next();

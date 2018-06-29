@@ -1,6 +1,7 @@
 mod chunk_map;
 mod chunk_loading;
 mod inserter;
+mod tick_executor;
 
 pub mod random;
 pub mod biome;
@@ -12,6 +13,7 @@ pub use self::random::{WorldRngSeeder, WorldGenRng};
 pub use self::chunk_map::{ChunkPos, Chunk, CHUNK_SIZE, BlockPos, chunk_at, ChunkArray};
 pub use self::chunk_loading::LoadGuard;
 pub use self::block_controller::{CreateError, BlockController};
+pub use self::tick_executor::{TickFunction, TickFunctionResult};
 
 use block::AtomicBlockId;
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -24,6 +26,7 @@ use geometry::Direction;
 use self::chunk_map::{ChunkMap};
 use self::inserter::Inserter;
 use self::block_controller::BlockControllerMap;
+use self::tick_executor::TickExecutor;
 
 pub type TimeGuard<'a> = MutexGuard<'a, Timekeeper>;
 
@@ -34,6 +37,7 @@ pub struct World {
     loaded: LoadMap,
     game_data: GameData,
     time: Mutex<Timekeeper>,
+    tick_executor: TickExecutor,
 }
 
 impl World {
@@ -45,6 +49,7 @@ impl World {
             loaded: LoadMap::new(),
             game_data,
             time: Mutex::new(Timekeeper::new()),
+            tick_executor: TickExecutor::new(),
         }
     }
 
@@ -78,5 +83,14 @@ impl World {
 
     pub fn flush_chunk(&self) {
         self.loaded.apply_to_world(&self);
+    }
+
+    pub fn run_tick(&self) {
+        let now = self.time().current_tick();
+        self.tick_executor.run(&self, now);
+    }
+
+    pub fn on_tick(&self, f: TickFunction) {
+        self.tick_executor.add(f.into());
     }
 }

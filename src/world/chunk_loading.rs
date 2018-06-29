@@ -117,3 +117,9 @@ impl Drop for LoadGuard {
         }
     }
 }
+
+impl LoadGuard {
+    pub fn center(&self) -> ChunkPos {
+        self.center
+    }
+}
