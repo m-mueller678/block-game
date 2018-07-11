@@ -24,11 +24,8 @@ extern crate slog_term;
 extern crate lazy_static;
 extern crate rayon;
 
-use world::*;
-use std::sync::mpsc::channel;
-use std::sync::Arc;
-use std::thread;
-
+#[macro_use]
+mod logging;
 mod window_util;
 mod graphics;
 mod block;
@@ -40,12 +37,14 @@ mod module;
 mod physics;
 mod player;
 mod item;
-mod logging;
 mod debug;
 
-mod base_module;
+use world::*;
+use std::sync::mpsc::channel;
+use std::sync::Arc;
+use std::thread;
 
-const TICK_TIME: f64 = 1. / 16.;
+mod base_module;
 
 fn main() {
     let (game_data, textures) = module::start([base_module::module()].iter().map(|m| m.init()));

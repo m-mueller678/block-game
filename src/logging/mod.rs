@@ -1,11 +1,14 @@
+#[macro_use]
+mod performance;
+
 use std::sync::Mutex;
 use slog_term::*;
 use slog::Drain;
 
 pub use slog::Logger;
 pub use self::performance::Monitor as PerformanceMonitor;
+pub use self::performance::format_time_nanos;
 
-mod performance;
 
 pub fn root_logger()->&'static Logger{
     &ROOT_LOGGER

@@ -1,5 +1,5 @@
 use world::{BlockPos, World};
-use TICK_TIME;
+use world::timekeeper::TICK_TIME;
 
 type V3 = [f64; 3];
 

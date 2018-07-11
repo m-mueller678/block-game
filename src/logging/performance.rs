@@ -2,9 +2,32 @@ use slog::Logger;
 use logging::root_logger;
 use time::precise_time_ns;
 
-#[cfg(debug_assertions)]
+#[allow(unused_macros)]
+macro_rules! time_statements {
+    ($($statement:stmt;)*)=>{{
+        use time::precise_time_ns;
+        use logging::{root_logger,format_time_nanos};
+        $(
+            let t_start=precise_time_ns();
+            $statement
+            let t_end=precise_time_ns();
+            info!(root_logger(),"action {: >62}_{:_>10}",stringify!($statement),format_time_nanos(t_end-t_start));
+        )*
+    }};
+}
+
+#[allow(dead_code)]
+pub fn format_time_nanos(t: u64) -> String {
+    if t > 10_000_000 {
+        format!("{}ms", t / 1000000)
+    } else {
+        format!("{}µs", t / 1000)
+    }
+}
+
+#[cfg(not(feature = "performance_logging"))]
 const ENABLE_PERFORMANCE_LOGGING: bool = false;
-#[cfg(not(debug_assertions))]
+#[cfg(feature = "performance_logging")]
 const ENABLE_PERFORMANCE_LOGGING: bool = true;
 
 struct ActionEntry {

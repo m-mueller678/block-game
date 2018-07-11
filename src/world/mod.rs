@@ -16,9 +16,9 @@ pub use self::block_controller::{CreateError, BlockController};
 pub use self::tick_executor::{TickFunction, TickFunctionResult};
 
 use block::AtomicBlockId;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::Arc;
 use self::chunk_loading::LoadMap;
-use timekeeper::Timekeeper;
+use self::timekeeper::Timekeeper;
 use module::GameData;
 use graphics::ChunkUpdateSender;
 use block::BlockId;
@@ -28,7 +28,7 @@ use self::inserter::Inserter;
 use self::block_controller::BlockControllerMap;
 use self::tick_executor::TickExecutor;
 
-pub type TimeGuard<'a> = MutexGuard<'a, Timekeeper>;
+pub type TimeGuard<'a> = &'a Timekeeper;
 
 pub struct World {
     chunks: ChunkMap,
@@ -36,7 +36,7 @@ pub struct World {
     inserter: Inserter,
     loaded: LoadMap,
     game_data: GameData,
-    time: Mutex<Timekeeper>,
+    time: Timekeeper,
     tick_executor: TickExecutor,
 }
 
@@ -48,13 +48,13 @@ impl World {
             inserter: Inserter::new(Arc::clone(&game_data)),
             loaded: LoadMap::new(),
             game_data,
-            time: Mutex::new(Timekeeper::new()),
+            time: Timekeeper::new(),
             tick_executor: TickExecutor::new(),
         }
     }
 
     pub fn time(&self) -> TimeGuard {
-        self.time.lock().unwrap()
+        &self.time
     }
 
     pub fn game_data(&self) -> &GameData {

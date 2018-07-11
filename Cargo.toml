@@ -21,3 +21,6 @@ slog = "2.2.3"
 slog-term = "2.4.0"
 lazy_static = "1.0.0"
 rayon = "1.0.1"
+
+[features]
+performance_logging=[]
